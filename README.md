@@ -1,5 +1,7 @@
 # CMetrics
 
+> DISCLAIMER: THIS LIBRARY IS STILL IN ACTIVE DEVELOPMENT
+
 The [CMetrics](https://github.com/calyptia/cmetrics) project is a standalone C library to create and maintain a context of different sets of metrics such as:
 
 - Counters
