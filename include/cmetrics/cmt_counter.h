@@ -35,5 +35,6 @@ struct cmt_counter *cmt_counter_create(struct cmt *cmt,
 int cmt_counter_destroy(struct cmt_counter *counter);
 void cmt_counter_inc(struct cmt_counter *counter);
 void cmt_counter_add(struct cmt_counter *counter, double val);
+double cmt_counter_get_value(struct cmt_counter *counter);
 
 #endif

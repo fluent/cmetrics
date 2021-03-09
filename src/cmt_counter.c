@@ -72,3 +72,11 @@ void cmt_counter_add(struct cmt_counter *counter, double val)
 {
     add(counter, val);
 }
+
+double cmt_counter_get_value(struct cmt_counter *counter)
+{
+    uint64_t val;
+
+    __atomic_load(&counter->val, &val, __ATOMIC_RELAXED);
+    return (double) val;
+}
