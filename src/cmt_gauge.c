@@ -90,3 +90,11 @@ void cmt_gauge_sub(struct cmt_gauge *gauge, double val)
 {
     add(gauge, val * -1);
 }
+
+double cmt_gauge_get_value(struct cmt_gauge *gauge)
+{
+    uint64_t val;
+
+    __atomic_load(&gauge->val, &val, __ATOMIC_RELAXED);
+    return (double) val;
+}

@@ -39,5 +39,6 @@ void cmt_gauge_inc(struct cmt_gauge *gauge);
 void cmt_gauge_dec(struct cmt_gauge *gauge);
 void cmt_gauge_add(struct cmt_gauge *gauge, double val);
 void cmt_gauge_sub(struct cmt_gauge *gauge, double val);
+double cmt_gauge_get_value(struct cmt_gauge *gauge);
 
 #endif
