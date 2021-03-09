@@ -7,7 +7,7 @@ set(src
   )
 
 # Static Library
-add_library(cmetric-static STATIC ${src})
+add_library(cmetrics-static STATIC ${src})
 
 add_executable(cmt-test main.c)
-target_link_libraries(cmt-test cmetric-static)
+target_link_libraries(cmt-test cmetrics-static)
