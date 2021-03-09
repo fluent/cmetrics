@@ -1,5 +1,6 @@
 set(UNIT_TESTS_FILES
   gauge.c
+  counter.c
   )
 
 # Prepare list of unit tests
