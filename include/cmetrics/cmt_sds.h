@@ -176,4 +176,9 @@ static inline cmt_sds_t cmt_sds_cat(cmt_sds_t s, const char *str, int len)
     return s;
 }
 
+static inline cmt_sds_t cmt_sds_create_size(size_t size)
+{
+    return sds_alloc(size);
+}
+
 #endif
