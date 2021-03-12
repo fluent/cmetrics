@@ -53,7 +53,7 @@ struct cmt_counter *cmt_counter_create(struct cmt *cmt,
     }
 
     /* Create the map */
-    counter->map = cmt_map_create(&counter->opts, label_count, label_keys);
+    counter->map = cmt_map_create(CMT_COUNTER, &counter->opts, label_count, label_keys);
     if (!counter->map) {
         cmt_counter_destroy(counter);
         return NULL;
