@@ -21,6 +21,7 @@
 #define CMT_MATH_H
 
 #include <inttypes.h>
+#include <string.h>
 
 /*
  * This is not rocket-science and to make things easier we assume that operating on
@@ -29,12 +30,12 @@
 
 static inline uint64_t cmt_math_d64_to_uint64(double val)
 {
-    return (uint64_t) val;
+    return *(uint64_t *) &val;
 }
 
 static inline double cmt_math_uint64_to_d64(uint64_t val)
 {
-    return (double) val;
+    return *(double *) &val;
 }
 
 #endif
