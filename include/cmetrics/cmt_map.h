@@ -30,7 +30,11 @@ struct cmt_map_label {
 };
 
 struct cmt_map {
+    int type;                   /* Metric type */
+    struct cmt_opts *opts;      /* Reference to parent 'opts' */
+
     /* A map without label keys, uses direct access to the static metric ctx */
+    int metric_static_set;      /* is the static metric set ? */
     struct cmt_metric metric;
 
     /* Used when labels are set */
@@ -39,8 +43,10 @@ struct cmt_map {
     struct mk_list label_keys;  /* Linked list of labels */
 };
 
-struct cmt_map *cmt_map_create(struct cmt_opts *opts, int count, char **labels);
+struct cmt_map *cmt_map_create(int type, struct cmt_opts *opts,
+                               int count, char **labels);
 void cmt_map_destroy(struct cmt_map *map);
+
 struct cmt_metric *cmt_map_metric_get(struct cmt_opts *opts, struct cmt_map *map,
                                       int labels_count, char **labels_val);
 int cmt_map_metric_get_val(struct cmt_opts *opts, struct cmt_map *map,

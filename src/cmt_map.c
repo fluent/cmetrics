@@ -24,7 +24,7 @@
 #include <cmetrics/cmt_hash.h>
 #include <cmetrics/cmt_metric.h>
 
-struct cmt_map *cmt_map_create(struct cmt_opts *opts, int count, char **labels)
+struct cmt_map *cmt_map_create(int type, struct cmt_opts *opts, int count, char **labels)
 {
     int i;
     char *name;
@@ -40,9 +40,16 @@ struct cmt_map *cmt_map_create(struct cmt_opts *opts, int count, char **labels)
         cmt_errno();
         return NULL;
     }
+    map->type = type;
+    map->opts = opts;
     map->label_count = count;
     mk_list_init(&map->label_keys);
     mk_list_init(&map->metrics);
+    mk_list_init(&map->metric.labels);
+
+    if (count == 0) {
+        map->metric_static_set = 1;
+    }
 
     for (i = 0; i < count; i++) {
         label = malloc(sizeof(struct cmt_map_label));
@@ -164,6 +171,7 @@ struct cmt_metric *cmt_map_metric_get(struct cmt_opts *opts, struct cmt_map *map
     if (labels_count == 0 && labels_val == NULL) {
         hash = 0;
         metric = &map->metric;
+        map->metric_static_set = 1;
     }
     else {
         XXH64_reset(&state, 0);
