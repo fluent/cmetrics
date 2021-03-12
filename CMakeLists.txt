@@ -21,6 +21,7 @@ include_directories(
 # xxHash
 set(XXHASH_BUILD_ENABLE_INLINE_API OFF)
 set(XXHASH_BUILD_XXHSUM OFF)
+set(BUILD_SHARED_LIBS OFF)
 add_subdirectory(lib/xxHash-0.8.0/cmake_unofficial EXCLUDE_FROM_ALL)
 
 # Source code
