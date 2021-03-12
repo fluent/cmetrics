@@ -54,7 +54,7 @@ struct cmt_gauge *cmt_gauge_create(struct cmt *cmt,
     }
 
     /* Create the map */
-    gauge->map = cmt_map_create(&gauge->opts, label_count, label_keys);
+    gauge->map = cmt_map_create(CMT_GAUGE, &gauge->opts, label_count, label_keys);
     if (!gauge->map) {
         cmt_gauge_destroy(gauge);
         return NULL;
