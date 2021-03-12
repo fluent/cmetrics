@@ -19,6 +19,7 @@
 
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_counter.h>
+#include <cmetrics/cmt_format_prometheus.h>
 
 #include "cmt_tests.h"
 
@@ -60,6 +61,7 @@ void test_labels()
 {
     int ret;
     double val;
+    cmt_sds_t prom;
     struct cmt *cmt;
     struct cmt_counter *c;
 
@@ -110,14 +112,19 @@ void test_labels()
     TEST_CHECK(val == 1.000);
 
     /* Add 10 to another metric using a different second label */
-    ret = cmt_counter_add(c, 10, 2, (char *[]) {"localhost", "test"});
+    ret = cmt_counter_add(c, 10.55, 2, (char *[]) {"localhost", "test"});
     TEST_CHECK(ret == 0);
 
     /* Validate the value */
     ret = cmt_counter_get_val(c, 2, (char *[]) {"localhost", "test"}, &val);
     TEST_CHECK(ret == 0);
-    TEST_CHECK(val == 10.00);
+    TEST_CHECK(val == 10.55);
 
+    printf("\n");
+
+    prom = cmt_format_prometheus_create(cmt);
+    printf("%s\n", prom);
+    cmt_format_prometheus_destroy(prom);
     cmt_destroy(cmt);
 }
 
