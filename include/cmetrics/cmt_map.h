@@ -34,7 +34,8 @@ struct cmt_map {
     struct cmt_metric metric;
 
     /* Used when labels are set */
-    struct mk_list metrics;     /* Opaque data type for struct cmt_metric */
+    struct mk_list metrics;     /* List of metrics */
+    int label_count;            /* Number of labels */
     struct mk_list label_keys;  /* Linked list of labels */
 };
 

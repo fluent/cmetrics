@@ -31,11 +31,16 @@ struct cmt_map *cmt_map_create(struct cmt_opts *opts, int count, char **labels)
     struct cmt_map *map;
     struct cmt_map_label *label;
 
+    if (count < 0) {
+        return NULL;
+    }
+
     map = calloc(1, sizeof(struct cmt_map));
     if (!map) {
         cmt_errno();
         return NULL;
     }
+    map->label_count = count;
     mk_list_init(&map->label_keys);
     mk_list_init(&map->metrics);
 
@@ -150,6 +155,11 @@ struct cmt_metric *cmt_map_metric_get(struct cmt_opts *opts, struct cmt_map *map
     uint64_t hash;
     XXH64_state_t state;
     struct cmt_metric *metric = NULL;
+
+    /* Enforce zero or exact labels */
+    if (labels_count > 0 && labels_count != map->label_count) {
+        return NULL;
+    }
 
     if (labels_count == 0 && labels_val == NULL) {
         hash = 0;
