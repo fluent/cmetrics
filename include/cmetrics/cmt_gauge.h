@@ -24,21 +24,25 @@
 #include <cmetrics/cmt_opts.h>
 
 struct cmt_gauge {
-    uint64_t val;
-    struct cmt_opts opts;
-    struct mk_list _head;
+    struct cmt_opts opts;  /* Metric options */
+    struct cmt_map *map;
+    struct mk_list _head;  /* Link to list struct cmt->gauges */
 };
 
 struct cmt_gauge *cmt_gauge_create(struct cmt *cmt,
                                    char *namespace, char *subsystem, char *name,
-                                   char *help);
-
+                                   char *help, int label_count, char **label_keys);
 int cmt_gauge_destroy(struct cmt_gauge *gauge);
-void cmt_gauge_set(struct cmt_gauge *gauge, double val);
-void cmt_gauge_inc(struct cmt_gauge *gauge);
-void cmt_gauge_dec(struct cmt_gauge *gauge);
-void cmt_gauge_add(struct cmt_gauge *gauge, double val);
-void cmt_gauge_sub(struct cmt_gauge *gauge, double val);
-double cmt_gauge_get_value(struct cmt_gauge *gauge);
+
+int cmt_gauge_set(struct cmt_gauge *gauge, double val,
+                  int labels_count, char **label_vals);
+int cmt_gauge_inc(struct cmt_gauge *gauge, int labels_count, char **label_vals);
+int cmt_gauge_dec(struct cmt_gauge *gauge, int labels_count, char **label_vals);
+int cmt_gauge_add(struct cmt_gauge *gauge, double val,
+                  int labels_count, char **label_vals);
+int cmt_gauge_sub(struct cmt_gauge *gauge, double val,
+                  int labels_count, char **label_vals);
+int cmt_gauge_get_val(struct cmt_gauge *gauge,
+                      int labels_count, char **label_vals, double *out_val);
 
 #endif

@@ -17,33 +17,11 @@
  *  limitations under the License.
  */
 
-#ifndef CMT_H
-#define CMT_H
+#ifndef CMT_HASH_H
+#define CMT_HASH_H
 
-#define CMT_COUNTER   0
-#define CMT_GAUGE     1
-#define CMT_HISTOGRAM 2
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <inttypes.h>
-#include <monkey/mk_core/mk_list.h>
-
-#include <cmetrics/cmt_math.h>
-#include <cmetrics/cmt_sds.h>
-
-struct cmt {
-    /* logging */
-    int log_level;
-    void (*log_cb)(void *, int, const char *, int, const char *);
-
-    /* Metrics list */
-    struct mk_list counters;
-    struct mk_list gauges;
-    struct mk_list histograms;
-};
-
-struct cmt *cmt_create();
-void cmt_destroy(struct cmt *cmt);
+/* Just a simple wrapper header to simplify xxhash inclusion */
+#define XXH_STATIC_LINKING_ONLY
+#include <xxhash.h>
 
 #endif

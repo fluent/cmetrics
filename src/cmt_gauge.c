@@ -20,12 +20,15 @@
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_log.h>
 #include <cmetrics/cmt_math.h>
+#include <cmetrics/cmt_map.h>
+#include <cmetrics/cmt_metric.h>
 #include <cmetrics/cmt_gauge.h>
 
 struct cmt_gauge *cmt_gauge_create(struct cmt *cmt,
                                    char *namespace, char *subsystem, char *name,
-                                   char *help)
+                                   char *help, int label_count, char **label_keys)
 {
+    int ret;
     struct cmt_gauge *gauge;
 
     if (!name || !help) {
@@ -41,9 +44,21 @@ struct cmt_gauge *cmt_gauge_create(struct cmt *cmt,
         cmt_errno();
         return NULL;
     }
-    gauge->val = 0;
-    cmt_opts_init(&gauge->opts, namespace, subsystem, name, help);
     mk_list_add(&gauge->_head, &cmt->gauges);
+
+    /* Initialize options */
+    ret = cmt_opts_init(&gauge->opts, namespace, subsystem, name, help);
+    if (ret == -1) {
+        cmt_gauge_destroy(gauge);
+        return NULL;
+    }
+
+    /* Create the map */
+    gauge->map = cmt_map_create(&gauge->opts, label_count, label_keys);
+    if (!gauge->map) {
+        cmt_gauge_destroy(gauge);
+        return NULL;
+    }
 
     return gauge;
 }
@@ -52,49 +67,90 @@ int cmt_gauge_destroy(struct cmt_gauge *gauge)
 {
     mk_list_del(&gauge->_head);
     cmt_opts_exit(&gauge->opts);
+    if (gauge->map) {
+        cmt_map_destroy(gauge->map);
+    }
     free(gauge);
 }
 
-static inline void add(struct cmt_gauge *gauge, double val)
+int cmt_gauge_set(struct cmt_gauge *gauge, double val,
+                  int labels_count, char **label_vals)
 {
     uint64_t tmp;
+    struct cmt_metric *metric;
 
-    tmp = cmt_math_d64_to_uint64(val);
-    __atomic_fetch_add(&gauge->val, tmp, __ATOMIC_RELAXED);
+    metric = cmt_map_metric_get(&gauge->opts, gauge->map, labels_count, label_vals);
+    if (!metric) {
+        return -1;
+    }
+    cmt_metric_set(metric, val);
+    return 0;
 }
 
-void cmt_gauge_set(struct cmt_gauge *gauge, double val)
-{
-    uint64_t tmp;
+int cmt_gauge_inc(struct cmt_gauge *gauge, int labels_count, char **label_vals)
 
-    tmp = cmt_math_d64_to_uint64(val);
-    __atomic_store_n(&gauge->val, tmp, __ATOMIC_RELAXED);
+{
+    struct cmt_metric *metric;
+
+    metric = cmt_map_metric_get(&gauge->opts, gauge->map, labels_count, label_vals);
+    if (!metric) {
+        return -1;
+    }
+    cmt_metric_inc(metric);
+    return 0;
 }
 
-void cmt_gauge_inc(struct cmt_gauge *gauge)
+int cmt_gauge_dec(struct cmt_gauge *gauge, int labels_count, char **label_vals)
 {
-    add(gauge, 1);
+    struct cmt_metric *metric;
+
+    metric = cmt_map_metric_get(&gauge->opts, gauge->map, labels_count, label_vals);
+    if (!metric) {
+        return -1;
+    }
+    cmt_metric_dec(metric);
+    return 0;
 }
 
-void cmt_gauge_dec(struct cmt_gauge *gauge)
+int cmt_gauge_add(struct cmt_gauge *gauge, double val,
+                  int labels_count, char **label_vals)
 {
-    add(gauge, -1);
+    struct cmt_metric *metric;
+
+    metric = cmt_map_metric_get(&gauge->opts, gauge->map, labels_count, label_vals);
+    if (!metric) {
+        return -1;
+    }
+    cmt_metric_add(metric, val);
+    return 0;
 }
 
-void cmt_gauge_add(struct cmt_gauge *gauge, double val)
+int cmt_gauge_sub(struct cmt_gauge *gauge, double val,
+                  int labels_count, char **label_vals)
 {
-    add(gauge, val);
+    struct cmt_metric *metric;
+
+    metric = cmt_map_metric_get(&gauge->opts, gauge->map, labels_count, label_vals);
+    if (!metric) {
+        return -1;
+    }
+    cmt_metric_sub(metric, val);
+    return 0;
 }
 
-void cmt_gauge_sub(struct cmt_gauge *gauge, double val)
+int cmt_gauge_get_val(struct cmt_gauge *gauge,
+                      int labels_count, char **label_vals, double *out_val)
 {
-    add(gauge, val * -1);
-}
+    int ret;
+    double val = 0;
+    struct cmt_metric *metric;
 
-double cmt_gauge_get_value(struct cmt_gauge *gauge)
-{
-    uint64_t val;
-
-    __atomic_load(&gauge->val, &val, __ATOMIC_RELAXED);
-    return (double) val;
+    ret = cmt_map_metric_get_val(&gauge->opts,
+                                 gauge->map, labels_count, label_vals,
+                                 &val);
+    if (ret == -1) {
+        return -1;
+    }
+    *out_val = val;
+    return 0;
 }

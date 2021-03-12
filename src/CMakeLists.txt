@@ -11,6 +11,3 @@ set(src
 # Static Library
 add_library(cmetrics-static STATIC ${src})
 target_link_libraries(cmetrics-static xxhash)
-
-add_executable(cmt-test main.c)
-target_link_libraries(cmt-test cmetrics-static)

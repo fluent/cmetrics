@@ -19,13 +19,16 @@
 
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_log.h>
-#include <cmetrics/cmt_math.h>
+#include <cmetrics/cmt_map.h>
+#include <cmetrics/cmt_metric.h>
 #include <cmetrics/cmt_counter.h>
 
 struct cmt_counter *cmt_counter_create(struct cmt *cmt,
                                        char *namespace, char *subsystem,
-                                       char *name, char *help)
+                                       char *name, char *help,
+                                       int label_count, char **label_keys)
 {
+    int ret;
     struct cmt_counter *counter;
 
     if (!name || !help) {
@@ -41,9 +44,20 @@ struct cmt_counter *cmt_counter_create(struct cmt *cmt,
         cmt_errno();
         return NULL;
     }
-    counter->val = 0;
-    cmt_opts_init(&counter->opts, namespace, subsystem, name, help);
     mk_list_add(&counter->_head, &cmt->counters);
+
+    ret = cmt_opts_init(&counter->opts, namespace, subsystem, name, help);
+    if (ret == -1) {
+        cmt_counter_destroy(counter);
+        return NULL;
+    }
+
+    /* Create the map */
+    counter->map = cmt_map_create(&counter->opts, label_count, label_keys);
+    if (!counter->map) {
+        cmt_counter_destroy(counter);
+        return NULL;
+    }
 
     return counter;
 }
@@ -52,31 +66,55 @@ int cmt_counter_destroy(struct cmt_counter *counter)
 {
     mk_list_del(&counter->_head);
     cmt_opts_exit(&counter->opts);
+
+    if (counter->map) {
+        cmt_map_destroy(counter->map);
+    }
     free(counter);
+    return 0;
 }
 
-static inline void add(struct cmt_counter *counter, double val)
+int cmt_counter_inc(struct cmt_counter *counter,
+                    int labels_count, char **label_vals)
 {
-    uint64_t tmp;
+    struct cmt_metric *metric;
 
-    tmp = cmt_math_d64_to_uint64(val);
-    __atomic_fetch_add(&counter->val, tmp, __ATOMIC_RELAXED);
+    metric = cmt_map_metric_get(&counter->opts,
+                                counter->map, labels_count, label_vals);
+    if (!metric) {
+        return -1;
+    }
+    cmt_metric_inc(metric);
+    return 0;
 }
 
-void cmt_counter_inc(struct cmt_counter *counter)
+int cmt_counter_add(struct cmt_counter *counter, double val,
+                    int labels_count, char **label_vals)
 {
-    add(counter, 1);
+    struct cmt_metric *metric;
+
+    metric = cmt_map_metric_get(&counter->opts,
+                                counter->map, labels_count, label_vals);
+    if (!metric) {
+        return -1;
+    }
+    cmt_metric_add(metric, val);
+    return 0;
 }
 
-void cmt_counter_add(struct cmt_counter *counter, double val)
+int cmt_counter_get_val(struct cmt_counter *counter,
+                        int labels_count, char **label_vals, double *out_val)
 {
-    add(counter, val);
-}
+    int ret;
+    double val = 0;
+    struct cmt_metric *metric;
 
-double cmt_counter_get_value(struct cmt_counter *counter)
-{
-    uint64_t val;
-
-    __atomic_load(&counter->val, &val, __ATOMIC_RELAXED);
-    return (double) val;
+    ret = cmt_map_metric_get_val(&counter->opts,
+                                 counter->map, labels_count, label_vals,
+                                 &val);
+    if (ret == -1) {
+        return -1;
+    }
+    *out_val = val;
+    return 0;
 }

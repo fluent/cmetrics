@@ -24,35 +24,105 @@
 
 void test_counter()
 {
-    double val;
+    int ret;
+    double val = 1;
     struct cmt *cmt;
-    struct cmt_counter *g;
+    struct cmt_counter *c;
 
     cmt = cmt_create();
     TEST_CHECK(cmt != NULL);
 
     /* Create a counter metric type */
-    g = cmt_counter_create(cmt, "kubernetes", "network", "load", "Network load");
-    TEST_CHECK(g != NULL);
+    c = cmt_counter_create(cmt, "kubernetes", "network", "load", "Network load",
+                           0, NULL);
+    TEST_CHECK(c != NULL);
 
     /* Default value */
-    val = cmt_counter_get_value(g);
+    ret = cmt_counter_get_val(c, 0, NULL, &val);
+    TEST_CHECK(ret == 0);
     TEST_CHECK(val == 0.0);
 
     /* Increment by one */
-    cmt_counter_inc(g);
-    val = cmt_counter_get_value(g);
+    cmt_counter_inc(c, 0, NULL);
+    ret = cmt_counter_get_val(c, 0, NULL, &val);
     TEST_CHECK(val == 1.0);
 
     /* Add two */
-    cmt_counter_add(g, 2);
-    val = cmt_counter_get_value(g);
+    cmt_counter_add(c, 2, 0, NULL);
+    ret = cmt_counter_get_val(c, 0, NULL, &val);
+    TEST_CHECK(ret == 0);
     TEST_CHECK(val == 3.0);
+
+    cmt_destroy(cmt);
+}
+
+void test_labels()
+{
+    int ret;
+    double val;
+    struct cmt *cmt;
+    struct cmt_counter *c;
+
+    cmt = cmt_create();
+    TEST_CHECK(cmt != NULL);
+
+    /* Create a counter metric type */
+    c = cmt_counter_create(cmt, "kubernetes", "network", "load", "Network load",
+                           2, (char *[]) {"hostname", "app"});
+    TEST_CHECK(c != NULL);
+
+    /*
+     * Test 1: hash zero (no labels)
+     * -----------------------------
+     */
+
+    /* Default value for hash zero */
+    ret = cmt_counter_get_val(c, 0, NULL, &val);
+    TEST_CHECK(ret == 0);
+    TEST_CHECK(val == 0.0);
+
+    /* Increment hash zero by 1 */
+    ret = cmt_counter_inc(c, 0, NULL);
+    TEST_CHECK(ret == 0);
+    TEST_CHECK(val == 0.0);
+
+    /* Add two */
+    ret = cmt_counter_add(c, 2, 0, NULL);
+    TEST_CHECK(ret == 0);
+
+    /* Check that hash zero val is 3.0 */
+    ret = cmt_counter_get_val(c, 0, NULL, &val);
+    TEST_CHECK(ret == 0);
+    TEST_CHECK(val == 3.0);
+
+    /*
+     * Test 2: custom labels
+     * ---------------------
+     */
+
+    /* Increment custom metric */
+    ret = cmt_counter_inc(c, 2, (char *[]) {"localhost", "cmetrics"});
+    TEST_CHECK(ret == 0);
+
+    /* Check val = 1 */
+    ret = cmt_counter_get_val(c, 2, (char *[]) {"localhost", "cmetrics"}, &val);
+    TEST_CHECK(ret == 0);
+    TEST_CHECK(val == 1.000);
+
+    /* Add 10 to another metric using a different second label */
+    ret = cmt_counter_add(c, 10, 2, (char *[]) {"localhost", "test"});
+    TEST_CHECK(ret == 0);
+
+    /* Validate the value */
+    ret = cmt_counter_get_val(c, 2, (char *[]) {"localhost", "test"}, &val);
+    TEST_CHECK(ret == 0);
+    TEST_CHECK(val == 10.00);
 
     cmt_destroy(cmt);
 }
 
 TEST_LIST = {
     {"basic", test_counter},
+    {"labels", test_labels},
     { 0 }
 };

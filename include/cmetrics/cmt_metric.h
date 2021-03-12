@@ -17,34 +17,23 @@
  *  limitations under the License.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+#ifndef CMT_METRIC_H
+#define CMT_METRIC_H
 
 #include <cmetrics/cmetrics.h>
-#include <cmetrics/cmt_gauge.h>
 
-int main()
-{
-  double val = 10.20304050607080;
-  struct cmt *cmt;
-  struct cmt_gauge *g;
+struct cmt_metric {
+    uint64_t val;
+    uint64_t hash;
+    struct mk_list labels;
+    struct mk_list _head;
+};
 
-  cmt = cmt_create();
+void cmt_metric_set(struct cmt_metric *metric, double val);
+void cmt_metric_inc(struct cmt_metric *metric);
+void cmt_metric_dec(struct cmt_metric *metric);
+void cmt_metric_add(struct cmt_metric *metric, double val);
+void cmt_metric_sub(struct cmt_metric *metric, double val);
+double cmt_metric_get(struct cmt_metric *metric);
 
-  g = cmt_gauge_create(cmt, "ns", "sub", "temp", "this is a test");
-  printf("fqname => '%s', help => '%s'\n", g->opts.fqname, g->opts.help);
-
-  cmt_gauge_set(g, val);
-  cmt_gauge_inc(g);
-  printf("UINT64 => %" PRIu64 "\n", g->val);
-  cmt_gauge_dec(g);
-  printf("UINT64 => %" PRIu64 "\n", g->val);
-  cmt_gauge_sub(g, 8);
-  printf("UINT64 => %" PRIu64 "\n", g->val);
-  cmt_gauge_add(g, 100);
-  printf("UINT64 => %" PRIu64 "\n", g->val);
-
-  printf("DOUBLE => %f\n", cmt_math_uint64_to_d64(g->val));
-
-  cmt_destroy(cmt);
-}
+#endif

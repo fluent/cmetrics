@@ -2,11 +2,11 @@
 
 > DISCLAIMER: THIS LIBRARY IS STILL IN ACTIVE DEVELOPMENT
 
-The [CMetrics](https://github.com/calyptia/cmetrics) project is a standalone C library to create and maintain a context of different sets of metrics such as:
+The [CMetrics](https://github.com/calyptia/cmetrics) project is a standalone C library to create and maintain a context of different sets of metrics with labels support such as:
 
 - Counters
 - Gauges
-- Histogram
+- Histogram (WIP)
 
 This project is heavily based on Go Prometheus Client API design:
 

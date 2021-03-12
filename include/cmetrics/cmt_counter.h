@@ -24,17 +24,21 @@
 #include <cmetrics/cmt_opts.h>
 
 struct cmt_counter {
-    uint64_t val;
     struct cmt_opts opts;
+    struct cmt_map *map;
     struct mk_list _head;
 };
 
 struct cmt_counter *cmt_counter_create(struct cmt *cmt,
                                        char *namespace, char *subsystem,
-                                       char *name, char *help);
+                                       char *name, char *help,
+                                       int label_count, char **label_keys);
 int cmt_counter_destroy(struct cmt_counter *counter);
-void cmt_counter_inc(struct cmt_counter *counter);
-void cmt_counter_add(struct cmt_counter *counter, double val);
-double cmt_counter_get_value(struct cmt_counter *counter);
+int cmt_counter_inc(struct cmt_counter *counter,
+                    int labels_count, char **label_vals);
+int cmt_counter_add(struct cmt_counter *counter, double val,
+                    int labels_count, char **label_vals);
 
+int cmt_counter_get_val(struct cmt_counter *counter,
+                        int labels_count, char **label_vals, double *out_val);
 #endif
