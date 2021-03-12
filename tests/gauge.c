@@ -19,6 +19,7 @@
 
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_gauge.h>
+#include <cmetrics/cmt_format_prometheus.h>
 
 #include "cmt_tests.h"
 
@@ -75,6 +76,7 @@ void test_labels()
 {
     int ret;
     double val;
+    cmt_sds_t prom;
     struct cmt *cmt;
     struct cmt_gauge *g;
 
@@ -134,13 +136,18 @@ void test_labels()
     TEST_CHECK(val == 10.00);
 
     /* Substract two */
-    ret = cmt_gauge_sub(g, 2, 2, (char *[]) {"localhost", "test"});
+    ret = cmt_gauge_sub(g, 2.5, 2, (char *[]) {"localhost", "test"});
     TEST_CHECK(ret == 0);
 
     /* Validate the value */
     ret = cmt_gauge_get_val(g, 2, (char *[]) {"localhost", "test"}, &val);
     TEST_CHECK(ret == 0);
-    TEST_CHECK(val == 8.00);
+    TEST_CHECK(val == 7.50);
+
+    printf("\n");
+    prom = cmt_format_prometheus_create(cmt);
+    printf("%s\n", prom);
+    cmt_format_prometheus_destroy(prom);
 
     cmt_destroy(cmt);
 }
