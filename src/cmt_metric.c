@@ -23,10 +23,22 @@
 
 static inline void add(struct cmt_metric *metric, double val)
 {
+    double old;
+    double new;
     uint64_t tmp;
 
-    tmp = cmt_math_d64_to_uint64(val);
-    __atomic_fetch_add(&metric->val, tmp, __ATOMIC_RELAXED);
+    old = cmt_metric_get(metric);
+    new = old + val;
+
+    /*
+     * This Bits handling is wrong... as a workaround we use
+     * cmt_metric_set, but is not a real atomic operation
+     * since the value might change while switching...
+     */
+    //FIXME tmp = cmt_math_d64_to_uint64(val);
+    //FIXME __atomic_fetch_add(&metric->val, tmp, __ATOMIC_RELAXED);
+
+    cmt_metric_set(metric, new);
 }
 
 void cmt_metric_set(struct cmt_metric *metric, double val)
@@ -64,5 +76,5 @@ double cmt_metric_get(struct cmt_metric *metric)
     uint64_t val;
 
     __atomic_load(&metric->val, &val, __ATOMIC_RELAXED);
-    return (double) val;
+    return cmt_math_uint64_to_d64(val);
 }
