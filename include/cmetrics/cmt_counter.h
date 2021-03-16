@@ -39,6 +39,9 @@ int cmt_counter_inc(struct cmt_counter *counter,
 int cmt_counter_add(struct cmt_counter *counter, double val,
                     int labels_count, char **label_vals);
 
+int cmt_counter_set(struct cmt_counter *counter, double val,
+                    int labels_count, char **label_vals);
+
 int cmt_counter_get_val(struct cmt_counter *counter,
                         int labels_count, char **label_vals, double *out_val);
 #endif

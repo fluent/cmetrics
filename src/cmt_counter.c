@@ -102,6 +102,27 @@ int cmt_counter_add(struct cmt_counter *counter, double val,
     return 0;
 }
 
+/* Set counter value, new value cannot be smaller than current value */
+int cmt_counter_set(struct cmt_counter *counter, double val,
+                    int labels_count, char **label_vals)
+{
+    int ret;
+    double cur;
+    struct cmt_metric *metric;
+
+    metric = cmt_map_metric_get(&counter->opts, counter->map,
+                                labels_count, label_vals);
+    if (!metric) {
+        return -1;
+    }
+
+    if (cmt_metric_get(metric) > val) {
+        return -1;
+    }
+    cmt_metric_set(metric, val);
+    return 0;
+}
+
 int cmt_counter_get_val(struct cmt_counter *counter,
                         int labels_count, char **label_vals, double *out_val)
 {
