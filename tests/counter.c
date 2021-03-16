@@ -120,6 +120,14 @@ void test_labels()
     TEST_CHECK(ret == 0);
     TEST_CHECK(val == 10.55);
 
+    /* Valid counter set */
+    ret = cmt_counter_set(c, 12.15, 2, (char *[]) {"localhost", "test"});
+    TEST_CHECK(ret == 0);
+
+    /* Invalid counter set */
+    ret = cmt_counter_set(c, 1, 2, (char *[]) {"localhost", "test"});
+    TEST_CHECK(ret == -1);
+
     printf("\n");
 
     prom = cmt_format_prometheus_create(cmt);
