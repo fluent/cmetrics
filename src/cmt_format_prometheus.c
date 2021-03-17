@@ -41,19 +41,10 @@ void sds_cat_safe(cmt_sds_t *buf, const char *str, int len)
     *buf = tmp;
 }
 
-void format_metric(cmt_sds_t *buf, struct cmt_map *map, struct cmt_metric *metric)
+static void metric_banner(cmt_sds_t *buf, struct cmt_map *map,
+                          struct cmt_metric *metric)
 {
-    int i;
-    int n;
-    int len;
-    int type;
-    char tmp[64];
-    double val;
     struct cmt_opts *opts;
-    struct cmt_map_label *label_k;
-    struct cmt_map_label *label_v;
-    struct mk_list *head;
-    struct mk_list *head_k;
 
     opts = map->opts;
 
@@ -80,6 +71,24 @@ void format_metric(cmt_sds_t *buf, struct cmt_map *map, struct cmt_metric *metri
     else if (map->type == CMT_GAUGE) {
         sds_cat_safe(buf, " gauge\n", 7);
     }
+}
+
+static void format_metric(cmt_sds_t *buf, struct cmt_map *map,
+                          struct cmt_metric *metric)
+{
+    int i;
+    int n;
+    int len;
+    int type;
+    char tmp[64];
+    double val;
+    struct cmt_map_label *label_k;
+    struct cmt_map_label *label_v;
+    struct mk_list *head;
+    struct mk_list *head_k;
+    struct cmt_opts *opts;
+
+    opts = map->opts;
 
     /* Metric info */
     sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
@@ -132,6 +141,10 @@ void format_metrics(cmt_sds_t *buf, struct cmt_map *map)
 
     if (map->metric_static_set == 1) {
         format_metric(buf, map, &map->metric);
+    }
+
+    if (mk_list_size(&map->metrics) > 0) {
+        metric_banner(buf, map, metric);
     }
 
     mk_list_foreach(head, &map->metrics) {
