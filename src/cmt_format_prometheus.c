@@ -140,6 +140,7 @@ void format_metrics(cmt_sds_t *buf, struct cmt_map *map)
     struct cmt_metric *metric;
 
     if (map->metric_static_set == 1) {
+        metric_banner(buf, map, &map->metric);
         format_metric(buf, map, &map->metric);
     }
 
