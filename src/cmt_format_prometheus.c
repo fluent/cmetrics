@@ -52,11 +52,6 @@ static void metric_banner(cmt_sds_t *buf, struct cmt_map *map,
     sds_cat_safe(buf, "# HELP ", 7);
     sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
 
-    if (map->type == CMT_COUNTER) {
-        sds_cat_safe(buf, "_total", 6);
-
-    }
-
     sds_cat_safe(buf, " ", 1);
     sds_cat_safe(buf, opts->help, cmt_sds_len(opts->help));
     sds_cat_safe(buf, "\n", 1);
@@ -66,7 +61,7 @@ static void metric_banner(cmt_sds_t *buf, struct cmt_map *map,
     sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
 
     if (map->type == CMT_COUNTER) {
-        sds_cat_safe(buf, "_total counter\n", 15);
+        sds_cat_safe(buf, " counter\n", 9);
     }
     else if (map->type == CMT_GAUGE) {
         sds_cat_safe(buf, " gauge\n", 7);
@@ -79,22 +74,17 @@ static void format_metric(cmt_sds_t *buf, struct cmt_map *map,
     int i;
     int n;
     int len;
-    int type;
     char tmp[64];
     double val;
     struct cmt_map_label *label_k;
     struct cmt_map_label *label_v;
     struct mk_list *head;
-    struct mk_list *head_k;
     struct cmt_opts *opts;
 
     opts = map->opts;
 
     /* Metric info */
     sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
-    if (map->type == CMT_COUNTER) {
-        sds_cat_safe(buf, "_total", 6);
-    }
 
     n = mk_list_size(&metric->labels);
     if (n > 0) {
@@ -139,12 +129,15 @@ void format_metrics(cmt_sds_t *buf, struct cmt_map *map)
     struct mk_list *head;
     struct cmt_metric *metric;
 
+    /* Simple metric, no labels */
     if (map->metric_static_set == 1) {
         metric_banner(buf, map, &map->metric);
         format_metric(buf, map, &map->metric);
+        return;
     }
 
     if (mk_list_size(&map->metrics) > 0) {
+        metric = mk_list_entry_first(&map->metrics, struct cmt_metric, _head);
         metric_banner(buf, map, metric);
     }
 
