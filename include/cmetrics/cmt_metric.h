@@ -25,15 +25,16 @@
 struct cmt_metric {
     uint64_t val;
     uint64_t hash;
+    uint64_t timestamp;
     struct mk_list labels;
     struct mk_list _head;
 };
 
-void cmt_metric_set(struct cmt_metric *metric, double val);
-void cmt_metric_inc(struct cmt_metric *metric);
-void cmt_metric_dec(struct cmt_metric *metric);
-void cmt_metric_add(struct cmt_metric *metric, double val);
-void cmt_metric_sub(struct cmt_metric *metric, double val);
+void cmt_metric_set(struct cmt_metric *metric, uint64_t timestamp, double val);
+void cmt_metric_inc(struct cmt_metric *metric, uint64_t timestamp);
+void cmt_metric_dec(struct cmt_metric *metric, uint64_t timestamp);
+void cmt_metric_add(struct cmt_metric *metric, uint64_t timestamp, double val);
+void cmt_metric_sub(struct cmt_metric *metric, uint64_t timestamp, double val);
 double cmt_metric_get(struct cmt_metric *metric);
 
 #endif

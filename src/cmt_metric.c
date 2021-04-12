@@ -21,7 +21,7 @@
 #include <cmetrics/cmt_metric.h>
 #include <cmetrics/cmt_math.h>
 
-static inline void add(struct cmt_metric *metric, double val)
+static inline void add(struct cmt_metric *metric, uint64_t timestamp, double val)
 {
     double old;
     double new;
@@ -38,37 +38,38 @@ static inline void add(struct cmt_metric *metric, double val)
     //FIXME tmp = cmt_math_d64_to_uint64(val);
     //FIXME __atomic_fetch_add(&metric->val, tmp, __ATOMIC_RELAXED);
 
-    cmt_metric_set(metric, new);
+    cmt_metric_set(metric, timestamp, new);
 }
 
-void cmt_metric_set(struct cmt_metric *metric, double val)
+void cmt_metric_set(struct cmt_metric *metric, uint64_t timestamp, double val)
 {
     uint64_t tmp;
 
     tmp = cmt_math_d64_to_uint64(val);
     __atomic_store_n(&metric->val, tmp, __ATOMIC_RELAXED);
+    __atomic_store_n(&metric->timestamp, timestamp, __ATOMIC_RELAXED);
 }
 
-void cmt_metric_inc(struct cmt_metric *metric)
+void cmt_metric_inc(struct cmt_metric *metric, uint64_t timestamp)
 {
-    add(metric, 1);
+    add(metric, timestamp, 1);
 }
 
-void cmt_metric_dec(struct cmt_metric *metric)
+void cmt_metric_dec(struct cmt_metric *metric, uint64_t timestamp)
 {
     double volatile val = 1.0;
 
-    add(metric, val * -1);
+    add(metric, timestamp, val * -1);
 }
 
-void cmt_metric_add(struct cmt_metric *metric, double val)
+void cmt_metric_add(struct cmt_metric *metric, uint64_t timestamp, double val)
 {
-    add(metric, val);
+    add(metric, timestamp, val);
 }
 
-void cmt_metric_sub(struct cmt_metric *metric, double val)
+void cmt_metric_sub(struct cmt_metric *metric, uint64_t timestamp, double val)
 {
-    add(metric, (double volatile) val * -1);
+    add(metric, timestamp, (double volatile) val * -1);
 }
 
 double cmt_metric_get(struct cmt_metric *metric)
