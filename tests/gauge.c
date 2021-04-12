@@ -27,6 +27,7 @@ void test_gauge()
 {
     int ret;
     double val;
+    uint64_t ts;
     struct cmt *cmt;
     struct cmt_gauge *g;
 
@@ -37,24 +38,27 @@ void test_gauge()
     g = cmt_gauge_create(cmt, "kubernetes", "network", "load", "Network load", 0, NULL);
     TEST_CHECK(g != NULL);
 
+    /* Timestamp */
+    ts = cmt_time_now();
+
     /* Default value */
     ret = cmt_gauge_get_val(g, 0, NULL, &val);
     TEST_CHECK(val == 0.0);
 
     /* Set a value of two */
-    cmt_gauge_set(g, 2.0, 0, NULL);
+    cmt_gauge_set(g, ts, 2.0, 0, NULL);
     ret = cmt_gauge_get_val(g, 0, NULL, &val);
     TEST_CHECK(ret == 0);
     TEST_CHECK(val == 2.0);
 
     /* Increment one */
-    cmt_gauge_inc(g, 0, NULL);
+    cmt_gauge_inc(g, ts, 0, NULL);
     ret = cmt_gauge_get_val(g, 0, NULL, &val);
     TEST_CHECK(ret == 0);
     TEST_CHECK(val == 3.0);
 
     /* Substract 2 */
-    ret = cmt_gauge_sub(g, 2, 0, NULL);
+    ret = cmt_gauge_sub(g, ts, 2, 0, NULL);
     TEST_CHECK(ret == 0);
 
     ret = cmt_gauge_get_val(g, 0, NULL, &val);
@@ -62,7 +66,7 @@ void test_gauge()
     TEST_CHECK(val == 1.0);
 
     /* Decrement by one */
-    ret = cmt_gauge_dec(g, 0, NULL);
+    ret = cmt_gauge_dec(g, ts, 0, NULL);
     TEST_CHECK(ret == 0);
 
     ret = cmt_gauge_get_val(g, 0, NULL, &val);
@@ -76,6 +80,7 @@ void test_labels()
 {
     int ret;
     double val;
+    uint64_t ts;
     cmt_sds_t prom;
     struct cmt *cmt;
     struct cmt_gauge *g;
@@ -88,6 +93,9 @@ void test_labels()
                          2, (char *[]) {"hostname", "app"});
     TEST_CHECK(g != NULL);
 
+    /* Timestamp */
+    ts = cmt_time_now();
+
     /*
      * Test 1: hash zero (no labels)
      * -----------------------------
@@ -99,12 +107,12 @@ void test_labels()
     TEST_CHECK(val == 0.0);
 
     /* Increment hash zero by 1 */
-    ret = cmt_gauge_inc(g, 0, NULL);
+    ret = cmt_gauge_inc(g, ts, 0, NULL);
     TEST_CHECK(ret == 0);
     TEST_CHECK(val == 0.0);
 
     /* Add two */
-    ret = cmt_gauge_add(g, 2, 0, NULL);
+    ret = cmt_gauge_add(g, ts, 2, 0, NULL);
     TEST_CHECK(ret == 0);
 
     /* Check that hash zero val is 3.0 */
@@ -118,7 +126,7 @@ void test_labels()
      */
 
     /* Increment custom metric */
-    ret = cmt_gauge_inc(g, 2, (char *[]) {"localhost", "cmetrics"});
+    ret = cmt_gauge_inc(g, ts, 2, (char *[]) {"localhost", "cmetrics"});
     TEST_CHECK(ret == 0);
 
     /* Check ret = 1 */
@@ -127,7 +135,7 @@ void test_labels()
     TEST_CHECK(val == 1.000);
 
     /* Add 10 to another metric using a different second label */
-    ret = cmt_gauge_add(g, 10, 2, (char *[]) {"localhost", "test"});
+    ret = cmt_gauge_add(g, ts, 10, 2, (char *[]) {"localhost", "test"});
     TEST_CHECK(ret == 0);
 
     /* Validate the value */
@@ -136,7 +144,7 @@ void test_labels()
     TEST_CHECK(val == 10.00);
 
     /* Substract two */
-    ret = cmt_gauge_sub(g, 2.5, 2, (char *[]) {"localhost", "test"});
+    ret = cmt_gauge_sub(g, ts, 2.5, 2, (char *[]) {"localhost", "test"});
     TEST_CHECK(ret == 0);
 
     /* Validate the value */
