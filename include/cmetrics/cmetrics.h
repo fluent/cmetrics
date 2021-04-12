@@ -20,6 +20,9 @@
 #ifndef CMT_H
 #define CMT_H
 
+#define CMT_FALSE     0
+#define CMT_TRUE      !CMT_FALSE
+
 #define CMT_COUNTER   0
 #define CMT_GAUGE     1
 #define CMT_HISTOGRAM 2
@@ -29,7 +32,9 @@
 #include <inttypes.h>
 #include <monkey/mk_core/mk_list.h>
 
+#include <cmetrics/cmt_info.h>
 #include <cmetrics/cmt_math.h>
+#include <cmetrics/cmt_time.h>
 #include <cmetrics/cmt_sds.h>
 
 struct cmt {
