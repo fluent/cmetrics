@@ -75,6 +75,7 @@ int cmt_counter_destroy(struct cmt_counter *counter)
 }
 
 int cmt_counter_inc(struct cmt_counter *counter,
+                    uint64_t timestamp,
                     int labels_count, char **label_vals)
 {
     struct cmt_metric *metric;
@@ -84,11 +85,11 @@ int cmt_counter_inc(struct cmt_counter *counter,
     if (!metric) {
         return -1;
     }
-    cmt_metric_inc(metric);
+    cmt_metric_inc(metric, timestamp);
     return 0;
 }
 
-int cmt_counter_add(struct cmt_counter *counter, double val,
+int cmt_counter_add(struct cmt_counter *counter, uint64_t timestamp, double val,
                     int labels_count, char **label_vals)
 {
     struct cmt_metric *metric;
@@ -98,12 +99,12 @@ int cmt_counter_add(struct cmt_counter *counter, double val,
     if (!metric) {
         return -1;
     }
-    cmt_metric_add(metric, val);
+    cmt_metric_add(metric, timestamp, val);
     return 0;
 }
 
 /* Set counter value, new value cannot be smaller than current value */
-int cmt_counter_set(struct cmt_counter *counter, double val,
+int cmt_counter_set(struct cmt_counter *counter, uint64_t timestamp, double val,
                     int labels_count, char **label_vals)
 {
     int ret;
@@ -119,7 +120,7 @@ int cmt_counter_set(struct cmt_counter *counter, double val,
     if (cmt_metric_get(metric) > val) {
         return -1;
     }
-    cmt_metric_set(metric, val);
+    cmt_metric_set(metric, timestamp, val);
     return 0;
 }
 

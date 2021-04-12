@@ -34,14 +34,12 @@ struct cmt_counter *cmt_counter_create(struct cmt *cmt,
                                        char *name, char *help,
                                        int label_count, char **label_keys);
 int cmt_counter_destroy(struct cmt_counter *counter);
-int cmt_counter_inc(struct cmt_counter *counter,
+int cmt_counter_inc(struct cmt_counter *counter, uint64_t timestamp,
                     int labels_count, char **label_vals);
-int cmt_counter_add(struct cmt_counter *counter, double val,
+int cmt_counter_add(struct cmt_counter *counter, uint64_t timestamp,
+                    double val, int labels_count, char **label_vals);
+int cmt_counter_set(struct cmt_counter *counter, uint64_t timestamp, double val,
                     int labels_count, char **label_vals);
-
-int cmt_counter_set(struct cmt_counter *counter, double val,
-                    int labels_count, char **label_vals);
-
 int cmt_counter_get_val(struct cmt_counter *counter,
                         int labels_count, char **label_vals, double *out_val);
 #endif
