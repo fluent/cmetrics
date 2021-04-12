@@ -215,7 +215,7 @@ int cmt_map_metric_get_val(struct cmt_opts *opts, struct cmt_map *map,
         return -1;
     }
 
-    val = cmt_metric_get(metric);
+    val = cmt_metric_get_value(metric);
     *out_val = val;
     return 0;
 }
