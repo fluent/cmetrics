@@ -34,13 +34,15 @@ struct cmt_gauge *cmt_gauge_create(struct cmt *cmt,
                                    char *help, int label_count, char **label_keys);
 int cmt_gauge_destroy(struct cmt_gauge *gauge);
 
-int cmt_gauge_set(struct cmt_gauge *gauge, double val,
+int cmt_gauge_set(struct cmt_gauge *gauge, uint64_t timestamp, double val,
                   int labels_count, char **label_vals);
-int cmt_gauge_inc(struct cmt_gauge *gauge, int labels_count, char **label_vals);
-int cmt_gauge_dec(struct cmt_gauge *gauge, int labels_count, char **label_vals);
-int cmt_gauge_add(struct cmt_gauge *gauge, double val,
+int cmt_gauge_inc(struct cmt_gauge *gauge, uint64_t timestamp,
                   int labels_count, char **label_vals);
-int cmt_gauge_sub(struct cmt_gauge *gauge, double val,
+int cmt_gauge_dec(struct cmt_gauge *gauge, uint64_t timestamp,
+                  int labels_count, char **label_vals);
+int cmt_gauge_add(struct cmt_gauge *gauge, uint64_t timestamp,
+                  double val, int labels_count, char **label_vals);
+int cmt_gauge_sub(struct cmt_gauge *gauge, uint64_t timestamp, double val,
                   int labels_count, char **label_vals);
 int cmt_gauge_get_val(struct cmt_gauge *gauge,
                       int labels_count, char **label_vals, double *out_val);
