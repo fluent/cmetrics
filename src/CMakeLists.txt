@@ -1,10 +1,11 @@
 set(src
   cmt_gauge.c
   cmt_counter.c
-  cmt_log.c
-  cmt_opts.c
   cmt_metric.c
   cmt_map.c
+  cmt_log.c
+  cmt_opts.c
+  cmt_time.c
   cmetrics.c
   cmt_encode_prometheus.c
   )
