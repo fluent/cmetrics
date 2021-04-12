@@ -28,7 +28,7 @@ struct cmt_opts {
     cmt_sds_t name;
 
     /* Help string: what's the metric about */
-    cmt_sds_t help;
+    cmt_sds_t description;
 
     /* Formatted full qualified name: namespace_subsystem_name */
     cmt_sds_t fqname;

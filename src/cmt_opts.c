@@ -23,7 +23,7 @@
 /* Initialize an 'opts' context with given values */
 int cmt_opts_init(struct cmt_opts *opts,
                   char *namespace, char *subsystem, char *name,
-                  char *help)
+                  char *description)
 {
     cmt_sds_t tmp;
 
@@ -70,9 +70,9 @@ int cmt_opts_init(struct cmt_opts *opts,
     }
 
     opts->name = cmt_sds_create(name);
-    opts->help = cmt_sds_create(help);
+    opts->description = cmt_sds_create(description);
 
-    if (!opts->name || !opts->help) {
+    if (!opts->name || !opts->description) {
         return -1;
     }
 
@@ -99,8 +99,8 @@ void cmt_opts_exit(struct cmt_opts *opts)
         cmt_sds_destroy(opts->name);
     }
 
-    if (opts->help) {
-        cmt_sds_destroy(opts->help);
+    if (opts->description) {
+        cmt_sds_destroy(opts->description);
     }
 
     if (opts->fqname) {

@@ -53,7 +53,7 @@ static void metric_banner(cmt_sds_t *buf, struct cmt_map *map,
     sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
 
     sds_cat_safe(buf, " ", 1);
-    sds_cat_safe(buf, opts->help, cmt_sds_len(opts->help));
+    sds_cat_safe(buf, opts->description, cmt_sds_len(opts->description));
     sds_cat_safe(buf, "\n", 1);
 
     /* TYPE */
