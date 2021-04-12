@@ -27,6 +27,7 @@ void test_counter()
 {
     int ret;
     double val = 1;
+    uint64_t ts;
     struct cmt *cmt;
     struct cmt_counter *c;
 
@@ -38,18 +39,21 @@ void test_counter()
                            0, NULL);
     TEST_CHECK(c != NULL);
 
+    /* Timestamp */
+    ts = cmt_time_now();
+
     /* Default value */
     ret = cmt_counter_get_val(c, 0, NULL, &val);
     TEST_CHECK(ret == 0);
     TEST_CHECK(val == 0.0);
 
     /* Increment by one */
-    cmt_counter_inc(c, 0, NULL);
+    cmt_counter_inc(c, ts, 0, NULL);
     ret = cmt_counter_get_val(c, 0, NULL, &val);
     TEST_CHECK(val == 1.0);
 
     /* Add two */
-    cmt_counter_add(c, 2, 0, NULL);
+    cmt_counter_add(c, ts, 2, 0, NULL);
     ret = cmt_counter_get_val(c, 0, NULL, &val);
     TEST_CHECK(ret == 0);
     TEST_CHECK(val == 3.0);
@@ -61,6 +65,7 @@ void test_labels()
 {
     int ret;
     double val;
+    uint64_t ts;
     cmt_sds_t prom;
     struct cmt *cmt;
     struct cmt_counter *c;
@@ -73,6 +78,9 @@ void test_labels()
                            2, (char *[]) {"hostname", "app"});
     TEST_CHECK(c != NULL);
 
+    /* Timestamp */
+    ts = cmt_time_now();
+
     /*
      * Test 1: hash zero (no labels)
      * -----------------------------
@@ -84,12 +92,12 @@ void test_labels()
     TEST_CHECK(val == 0.0);
 
     /* Increment hash zero by 1 */
-    ret = cmt_counter_inc(c, 0, NULL);
+    ret = cmt_counter_inc(c, ts, 0, NULL);
     TEST_CHECK(ret == 0);
     TEST_CHECK(val == 0.0);
 
     /* Add two */
-    ret = cmt_counter_add(c, 2, 0, NULL);
+    ret = cmt_counter_add(c, ts, 2, 0, NULL);
     TEST_CHECK(ret == 0);
 
     /* Check that hash zero val is 3.0 */
@@ -103,7 +111,7 @@ void test_labels()
      */
 
     /* Increment custom metric */
-    ret = cmt_counter_inc(c, 2, (char *[]) {"localhost", "cmetrics"});
+    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"localhost", "cmetrics"});
     TEST_CHECK(ret == 0);
 
     /* Check val = 1 */
@@ -112,7 +120,7 @@ void test_labels()
     TEST_CHECK(val == 1.000);
 
     /* Add 10 to another metric using a different second label */
-    ret = cmt_counter_add(c, 10.55, 2, (char *[]) {"localhost", "test"});
+    ret = cmt_counter_add(c, ts, 10.55, 2, (char *[]) {"localhost", "test"});
     TEST_CHECK(ret == 0);
 
     /* Validate the value */
@@ -121,11 +129,11 @@ void test_labels()
     TEST_CHECK(val == 10.55);
 
     /* Valid counter set */
-    ret = cmt_counter_set(c, 12.15, 2, (char *[]) {"localhost", "test"});
+    ret = cmt_counter_set(c, ts, 12.15, 2, (char *[]) {"localhost", "test"});
     TEST_CHECK(ret == 0);
 
     /* Invalid counter set */
-    ret = cmt_counter_set(c, 1, 2, (char *[]) {"localhost", "test"});
+    ret = cmt_counter_set(c, ts, 1, 2, (char *[]) {"localhost", "test"});
     TEST_CHECK(ret == -1);
 
     printf("\n");
