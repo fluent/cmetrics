@@ -153,7 +153,7 @@ void test_labels()
     TEST_CHECK(val == 7.50);
 
     printf("\n");
-    prom = cmt_encode_prometheus_create(cmt);
+    prom = cmt_encode_prometheus_create(cmt, CMT_TRUE);
     printf("%s\n", prom);
     cmt_encode_prometheus_destroy(prom);
 

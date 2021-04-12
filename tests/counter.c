@@ -138,7 +138,7 @@ void test_labels()
 
     printf("\n");
 
-    prom = cmt_encode_prometheus_create(cmt);
+    prom = cmt_encode_prometheus_create(cmt, CMT_TRUE);
     printf("%s\n", prom);
     cmt_encode_prometheus_destroy(prom);
     cmt_destroy(cmt);
