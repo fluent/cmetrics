@@ -117,7 +117,7 @@ int cmt_counter_set(struct cmt_counter *counter, uint64_t timestamp, double val,
         return -1;
     }
 
-    if (cmt_metric_get(metric) > val) {
+    if (cmt_metric_get_value(metric) > val) {
         return -1;
     }
     cmt_metric_set(metric, timestamp, val);
