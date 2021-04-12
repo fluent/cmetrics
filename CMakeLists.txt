@@ -18,6 +18,32 @@ include_directories(
   lib/xxHash-0.8.0/
   )
 
+# timespec_get() support
+check_c_source_compiles("
+  #include <time.h>
+  int main() {
+     struct tm tm;
+     return timespec_get(&tm, TIME_UTC);
+  }" CMT_HAVE_TIMESPEC_GET)
+if(CMT_HAVE_TIMESPEC_GET)
+  CMT_DEFINITION(CMT_HAVE_TIMESPEC_GET)
+endif()
+
+# clock_get_time() support for macOS.
+check_c_source_compiles("
+  #include <mach/clock.h>
+  #include <mach/mach.h>
+  int main() {
+      clock_serv_t cclock;
+      mach_timespec_t mts;
+      host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+      clock_get_time(cclock, &mts);
+      return mach_port_deallocate(mach_task_self(), cclock);
+  }" CMT_HAVE_CLOCK_GET_TIME)
+if(CMT_HAVE_CLOCK_GET_TIME)
+  CMT_DEFINITION(CMT_HAVE_CLOCK_GET_TIME)
+endif()
+
 # FIXME: MessagePack support
 check_c_source_compiles("
   #include \"../../../lib/msgpack-c/include/msgpack.h\"
@@ -26,6 +52,11 @@ check_c_source_compiles("
      msgpack_sbuffer sbuf;
      return 0;
   }" CMT_HAVE_MSGPACK)
+
+configure_file(
+  "${PROJECT_SOURCE_DIR}/include/cmetrics/cmt_info.h.in"
+  "${PROJECT_SOURCE_DIR}/include/cmetrics/cmt_info.h"
+  )
 
 # xxHash
 if(NOT TARGET xxhash)
