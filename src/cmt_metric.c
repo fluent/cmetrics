@@ -27,7 +27,7 @@ static inline void add(struct cmt_metric *metric, uint64_t timestamp, double val
     double new;
     uint64_t tmp;
 
-    old = cmt_metric_get(metric);
+    old = cmt_metric_get_value(metric);
     new = old + val;
 
     /*
@@ -72,10 +72,18 @@ void cmt_metric_sub(struct cmt_metric *metric, uint64_t timestamp, double val)
     add(metric, timestamp, (double volatile) val * -1);
 }
 
-double cmt_metric_get(struct cmt_metric *metric)
+double cmt_metric_get_value(struct cmt_metric *metric)
 {
     uint64_t val;
 
     __atomic_load(&metric->val, &val, __ATOMIC_RELAXED);
     return cmt_math_uint64_to_d64(val);
+}
+
+uint64_t cmt_metric_get_timestamp(struct cmt_metric *metric)
+{
+    uint64_t val;
+
+    __atomic_load(&metric->timestamp, &val, __ATOMIC_RELAXED);
+    return val;
 }

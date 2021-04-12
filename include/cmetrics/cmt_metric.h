@@ -35,6 +35,7 @@ void cmt_metric_inc(struct cmt_metric *metric, uint64_t timestamp);
 void cmt_metric_dec(struct cmt_metric *metric, uint64_t timestamp);
 void cmt_metric_add(struct cmt_metric *metric, uint64_t timestamp, double val);
 void cmt_metric_sub(struct cmt_metric *metric, uint64_t timestamp, double val);
-double cmt_metric_get(struct cmt_metric *metric);
+double cmt_metric_get_value(struct cmt_metric *metric);
+uint64_t cmt_metric_get_timestamp(struct cmt_metric *metric);
 
 #endif
