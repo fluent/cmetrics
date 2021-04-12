@@ -18,13 +18,13 @@
  */
 
 
-#ifndef CMT_FORMAT_PROMETHEUS_H
-#define CMT_FORMAT_PROMETHEUS_H
+#ifndef CMT_ENCODE_PROMETHEUS_H
+#define CMT_ENCODE_PROMETHEUS_H
 
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_sds.h>
 
-cmt_sds_t cmt_format_prometheus_create(struct cmt *cmt);
-void cmt_format_prometheus_destroy(cmt_sds_t text);
+cmt_sds_t cmt_encode_prometheus_create(struct cmt *cmt);
+void cmt_encode_prometheus_destroy(cmt_sds_t text);
 
 #endif

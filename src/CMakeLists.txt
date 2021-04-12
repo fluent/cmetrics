@@ -6,7 +6,7 @@ set(src
   cmt_metric.c
   cmt_map.c
   cmetrics.c
-  cmt_format_prometheus.c
+  cmt_encode_prometheus.c
   )
 
 # Static Library

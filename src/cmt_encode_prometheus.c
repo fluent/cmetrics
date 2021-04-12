@@ -148,7 +148,7 @@ void format_metrics(cmt_sds_t *buf, struct cmt_map *map)
 }
 
 /* Format all the registered metrics in Prometheus Text format */
-cmt_sds_t cmt_format_prometheus_create(struct cmt *cmt)
+cmt_sds_t cmt_encode_prometheus_create(struct cmt *cmt)
 {
     cmt_sds_t buf;
     struct mk_list *head;
@@ -176,7 +176,7 @@ cmt_sds_t cmt_format_prometheus_create(struct cmt *cmt)
     return buf;
 }
 
-void cmt_format_prometheus_destroy(cmt_sds_t text)
+void cmt_encode_prometheus_destroy(cmt_sds_t text)
 {
     cmt_sds_destroy(text);
 }

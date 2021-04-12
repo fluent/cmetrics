@@ -18,6 +18,15 @@ include_directories(
   lib/xxHash-0.8.0/
   )
 
+# FIXME: MessagePack support
+check_c_source_compiles("
+  #include \"../../../lib/msgpack-c/include/msgpack.h\"
+  int main() {
+     msgpack_packer pck;
+     msgpack_sbuffer sbuf;
+     return 0;
+  }" CMT_HAVE_MSGPACK)
+
 # xxHash
 if(NOT TARGET xxhash)
   # Do something when target found

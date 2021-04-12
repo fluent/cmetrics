@@ -19,7 +19,7 @@
 
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_counter.h>
-#include <cmetrics/cmt_format_prometheus.h>
+#include <cmetrics/cmt_encode_prometheus.h>
 
 #include "cmt_tests.h"
 
@@ -130,9 +130,9 @@ void test_labels()
 
     printf("\n");
 
-    prom = cmt_format_prometheus_create(cmt);
+    prom = cmt_encode_prometheus_create(cmt);
     printf("%s\n", prom);
-    cmt_format_prometheus_destroy(prom);
+    cmt_encode_prometheus_destroy(prom);
     cmt_destroy(cmt);
 }
 
