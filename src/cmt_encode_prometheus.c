@@ -81,6 +81,10 @@ static void append_metric_value(cmt_sds_t *buf, struct cmt_metric *metric,
 
     if (add_timestamp) {
         ts = cmt_metric_get_timestamp(metric);
+
+        /* convert from nanoseconds to milliseconds */
+        ts /= 1000000;
+
         len = snprintf(tmp, sizeof(tmp) - 1, " %.17g %" PRIu64 "\n", val, ts);
     }
     else {
