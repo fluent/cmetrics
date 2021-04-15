@@ -67,6 +67,12 @@ if(NOT TARGET xxhash)
   add_subdirectory(lib/xxHash-0.8.0/cmake_unofficial EXCLUDE_FROM_ALL)
 endif()
 
+# mpack
+if(NOT TARGET mpack-static)
+  include_directories(lib/mpack/src/)
+  add_subdirectory(lib/mpack EXCLUDE_FROM_ALL)
+endif()
+
 # Source code
 add_subdirectory(src)
 
