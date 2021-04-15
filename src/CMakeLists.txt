@@ -8,8 +8,9 @@ set(src
   cmt_time.c
   cmetrics.c
   cmt_encode_prometheus.c
+  cmt_encode_msgpack.c
   )
 
 # Static Library
 add_library(cmetrics-static STATIC ${src})
-target_link_libraries(cmetrics-static xxhash)
+target_link_libraries(cmetrics-static xxhash mpack-static)
