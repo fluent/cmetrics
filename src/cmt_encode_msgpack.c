@@ -78,6 +78,7 @@ static int pack_metric(mpack_writer_t *writer, int type, struct cmt_metric *metr
 {
     int c_labels;
     int s;
+    double val;
     struct mk_list *head;
     struct cmt_map_label *label;
 
@@ -96,7 +97,8 @@ static int pack_metric(mpack_writer_t *writer, int type, struct cmt_metric *metr
     mpack_write_uint(writer, metric->timestamp);
 
     mpack_write_cstr(writer, "value");
-    mpack_write_double(writer, metric->val);
+    val = cmt_metric_get_value(metric);
+    mpack_write_double(writer, val);
 
     s = mk_list_size(&metric->labels);
     if (s > 0) {
@@ -204,4 +206,5 @@ int cmt_encode_msgpack_to_msgpack(struct cmt *cmt, char **out_buf, size_t *out_s
 /* Convert cmetrics msgpack payload and generate a CMetrics context */
 struct cmt *cmt_encode_msgpack_to_cmetrics(void *buf, size_t size)
 {
+
 }
