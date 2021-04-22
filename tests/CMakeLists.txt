@@ -16,6 +16,6 @@ foreach(source_file ${UNIT_TESTS_FILES})
 
   add_test(NAME ${source_file_we}
     COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${source_file_we}
-    WORKING_DIRECTORY ${CMAKE_HOME_DIRECTORY}/build)
+    WORKING_DIRECTORY ${CMAKE_HOME_DIRECTORY}/tests)
   set_tests_properties(${source_file_we} PROPERTIES LABELS "internal")
 endforeach()
