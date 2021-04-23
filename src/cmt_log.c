@@ -24,6 +24,10 @@
 #include <stdarg.h>
 #include <string.h>
 
+#ifdef _WIN32
+    #define strerror_r(errnum, buf, buf_size) strerror_s(buf, buf_size, errnum)
+#endif
+
 void cmt_log_print(void *ctx, int level, const char *file, int line,
                    const char *fmt, ...)
 {

@@ -25,6 +25,8 @@
 
 #ifdef _WIN32
 /* Windows */
+#include <windows.h>
+
 #define container_of(address, type, field) ((type *)(                   \
                                                      (PCHAR)(address) - \
                                                      (ULONG_PTR)(&((type *)0)->field)))
