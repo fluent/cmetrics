@@ -11,6 +11,14 @@ set(CMT_VERSION_STR "${CMT_VERSION_MAJOR}.${CMT_VERSION_MINOR}.${CMT_VERSION_PAT
 include(cmake/macros.cmake)
 include(CheckCSourceCompiles)
 
+# Configuration options
+option(CMT_DEV     "Enable development mode"  No)
+option(CMT_TESTS   "Enable unit testing"      No)
+
+if(CMT_DEV)
+  set(CMT_TESTS   Yes)
+endif()
+
 # Include headers and dependency headers
 include_directories(
   include
@@ -77,5 +85,7 @@ endif()
 add_subdirectory(src)
 
 # Tests
-enable_testing()
-add_subdirectory(tests EXCLUDE_FROM_ALL)
+if(CMT_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
