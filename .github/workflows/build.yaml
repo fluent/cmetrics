@@ -38,7 +38,7 @@ jobs:
       - name: Build on ${{ matrix.os }} with ${{ matrix.compiler }}
         run: |
           echo "CC = $CC, CXX = $CXX"
-          cmake .
+          cmake -DCMT_TESTS=On .
           make all
           make test
         env:
