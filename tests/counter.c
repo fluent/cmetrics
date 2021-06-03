@@ -20,8 +20,20 @@
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_encode_prometheus.h>
+#include <cmetrics/cmt_encode_prometheus_write_request.h>
 
 #include "cmt_tests.h"
+
+static void hex_dump_sds(cmt_sds_t buf)
+{
+    size_t idx;
+
+    if (NULL != buf) {
+        for (idx = 0 ; idx < cmt_sds_len(buf) ; idx++) {
+            printf("%02x ", buf[idx]);
+        }
+    }
+}
 
 void test_counter()
 {
@@ -69,6 +81,7 @@ void test_labels()
     cmt_sds_t prom;
     struct cmt *cmt;
     struct cmt_counter *c;
+    struct cmt_counter *c2;
 
     cmt = cmt_create();
     TEST_CHECK(cmt != NULL);
@@ -76,6 +89,10 @@ void test_labels()
     /* Create a counter metric type */
     c = cmt_counter_create(cmt, "kubernetes", "network", "load", "Network load",
                            2, (char *[]) {"hostname", "app"});
+    TEST_CHECK(c != NULL);
+
+    c2 = cmt_counter_create(cmt, "kubernetes", "disk", "load", "Disk load",
+                            2, (char *[]) {"hostname", "app"});
     TEST_CHECK(c != NULL);
 
     /* Timestamp */
@@ -91,13 +108,24 @@ void test_labels()
     TEST_CHECK(ret == 0);
     TEST_CHECK(val == 0.0);
 
+    ret = cmt_counter_get_val(c2, 0, NULL, &val);
+    TEST_CHECK(ret == 0);
+    TEST_CHECK(val == 0.0);
+
     /* Increment hash zero by 1 */
     ret = cmt_counter_inc(c, ts, 0, NULL);
     TEST_CHECK(ret == 0);
     TEST_CHECK(val == 0.0);
 
+    ret = cmt_counter_inc(c2, ts, 0, NULL);
+    TEST_CHECK(ret == 0);
+    TEST_CHECK(val == 0.0);
+
     /* Add two */
     ret = cmt_counter_add(c, ts, 2, 0, NULL);
+    TEST_CHECK(ret == 0);
+
+    ret = cmt_counter_add(c2, ts, 5, 0, NULL);
     TEST_CHECK(ret == 0);
 
     /* Check that hash zero val is 3.0 */
@@ -139,8 +167,20 @@ void test_labels()
     printf("\n");
 
     prom = cmt_encode_prometheus_create(cmt, CMT_TRUE);
-    printf("%s\n", prom);
+    printf("PROMETHEUS PULL PAYLOAD : ");
+    printf("\n\n");
+    printf("%s", prom);
+    printf("\n\n");
     cmt_encode_prometheus_destroy(prom);
+
+    prom = cmt_encode_prometheus_write_request_create(cmt, CMT_TRUE);
+    printf("PROMETHEUS WRITE REQUEST PAYLOAD : ");
+    printf("\n\n");
+    hex_dump_sds(prom);
+    printf("\n\n");
+    cmt_encode_prometheus_write_request_destroy(prom);
+
+
     cmt_destroy(cmt);
 }
 

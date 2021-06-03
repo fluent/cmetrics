@@ -9,6 +9,9 @@ set(src
   cmetrics.c
   cmt_encode_prometheus.c
   cmt_encode_msgpack.c
+  cmt_encode_prometheus_write_request.c
+  remote.pb-c.c
+  types.pb-c.c
   )
 
 if (${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
@@ -30,4 +33,4 @@ set(src
 
 # Static Library
 add_library(cmetrics-static STATIC ${src})
-target_link_libraries(cmetrics-static xxhash mpack-static)
+target_link_libraries(cmetrics-static xxhash mpack-static protobuf-c)
