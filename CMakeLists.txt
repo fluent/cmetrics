@@ -10,6 +10,7 @@ set(CMT_VERSION_STR "${CMT_VERSION_MAJOR}.${CMT_VERSION_MINOR}.${CMT_VERSION_PAT
 # Include helpers
 include(cmake/macros.cmake)
 include(CheckCSourceCompiles)
+include(GNUInstallDirs)
 
 # Configuration options
 option(CMT_DEV     "Enable development mode"  No)
@@ -88,4 +89,14 @@ add_subdirectory(src)
 if(CMT_TESTS)
   enable_testing()
   add_subdirectory(tests)
+endif()
+
+# Installation Directories
+# ========================
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+  set(CMT_INSTALL_LIBDIR "lib")
+  set(CMT_INSTALL_INCLUDEDIR "include")
+else()
+  set(CMT_INSTALL_LIBDIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
+  set(CMT_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_PREFIX}/include")
 endif()
