@@ -82,16 +82,6 @@ if(NOT TARGET mpack-static)
   add_subdirectory(lib/mpack EXCLUDE_FROM_ALL)
 endif()
 
-# Source code
-add_subdirectory(include)
-add_subdirectory(src)
-
-# Tests
-if(CMT_TESTS)
-  enable_testing()
-  add_subdirectory(tests)
-endif()
-
 # Installation Directories
 # ========================
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -100,4 +90,14 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 else()
   set(CMT_INSTALL_LIBDIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
   set(CMT_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_PREFIX}/include")
+endif()
+
+# Source code
+add_subdirectory(include)
+add_subdirectory(src)
+
+# Tests
+if(CMT_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
 endif()
