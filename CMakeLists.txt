@@ -83,6 +83,7 @@ if(NOT TARGET mpack-static)
 endif()
 
 # Source code
+add_subdirectory(include)
 add_subdirectory(src)
 
 # Tests
