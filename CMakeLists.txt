@@ -95,6 +95,7 @@ endif()
 # Source code
 add_subdirectory(include)
 add_subdirectory(src)
+add_subdirectory(lib/monkey/include)
 
 # Tests
 if(CMT_TESTS)
