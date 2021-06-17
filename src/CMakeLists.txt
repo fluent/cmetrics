@@ -40,4 +40,8 @@ else()
   set_target_properties(cmetrics-static PROPERTIES OUTPUT_NAME cmetrics)
 endif(MSVC)
 
-install(TARGETS cmetrics-static RUNTIME DESTINATION ${CMT_INSTALL_LIBDIR} COMPONENT binary)
+install(TARGETS cmetrics-static
+  RUNTIME DESTINATION ${CMT_INSTALL_BINDIR}
+  LIBRARY DESTINATION ${CMT_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMT_INSTALL_LIBDIR}
+  COMPONENT binary)
