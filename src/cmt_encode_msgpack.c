@@ -26,7 +26,7 @@
 
 #include <mpack/mpack.h>
 
-static void pack_header(mpack_writer_t *writer, struct cmt_map *map)
+static void pack_header(mpack_writer_t *writer, struct cmt_map *map, int cmt_type)
 {
     struct mk_list *head;
     struct cmt_map_label *label;
@@ -36,7 +36,7 @@ static void pack_header(mpack_writer_t *writer, struct cmt_map *map)
 
     /* 'type' */
     mpack_write_cstr(writer, "type");
-    mpack_write_uint(writer, 0);
+    mpack_write_uint(writer, cmt_type);
 
     /* 'opts' */
     mpack_write_cstr(writer, "opts");
@@ -113,13 +113,13 @@ static int pack_metric(mpack_writer_t *writer, int type, struct cmt_metric *metr
     mpack_finish_map(writer);
 }
 
-static int pack_basic_type(mpack_writer_t *writer, struct cmt_map *map)
+static int pack_basic_type(mpack_writer_t *writer, struct cmt_map *map, int cmt_type)
 {
     int values_size = 0;
     struct mk_list *head;
     struct cmt_metric *metric;
 
-    pack_header(writer, map);
+    pack_header(writer, map, cmt_type);
 
     if (map->metric_static_set) {
         values_size++;
@@ -183,13 +183,13 @@ int cmt_encode_msgpack_to_msgpack(struct cmt *cmt, char **out_buf, size_t *out_s
     /* Counters */
     mk_list_foreach(head, &cmt->counters) {
         counter = mk_list_entry(head, struct cmt_counter, _head);
-        pack_basic_type(&writer, counter->map);
+        pack_basic_type(&writer, counter->map, CMT_COUNTER);
     }
 
     /* Gauges */
     mk_list_foreach(head, &cmt->gauges) {
         gauge = mk_list_entry(head, struct cmt_gauge, _head);
-        pack_basic_type(&writer, gauge->map);
+        pack_basic_type(&writer, gauge->map, CMT_GAUGE);
     }
 
     if (mpack_writer_destroy(&writer) != mpack_ok) {
