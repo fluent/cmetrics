@@ -19,9 +19,66 @@
 
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_counter.h>
+#include <cmetrics/cmt_encode_msgpack.h>
 #include <cmetrics/cmt_encode_prometheus.h>
 
 #include "cmt_tests.h"
+
+void mk_utils_hexdump(uint8_t *buffer, size_t buffer_length, size_t line_length) {
+    char  *printable_line;
+    size_t buffer_index;
+    size_t filler_index;
+
+    if (40 < line_length)
+    {
+        line_length = 40;
+    }
+
+    printable_line = alloca(line_length + 1);
+
+    if (NULL == printable_line)
+    {
+        printf("Alloca returned NULL\n");
+
+        return;
+    }
+
+    memset(printable_line, '\0', line_length + 1);
+
+    for (buffer_index = 0 ; buffer_index < buffer_length ; buffer_index++) {
+        if (0 != buffer_index &&
+            0 == (buffer_index % line_length)) {
+
+            printf("%s\n", printable_line);
+
+            memset(printable_line, '\0', line_length + 1);
+        }
+
+        if (0 != isprint(buffer[buffer_index])) {
+            printable_line[(buffer_index % line_length)] = buffer[buffer_index];
+        }
+        else {
+            printable_line[(buffer_index % line_length)] = '.';
+        }
+
+        printf("%02X ", buffer[buffer_index]);
+    }
+
+    if (0 != buffer_index &&
+        0 != (buffer_index % line_length)) {
+
+        for (filler_index = 0 ;
+             filler_index < (line_length - (buffer_index % line_length)) ;
+             filler_index++) {
+            printf("   ");
+        }
+
+        printf("%s\n", printable_line);
+
+        memset(printable_line, '.', line_length);
+    }
+}
+
 
 void test_counter()
 {
@@ -141,6 +198,39 @@ void test_labels()
     prom = cmt_encode_prometheus_create(cmt, CMT_TRUE);
     printf("%s\n", prom);
     cmt_encode_prometheus_destroy(prom);
+
+{
+    char *msgpack_buffer;
+    size_t msgpack_buffer_size;
+
+    ret = cmt_encode_msgpack(cmt, &msgpack_buffer, &msgpack_buffer_size);
+
+    TEST_CHECK(ret == 0);
+
+    printf("MSGPACK encoded context : \n\n");
+    mk_utils_hexdump(msgpack_buffer, msgpack_buffer_size, 16);
+    printf("\n\n");
+
+    ret = cmt_decode_msgpack(&cmt, msgpack_buffer, msgpack_buffer_size);
+
+    printf("MSGPACK decode result : %d\n", ret);
+
+    free(msgpack_buffer); 
+
+    msgpack_buffer_size = 0;
+
+    ret = cmt_encode_msgpack(cmt, &msgpack_buffer, &msgpack_buffer_size);
+
+    TEST_CHECK(ret == 0);
+
+    printf("MSGPACK re-encoded context (%zu): \n\n", msgpack_buffer_size);
+    mk_utils_hexdump(msgpack_buffer, msgpack_buffer_size, 16);
+    printf("\n\n");
+
+    // printf("%s\n", prom);
+    // cmt_encode_msgpack_destroy(prom);
+}
+
     cmt_destroy(cmt);
 }
 

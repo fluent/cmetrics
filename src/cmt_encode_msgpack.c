@@ -34,9 +34,17 @@ static void pack_header(mpack_writer_t *writer, struct cmt_map *map)
 
     mpack_start_map(writer, 4);
 
+    /* 'header' */
+    mpack_write_cstr(writer, "header");
+    mpack_start_map(writer, 3);
+
     /* 'type' */
     mpack_write_cstr(writer, "type");
-    mpack_write_uint(writer, 0);
+    mpack_write_uint(writer, map->type);
+
+    /* 'metric_static_set' */
+    mpack_write_cstr(writer, "metric_static_set");
+    mpack_write_uint(writer, map->metric_static_set);
 
     /* 'opts' */
     mpack_write_cstr(writer, "opts");
@@ -62,7 +70,7 @@ static void pack_header(mpack_writer_t *writer, struct cmt_map *map)
     mpack_write_cstr(writer, "fqname");
     mpack_write_cstr(writer, opts->fqname);
 
-    mpack_finish_map(writer);
+    mpack_finish_map(writer); /* 'opts' */
 
     /* 'labels' (label keys) */
     mpack_write_cstr(writer, "labels");
@@ -72,6 +80,8 @@ static void pack_header(mpack_writer_t *writer, struct cmt_map *map)
         mpack_write_cstr(writer, label->name);
     }
     mpack_finish_array(writer);
+
+    mpack_finish_map(writer); /* 'header' */
 }
 
 static int pack_metric(mpack_writer_t *writer, int type, struct cmt_metric *metric)
@@ -144,7 +154,7 @@ static int pack_basic_type(mpack_writer_t *writer, struct cmt_map *map)
 }
 
 /* Takes a cmetrics context and serialize it using msgpack */
-int cmt_encode_msgpack_to_msgpack(struct cmt *cmt, char **out_buf, size_t *out_size)
+int cmt_encode_msgpack(struct cmt *cmt, char **out_buf, size_t *out_size)
 {
     char *data;
     size_t size;
@@ -156,26 +166,31 @@ int cmt_encode_msgpack_to_msgpack(struct cmt *cmt, char **out_buf, size_t *out_s
     /*
      * CMetrics data schema
      * {
-     *  'type' => INTEGER
-     *            '0' = counter
-     *            '1' = gauge
-     *            '2' = histogram (WIP)
-     *  'opts' => {
-     *             'namespace'   => namespace
-     *             'subsystem'   => subsystem
-     *             'name'        => name
-     *             'description' => description
-     *             'fqname'      => metric full name
-     *            },
-     *  'labels' => ['',...]
-     *  'values' => [
-     *                {
-     *                 'ts'   : nanosec timestamp,
-     *                 'value': float64 value
-     *                 'labels': []
-     *                }
-     *              ]
-     *
+     *   'header' => {
+     *                 'type' => INTEGER
+     *                           '0' = counter
+     *                           '1' = gauge
+     *                           '2' = histogram (WIP)
+     *                 'metric_static_set' => INTEGER
+     *                                        '0' = no
+     *                                        '1' = yes
+     *                 'opts' => {
+     *                            'namespace'   => namespace
+     *                            'subsystem'   => subsystem
+     *                            'name'        => name
+     *                            'description' => description
+     *                            'fqname'      => metric full name
+     *                           },
+     *                 'labels' => ['',...]
+     *               },
+     *   'values' => [
+     *                 {
+     *                  'ts'   : nanosec timestamp,
+     *                  'value': float64 value
+     *                  'labels': []
+     *                 }
+     *               ]
+     * }
      */
 
     mpack_writer_init_growable(&writer, &data, &size);
@@ -201,10 +216,4 @@ int cmt_encode_msgpack_to_msgpack(struct cmt *cmt, char **out_buf, size_t *out_s
     *out_size = size;
 
     return 0;
-}
-
-/* Convert cmetrics msgpack payload and generate a CMetrics context */
-struct cmt *cmt_encode_msgpack_to_cmetrics(void *buf, size_t size)
-{
-
 }

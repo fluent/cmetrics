@@ -9,6 +9,7 @@ set(src
   cmetrics.c
   cmt_encode_prometheus.c
   cmt_encode_msgpack.c
+  cmt_decode_msgpack.c
   )
 
 if (${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
