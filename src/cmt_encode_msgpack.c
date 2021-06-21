@@ -32,11 +32,11 @@ static void pack_header(mpack_writer_t *writer, struct cmt_map *map)
     struct cmt_map_label *label;
     struct cmt_opts *opts = map->opts;
 
-    mpack_start_map(writer, 4);
+    mpack_start_map(writer, 2);
 
     /* 'header' */
     mpack_write_cstr(writer, "header");
-    mpack_start_map(writer, 3);
+    mpack_start_map(writer, 4);
 
     /* 'type' */
     mpack_write_cstr(writer, "type");

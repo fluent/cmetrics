@@ -24,6 +24,5 @@
 #include <cmetrics/cmetrics.h>
 
 int cmt_encode_msgpack(struct cmt *cmt, char **out_buf, size_t *out_size);
-int cmt_decode_msgpack(struct cmt **out_cmt, void *in_buf, size_t in_size);
 
 #endif

@@ -23,565 +23,345 @@
 #include <cmetrics/cmt_sds.h>
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
+#include <cmetrics/cmt_decode_msgpack.h>
 
 #include <mpack/mpack.h>
 
-#define CMT_DECODE_MSGPACK_SUCCESS                    0
-#define CMT_DECODE_MSGPACK_ALLOCATION_ERROR           1
-#define CMT_DECODE_MSGPACK_CONSUME_ERROR              2
-#define CMT_DECODE_MSGPACK_ENGINE_ERROR               3
-#define CMT_DECODE_MSGPACK_UNEXPECTED_KEY_ERROR       4
-#define CMT_DECODE_MSGPACK_UNEXPECTED_DATA_TYPE_ERROR 5
-
-static int consume_double_tag(mpack_reader_t *reader, 
-                              double *output_buffer)
+static void destroy_label_list(struct mk_list *label_list)
 {
-    int         result;
-    mpack_tag_t tag;
-
-    tag = mpack_read_tag(reader);
-
-    if (mpack_ok != mpack_reader_error(reader)) {
-        return CMT_DECODE_MSGPACK_ENGINE_ERROR;
+    struct mk_list *tmp;
+    struct mk_list *head;
+    struct cmt_map_label *label;
+    
+    mk_list_foreach_safe(head, tmp, label_list) {
+        label = mk_list_entry(head, struct cmt_map_label, _head);
+        cmt_sds_destroy(label->name);
+        mk_list_del(&label->_head);
+        free(label);
     }
-
-    if (mpack_type_double != mpack_tag_type(&tag)) {
-        printf("DATA TYPE : %d\n", mpack_tag_type(&tag));
-        return CMT_DECODE_MSGPACK_UNEXPECTED_DATA_TYPE_ERROR;
-    }
-
-    *output_buffer = mpack_tag_double_value(&tag);
-
-    return 0;
 }
 
-static int consume_uint_tag(mpack_reader_t *reader, 
-                            uint64_t *output_buffer)
+static int unpack_opts_ns(mpack_reader_t *reader, size_t index, void *context)
 {
-    int         result;
-    mpack_tag_t tag;
+    struct cmt_opts *opts;
 
-    tag = mpack_read_tag(reader);
+    opts = (struct cmt_opts *) context;
 
-    if (mpack_ok != mpack_reader_error(reader)) {
-        return CMT_DECODE_MSGPACK_ENGINE_ERROR;
-    }
-
-    if (mpack_type_uint != mpack_tag_type(&tag)) {
-        printf("DATA TYPE : %d\n", mpack_tag_type(&tag));
-        return CMT_DECODE_MSGPACK_UNEXPECTED_DATA_TYPE_ERROR;
-    }
-
-    *output_buffer = mpack_tag_uint_value(&tag);
-
-    return 0;
+    return cmt_mpack_consume_string_tag(reader, &opts->namespace);
 }
 
-static int consume_string_tag(mpack_reader_t *reader, 
-                              cmt_sds_t *output_buffer)
+static int unpack_opts_ss(mpack_reader_t *reader, size_t index, void *context)
 {
-    uint32_t    string_length;
-    int         result;
-    mpack_tag_t tag;
+    struct cmt_opts *opts;
+    
+    opts = (struct cmt_opts *) context;
 
-    tag = mpack_read_tag(reader);
+    return cmt_mpack_consume_string_tag(reader, &opts->subsystem);
+}
 
-    if (mpack_ok != mpack_reader_error(reader)) {
-        return CMT_DECODE_MSGPACK_ENGINE_ERROR;
-    }
+static int unpack_opts_name(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_opts *opts;
+    
+    opts = (struct cmt_opts *) context;
 
-    if (mpack_type_str != mpack_tag_type(&tag)) {
-        return CMT_DECODE_MSGPACK_UNEXPECTED_DATA_TYPE_ERROR;
-    }
+    return cmt_mpack_consume_string_tag(reader, &opts->name);
+}
 
-    string_length = mpack_tag_str_length(&tag);
+static int unpack_opts_desc(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_opts *opts;
+    
+    opts = (struct cmt_opts *) context;
 
-    *output_buffer = cmt_sds_create_size(string_length + 1);
+    return cmt_mpack_consume_string_tag(reader, &opts->description);
+}
 
-    if (NULL == *output_buffer) {
-        return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
-    }
+static int unpack_opts_fqname(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_opts *opts;
+    
+    opts = (struct cmt_opts *) context;
 
-    mpack_read_cstr(reader, *output_buffer, string_length + 1, string_length);
-
-    if (mpack_ok != mpack_reader_error(reader)) {
-        return CMT_DECODE_MSGPACK_ENGINE_ERROR;
-    }
-
-    mpack_done_str(reader);
-
-    if (mpack_ok != mpack_reader_error(reader)) {
-        return CMT_DECODE_MSGPACK_ENGINE_ERROR;
-    }
-
-    return 0;
+    return cmt_mpack_consume_string_tag(reader, &opts->fqname);
 }
 
 static int unpack_opts(mpack_reader_t *reader, struct cmt_opts *opts)
 {
-    mpack_tag_t outer_tag;
-    mpack_tag_t inner_tag;
-    uint32_t    entry_index;
-    uint32_t    entry_count;
-    uint64_t    error_detected;
-    cmt_sds_t   key_name;
-    int         result;
+    struct cmt_mpack_map_entry_callback_t callbacks[] = {
+                                                            {"ns",     unpack_opts_ns},
+                                                            {"ss",     unpack_opts_ss},
+                                                            {"name",   unpack_opts_name},
+                                                            {"desc",   unpack_opts_desc},
+                                                            {"fqname", unpack_opts_fqname},
+                                                            {NULL,     NULL}
+                                                        };
 
-    outer_tag = mpack_read_tag(reader);
-
-    if (mpack_ok != mpack_reader_error(reader)) {
-        return CMT_DECODE_MSGPACK_ENGINE_ERROR;
-    }
-
-    if (mpack_type_map != mpack_tag_type(&outer_tag)) {
-        return CMT_DECODE_MSGPACK_UNEXPECTED_DATA_TYPE_ERROR;
-    }
-
-    entry_count = mpack_tag_map_count(&outer_tag);
-
-    error_detected = 0;
-    for (entry_index = 0 ; 
-        0 == error_detected && entry_index < entry_count ; 
-        entry_index++) {
-        result = consume_string_tag(reader, &key_name);
-
-        if (0 != result) {
-            return -3;
-        }
-
-        if (0 == strcmp(key_name, "ns")) {
-            result = consume_string_tag(reader, &opts->namespace);
-
-            if (0 != result) {
-                error_detected = 1;
-            }
-        }
-        else if (0 == strcmp(key_name, "ss")) {
-            result = consume_string_tag(reader, &opts->subsystem);
-
-            if (0 != result) {
-                error_detected = 1;
-            }
-        }
-        else if (0 == strcmp(key_name, "name")) {
-            result = consume_string_tag(reader, &opts->name);
-
-            if (0 != result) {
-                error_detected = 1;
-            }
-
-        }
-        else if (0 == strcmp(key_name, "desc")) {
-            result = consume_string_tag(reader, &opts->description);
-
-            if (0 != result) {
-                error_detected = 1;
-            }
-        }
-        else if (0 == strcmp(key_name, "fqname")) {
-            result = consume_string_tag(reader, &opts->fqname);
-
-            if (0 != result) {
-                error_detected = 1;
-            }
-        }
-
-        cmt_sds_destroy(key_name);
-    }
-
-    if (0 != error_detected) {
-        return -4;
-    }
-
-    mpack_done_map(reader);
-
-    if (mpack_ok != mpack_reader_error(reader))
-    {
-        return -5;
-    }
-
-    return 0;
+    return cmt_mpack_unpack_map(reader, callbacks, (void *) opts);
 }
 
-
-static int unpack_labels(mpack_reader_t *reader, struct mk_list *label_keys)
+static int unpack_label(mpack_reader_t *reader, size_t index, void *context)
 {
-    mpack_tag_t outer_tag;
-    uint32_t entry_index;
-    uint32_t entry_count;
-    uint64_t error_detected;
-    cmt_sds_t entry_value;
-    struct cmt_map_label *label;
-    int result;
+    int                   result;
+    struct cmt_map_label *new_label;
+    struct mk_list       *label_list;
+    cmt_sds_t             label_name;
 
-    outer_tag = mpack_read_tag(reader);
+    label_list = (struct mk_list *) context;
 
-    if (mpack_ok != mpack_reader_error(reader))
+    result = cmt_mpack_consume_string_tag(reader, &label_name);
+
+    if (CMT_DECODE_MSGPACK_SUCCESS != result) {
+        cmt_sds_destroy(label_name);
+
+        return result;
+    }
+
+    new_label = malloc(sizeof(struct cmt_map_label));
+
+    if (NULL == new_label) {
+        cmt_sds_destroy(label_name);
+
+        return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
+    }
+    else
     {
-        return -1;
+        new_label->name = label_name;
+
+        mk_list_add(&new_label->_head, label_list);
     }
 
-    if (mpack_type_array != mpack_tag_type(&outer_tag)) {
-        return CMT_DECODE_MSGPACK_UNEXPECTED_DATA_TYPE_ERROR;
-    }
-
-    entry_count = mpack_tag_array_count(&outer_tag);
-
-    error_detected = 0;
-    for (entry_index = 0 ; 
-        0 == error_detected && entry_index < entry_count ; 
-        entry_index++) {
-        result = consume_string_tag(reader, &entry_value);
-
-        if (0 != result) {
-            return -3;
-        }
-
-        label = malloc(sizeof(struct cmt_map_label));
-
-        if (NULL == label) {
-            error_detected = 1;
-        }
-        else
-        {
-            label->name = entry_value;
-            mk_list_add(&label->_head, label_keys);
-        }
-    }
-
-    if (0 != error_detected) {
-        return -4;
-    }
-
-    mpack_done_array(reader);
-
-    if (mpack_ok != mpack_reader_error(reader))
-    {
-        return -5;
-    }
-
-    return 0;
+    return CMT_DECODE_MSGPACK_SUCCESS;
 }
 
-/* This function leaks A TON */
+static int unpack_metric_ts(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_metric *metric;
+    
+    metric = (struct cmt_metric *) context;
+
+    return cmt_mpack_consume_uint_tag(reader, &metric->timestamp);
+}
+
+static int unpack_metric_value(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_metric *metric;
+    int                result;    
+    double             value;
+
+    metric = (struct cmt_metric *) context;
+
+    result = cmt_mpack_consume_double_tag(reader, &value);
+
+    if(CMT_DECODE_MSGPACK_SUCCESS == result) {
+        metric->val = cmt_math_d64_to_uint64(value);
+    }
+
+    return result;
+}
+
+static int unpack_metric_labels(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_metric *metric;
+    
+    metric = (struct cmt_metric *) context;
+
+    return cmt_mpack_unpack_array(reader, unpack_label, (void *) &metric->labels);
+}
+
 static int unpack_metric(mpack_reader_t *reader, struct cmt_metric **out_metric)
 {
+    int                                   result;
+    struct cmt_metric                    *metric;
+    uint8_t                               metric_allocation_flag;
+    struct cmt_mpack_map_entry_callback_t callbacks[] =   {
+                                                        {"ts",     unpack_metric_ts},
+                                                        {"value",  unpack_metric_value},
+                                                        {"labels", unpack_metric_labels},
+                                                        {NULL,     NULL}
+                                                    };
 
-    mpack_tag_t outer_tag;
-    mpack_tag_t inner_tag;
-    uint32_t entry_index;
-    uint32_t entry_count;
-    uint64_t uint_value;
-    uint64_t error_detected;
-    double   double_value;
-    cmt_sds_t key_name;
-    int result;
-    struct cmt_metric *metric;
 
     if (NULL == *out_metric) {
         metric = malloc(sizeof(struct cmt_metric));
 
         if (NULL == metric) {
-            return -999;
+            return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
         }
 
         *out_metric = metric;
+        metric_allocation_flag = 1;
     }
     else
     {
         metric = *out_metric;
+        metric_allocation_flag = 0;
     }
+
+    memset(metric, 0, sizeof(struct cmt_metric));
 
     mk_list_init(&metric->labels);
 
-    outer_tag = mpack_read_tag(reader);
+    result = cmt_mpack_unpack_map(reader, callbacks, (void *) metric);
 
-    if (mpack_ok != mpack_reader_error(reader))
-    {
-        return -1;
-    }
+    if (CMT_DECODE_MSGPACK_SUCCESS != result) {
+        destroy_label_list(&metric->labels);
 
-    if (mpack_type_map != mpack_tag_type(&outer_tag)) {
-        return CMT_DECODE_MSGPACK_UNEXPECTED_DATA_TYPE_ERROR;
-    }
+        if (1 == metric_allocation_flag) {
+            free(metric);
 
-    entry_count = mpack_tag_map_count(&outer_tag);
-
-    error_detected = 0;
-    for (entry_index = 0 ; 
-        0 == error_detected && entry_index < entry_count ; 
-        entry_index++) {
-        result = consume_string_tag(reader, &key_name);
-
-        if (0 != result) {
-            return -3;
+            *out_metric = NULL;
         }
-
-        if (0 == strcmp(key_name, "ts")) {
-            result = consume_uint_tag(reader, &metric->timestamp);
-
-            if (0 != result) {
-                error_detected = 111;
-            }
-        }
-        else if (0 == strcmp(key_name, "value")) {
-            result = consume_double_tag(reader, &double_value);
-
-            if (0 != result) {
-                error_detected = 2222;
-            }
-            else {
-                metric->val = cmt_math_d64_to_uint64(double_value);
-            }
-        }
-        else if (0 == strcmp(key_name, "labels")) {
-            result = unpack_labels(reader, &metric->labels);
-
-            if (0 != result) {
-                error_detected = 333;
-            }
-        }
-
-        cmt_sds_destroy(key_name);
     }
 
-    if (0 != error_detected) {
-        return error_detected;
-    }
-
-    mpack_done_map(reader);
-
-    if (mpack_ok != mpack_reader_error(reader))
-    {
-        return -5;
-    }
-
-    return 0;
+    return result;
 }
 
-static int unpack_values(mpack_reader_t *reader, struct cmt_map *map)
+static int unpack_metric_array_entry(mpack_reader_t *reader, size_t index, void *context)
 {
-
-    mpack_tag_t outer_tag;
-    uint32_t entry_index;
-    uint32_t entry_count;
-    uint64_t error_detected;
-    cmt_sds_t entry_value;
-    struct cmt_map_label *label;
+    size_t             preexisting_entry_count;
+    int                result;
     struct cmt_metric *metric;
-    int result;
+    struct cmt_map    *map;
+    
+    map = (struct cmt_map *) context;
 
-    outer_tag = mpack_read_tag(reader);
-
-    if (mpack_ok != mpack_reader_error(reader))
-    {
-        return -1;
+    if (0 == index && 1 == map->metric_static_set) {
+        metric = &map->metric;
+    }
+    else {
+        metric = NULL;
     }
 
-    if (mpack_type_array != mpack_tag_type(&outer_tag)) {
-        return CMT_DECODE_MSGPACK_UNEXPECTED_DATA_TYPE_ERROR;
-    }
+    result = unpack_metric(reader, &metric);
 
-    entry_count = mpack_tag_array_count(&outer_tag);
-
-    error_detected = 0;
-    for (entry_index = 0 ; 
-        0 == error_detected && entry_index < entry_count ; 
-        entry_index++) {
-
-        if (0 == entry_index && 1 == map->metric_static_set) {
-            metric = &map->metric;
-        }
-        else {
-            metric = NULL;
-        }
-
-        result = unpack_metric(reader, &metric);
-
-        if (0 != result) {
-            return -3;
-        }
-
-        if(0 != entry_index || 0 == map->metric_static_set)
+    if (CMT_DECODE_MSGPACK_SUCCESS == result) {
+        if(0 != index || 0 == map->metric_static_set)
         {
             mk_list_add(&metric->_head, &map->metrics);
         }
     }
 
-    if (0 != error_detected) {
-        return -4;
-    }
-
-    mpack_done_array(reader);
-
-    if (mpack_ok != mpack_reader_error(reader))
-    {
-        return -5;
-    }
-
-    return 0;
+    return result;
 }
 
-
-static int unpack_header(mpack_reader_t *reader, mpack_tag_t tag, struct cmt_map *map)
+static int unpack_header_type(mpack_reader_t *reader, size_t index, void *context)
 {
-    uint64_t error_detected;
-    uint64_t uint_value;
-    cmt_sds_t key_name;
-    int result;
+    struct cmt_map *map;
+    uint64_t        value;
+    int             result;
+    
+    map = (struct cmt_map *) context;
 
-    result = consume_string_tag(reader, &key_name);
+    result = cmt_mpack_consume_uint_tag(reader, &value);
 
-    if (0 != result) {
-        return CMT_DECODE_MSGPACK_CONSUME_ERROR;
+    if (CMT_DECODE_MSGPACK_SUCCESS == result) {
+        map->type = value;
     }
 
-    result = strcmp(key_name, "type");
-
-    if (0 != result) {
-        return -1;
-    }
-
-    result = consume_uint_tag(reader, &uint_value);
-
-    if (0 != result) {
-        return -6;
-    }
-
-    map->type = uint_value;
-
-    cmt_sds_destroy(key_name);
-
-    result = consume_string_tag(reader, &key_name);
-
-    if (0 != result) {
-        return -1;
-    }
-
-    result = strcmp(key_name, "metric_static_set");
-
-    if (0 != result) {
-        return -7;
-    }
-
-    result = consume_uint_tag(reader, &uint_value);
-
-    if (0 != result) {
-        return -8;
-    }
-
-    map->metric_static_set = uint_value;
-
-    cmt_sds_destroy(key_name);
-
-    result = consume_string_tag(reader, &key_name);
-
-    if (0 != result) {
-        return -1;
-    }
-
-    result = strcmp(key_name, "opts");
-
-    if (0 != result) {
-        return -9;
-    }
-
-    result = unpack_opts(reader, map->opts);
-
-    if (0 != result) {
-        return -10;
-    }
-
-    cmt_sds_destroy(key_name);
-
-    result = consume_string_tag(reader, &key_name);
-
-    if (0 != result) {
-        return -1;
-    }
-
-    result = strcmp(key_name, "labels");
-
-    if (0 != result) {
-        return -11;
-    }
-
-    result = unpack_labels(reader, &map->label_keys);
-
-    if (0 != result) {
-        return -12;
-    }
-
-    map->label_count = mk_list_size(&map->label_keys);
-
-    return 0;
+    return result;
 }
 
+static int unpack_header_metric_static_set(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_map *map;
+    uint64_t        value;
+    int             result;
+    
+    map = (struct cmt_map *) context;
+
+    result = cmt_mpack_consume_uint_tag(reader, &value);
+
+    if (CMT_DECODE_MSGPACK_SUCCESS == result) {
+        map->metric_static_set = value;
+    }
+
+    return result;
+}
+
+static int unpack_header_opts(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_map *map;
+    
+    map = (struct cmt_map *) context;
+
+    return unpack_opts(reader, map->opts);
+}
+
+static int unpack_header_labels(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_map *map;
+    
+    map = (struct cmt_map *) context;
+
+    return cmt_mpack_unpack_array(reader, unpack_label, (void *) &map->label_keys);
+}
+
+static int unpack_basic_type_header(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_map             *map;
+    int                         result;
+    struct cmt_mpack_map_entry_callback_t callbacks[] =   {
+                                                    {"type",              unpack_header_type},
+                                                    {"metric_static_set", unpack_header_metric_static_set},
+                                                    {"opts",              unpack_header_opts},
+                                                    {"labels",            unpack_header_labels},
+                                                    {NULL,                NULL}
+                                                };
+
+    map = (struct cmt_map *) context;
+
+    result = cmt_mpack_unpack_map(reader, callbacks, (void *) map);
+
+    if (CMT_DECODE_MSGPACK_SUCCESS == result) {
+        map->label_count = mk_list_size(&map->label_keys);
+    }
+
+    return result;
+}
+
+static int unpack_basic_type_values(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_map *map;
+
+    map = (struct cmt_map *) context;
+
+    return cmt_mpack_unpack_array(reader, unpack_metric_array_entry, (void *) map);
+}
 
 static int unpack_basic_type(mpack_reader_t *reader, struct cmt_map **map)
 {
-    cmt_sds_t key_name;
-    mpack_tag_t tag;
-    int result;
+    int                                   result;
+    struct cmt_mpack_map_entry_callback_t callbacks[] =   {
+                                                    {"header", unpack_basic_type_header},
+                                                    {"values", unpack_basic_type_values},
+                                                    {NULL,     NULL}
+                                                };
 
     *map = cmt_map_create(0, NULL, 0, NULL);
+
+    if (NULL == *map) {
+        return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
+    }
 
     (*map)->opts = malloc(sizeof(struct cmt_opts));
 
     if (NULL == (*map)->opts) {
+        cmt_map_destroy(*map);
+
         return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
     }
 
-    tag = mpack_read_tag(reader);
+    result = cmt_mpack_unpack_map(reader, callbacks, (void *) *map);
 
-    if (mpack_ok != mpack_reader_error(reader))
-    {
-        return CMT_DECODE_MSGPACK_ENGINE_ERROR;
+    if (CMT_DECODE_MSGPACK_SUCCESS != result) {
+        cmt_map_destroy(*map);
+        free((*map)->opts);
+
+        *map = NULL;
     }
 
-    if (mpack_type_map != mpack_tag_type(&tag)) {
-        return CMT_DECODE_MSGPACK_UNEXPECTED_DATA_TYPE_ERROR;
-    }
-
-    result = consume_string_tag(reader, &key_name);
-
-    if (0 != result) {
-        return CMT_DECODE_MSGPACK_CONSUME_ERROR;
-    }
-
-    result = strcmp(key_name, "header");
-
-    if (0 != result) {
-        return CMT_DECODE_MSGPACK_UNEXPECTED_KEY_ERROR;
-    }
-
-    tag = mpack_read_tag(reader);
-
-    result = unpack_header(reader, tag, *map);
-
-    if (0 != result) {
-        return -4;
-    }
-
-    result = consume_string_tag(reader, &key_name);
-
-    if (0 != result) {
-        return CMT_DECODE_MSGPACK_CONSUME_ERROR;
-    }
-
-    result = strcmp(key_name, "values");
-
-    if (0 != result) {
-        return CMT_DECODE_MSGPACK_UNEXPECTED_KEY_ERROR;
-    }
-
-    result = unpack_values(reader, *map);
-
-    if (0 != result) {
-        return -3;
-    }
-
-    return 0;
+    return result;
 }
 
 static int append_unpacked_counter_to_metrics_context(struct cmt *context, 
@@ -665,10 +445,11 @@ int cmt_decode_msgpack(struct cmt **out_cmt, void *in_buf, size_t in_size)
     }
 
     if (CMT_DECODE_MSGPACK_SUCCESS != result) {
-
+        cmt_destroy(cmt);
+    }
+    else {
+        *out_cmt = cmt;
     }
 
-    *out_cmt = cmt;
-
-    return 0;
+    return result;
 }
