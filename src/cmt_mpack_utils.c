@@ -65,6 +65,8 @@ int cmt_mpack_consume_string_tag(mpack_reader_t *reader, cmt_sds_t *output_buffe
         return CMT_MPACK_ALLOCATION_ERROR;
     }
 
+    cmt_sds_set_len(*output_buffer, string_length);
+
     mpack_read_cstr(reader, *output_buffer, string_length + 1, string_length);
 
     if (mpack_ok != mpack_reader_error(reader)) {

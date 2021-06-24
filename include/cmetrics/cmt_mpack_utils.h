@@ -34,6 +34,7 @@
 #define CMT_MPACK_PENDING_ARRAY_ENTRIES      5
 #define CMT_MPACK_UNEXPECTED_KEY_ERROR       6
 #define CMT_MPACK_UNEXPECTED_DATA_TYPE_ERROR 7
+#define CMT_MPACK_ERROR_CUTOFF               20
 
 typedef int (*cmt_mpack_unpacker_entry_callback_fn_t)(mpack_reader_t *reader, 
                                                       size_t index, void *context);

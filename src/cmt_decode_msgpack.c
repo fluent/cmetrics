@@ -29,16 +29,38 @@
 
 static void destroy_label_list(struct mk_list *label_list)
 {
-    struct mk_list *tmp;
-    struct mk_list *head;
+    struct mk_list       *tmp;
+    struct mk_list       *head;
     struct cmt_map_label *label;
     
     mk_list_foreach_safe(head, tmp, label_list) {
         label = mk_list_entry(head, struct cmt_map_label, _head);
+
         cmt_sds_destroy(label->name);
+
         mk_list_del(&label->_head);
+
         free(label);
     }
+}
+
+static struct cmt_map_label *find_label_by_index(struct mk_list *label_list, size_t desired_index)
+{
+    struct mk_list       *head;
+    struct cmt_map_label *label;
+    size_t                entry_index;
+    
+    entry_index = 0;
+
+    mk_list_foreach(head, label_list) {
+        if (entry_index == desired_index) {
+            return mk_list_entry(head, struct cmt_map_label, _head);
+        }
+
+        entry_index++;
+    }
+
+    return NULL;    
 }
 
 static int unpack_opts_ns(mpack_reader_t *reader, size_t index, void *context)
@@ -88,27 +110,58 @@ static int unpack_opts_fqname(mpack_reader_t *reader, size_t index, void *contex
 
 static int unpack_opts(mpack_reader_t *reader, struct cmt_opts *opts)
 {
+    int                                   result;
+    cmt_sds_t                             new_fqname;
+    size_t                                new_fqname_size;
     struct cmt_mpack_map_entry_callback_t callbacks[] = {
                                                             {"ns",     unpack_opts_ns},
                                                             {"ss",     unpack_opts_ss},
                                                             {"name",   unpack_opts_name},
                                                             {"desc",   unpack_opts_desc},
-                                                            {"fqname", unpack_opts_fqname},
+                                                            // {"fqname", unpack_opts_fqname},
                                                             {NULL,     NULL}
                                                         };
 
-    return cmt_mpack_unpack_map(reader, callbacks, (void *) opts);
+    result = cmt_mpack_unpack_map(reader, callbacks, (void *) opts);
+
+    if (CMT_DECODE_MSGPACK_SUCCESS == result) {
+        /* Allocate enough space for the three components, the separators 
+         * and the terminator so we don't have to worry about possible realloc issues
+         * later on.
+         */
+
+        new_fqname_size = cmt_sds_len(opts->namespace) + \
+                          cmt_sds_len(opts->subsystem) + \
+                          cmt_sds_len(opts->name) + \
+                          4; 
+
+        opts->fqname = cmt_sds_create_size(new_fqname_size);
+
+        if (NULL == opts->fqname) {
+            return CMT_DECODE_MSGPACK_ALLOCATION_ERROR; 
+        }
+
+        cmt_sds_cat(opts->fqname, opts->namespace, cmt_sds_len(opts->namespace));
+        cmt_sds_cat(opts->fqname, ".", 1);
+        cmt_sds_cat(opts->fqname, opts->subsystem, cmt_sds_len(opts->subsystem));
+        cmt_sds_cat(opts->fqname, ".", 1);
+        cmt_sds_cat(opts->fqname, opts->name, cmt_sds_len(opts->name));
+    }
+
+    return result;
 }
 
-static int unpack_label(mpack_reader_t *reader, size_t index, void *context)
+static int unpack_label_dictionary_entry(mpack_reader_t *reader, 
+                                         size_t index, 
+                                         void *context)
 {
     int                   result;
     struct cmt_map_label *new_label;
-    struct mk_list       *label_list;
     cmt_sds_t             label_name;
+    struct mk_list       *target_label_list;
 
-    label_list = (struct mk_list *) context;
-
+    target_label_list = (struct mk_list *) context;
+    
     result = cmt_mpack_consume_string_tag(reader, &label_name);
 
     if (CMT_DECODE_MSGPACK_SUCCESS != result) {
@@ -128,33 +181,85 @@ static int unpack_label(mpack_reader_t *reader, size_t index, void *context)
     {
         new_label->name = label_name;
 
-        mk_list_add(&new_label->_head, label_list);
+        mk_list_add(&new_label->_head, target_label_list);
     }
 
     return CMT_DECODE_MSGPACK_SUCCESS;
 }
 
+static int unpack_label(mpack_reader_t *reader, 
+                        size_t index, 
+                        struct mk_list *unique_label_list, 
+                        struct mk_list *target_label_list)
+{
+    int                   result;
+    struct cmt_map_label *new_label;
+    cmt_sds_t             label_name;
+    uint64_t              label_index;
+    struct cmt_map_label *dictionary_entry;
+
+    result = cmt_mpack_consume_uint_tag(reader, &label_index);
+
+    if (CMT_DECODE_MSGPACK_SUCCESS != result) {
+        return result;
+    }
+
+    dictionary_entry = find_label_by_index(unique_label_list, label_index);
+
+    if (NULL == dictionary_entry) {
+        return CMT_DECODE_MSGPACK_DICTIONARY_LOOKUP_ERROR;
+    }
+
+    new_label = malloc(sizeof(struct cmt_map_label));
+
+    if (NULL == new_label) {
+        return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
+    }
+    else
+    {
+        new_label->name = cmt_sds_create(dictionary_entry->name);
+
+        if (NULL == new_label->name) {
+            return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
+        }
+
+        mk_list_add(&new_label->_head, target_label_list);
+    }
+
+    return CMT_DECODE_MSGPACK_SUCCESS;
+}
+
+static int unpack_metric_label(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_msgpack_decode_context *decode_context;
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return unpack_label(reader, index, &decode_context->unique_label_list, 
+                        &decode_context->metric->labels);
+}
+
 static int unpack_metric_ts(mpack_reader_t *reader, size_t index, void *context)
 {
-    struct cmt_metric *metric;
-    
-    metric = (struct cmt_metric *) context;
+    struct cmt_msgpack_decode_context *decode_context;
 
-    return cmt_mpack_consume_uint_tag(reader, &metric->timestamp);
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return cmt_mpack_consume_uint_tag(reader, &decode_context->metric->timestamp);
 }
 
 static int unpack_metric_value(mpack_reader_t *reader, size_t index, void *context)
 {
-    struct cmt_metric *metric;
-    int                result;    
-    double             value;
+    double                             value;
+    int                                result;    
+    struct cmt_msgpack_decode_context *decode_context;
 
-    metric = (struct cmt_metric *) context;
+    decode_context = (struct cmt_msgpack_decode_context *) context;
 
     result = cmt_mpack_consume_double_tag(reader, &value);
 
     if(CMT_DECODE_MSGPACK_SUCCESS == result) {
-        metric->val = cmt_math_d64_to_uint64(value);
+        decode_context->metric->val = cmt_math_d64_to_uint64(value);
     }
 
     return result;
@@ -162,14 +267,18 @@ static int unpack_metric_value(mpack_reader_t *reader, size_t index, void *conte
 
 static int unpack_metric_labels(mpack_reader_t *reader, size_t index, void *context)
 {
-    struct cmt_metric *metric;
-    
-    metric = (struct cmt_metric *) context;
+    struct cmt_msgpack_decode_context *decode_context;
 
-    return cmt_mpack_unpack_array(reader, unpack_label, (void *) &metric->labels);
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return cmt_mpack_unpack_array(reader, 
+                                  unpack_metric_label, 
+                                  (void *) decode_context);
 }
 
-static int unpack_metric(mpack_reader_t *reader, struct cmt_metric **out_metric)
+static int unpack_metric(mpack_reader_t *reader, 
+                         struct cmt_msgpack_decode_context *decode_context, 
+                         struct cmt_metric **out_metric)
 {
     int                                   result;
     struct cmt_metric                    *metric;
@@ -202,7 +311,9 @@ static int unpack_metric(mpack_reader_t *reader, struct cmt_metric **out_metric)
 
     mk_list_init(&metric->labels);
 
-    result = cmt_mpack_unpack_map(reader, callbacks, (void *) metric);
+    decode_context->metric = metric;
+
+    result = cmt_mpack_unpack_map(reader, callbacks, (void *) decode_context);
 
     if (CMT_DECODE_MSGPACK_SUCCESS != result) {
         destroy_label_list(&metric->labels);
@@ -219,26 +330,32 @@ static int unpack_metric(mpack_reader_t *reader, struct cmt_metric **out_metric)
 
 static int unpack_metric_array_entry(mpack_reader_t *reader, size_t index, void *context)
 {
-    size_t             preexisting_entry_count;
-    int                result;
-    struct cmt_metric *metric;
-    struct cmt_map    *map;
-    
-    map = (struct cmt_map *) context;
+    int                                result;
+    struct cmt_metric                 *metric;
+    struct cmt_msgpack_decode_context *decode_context;
 
-    if (0 == index && 1 == map->metric_static_set) {
-        metric = &map->metric;
-    }
-    else {
-        metric = NULL;
-    }
+    decode_context = (struct cmt_msgpack_decode_context *) context;
 
-    result = unpack_metric(reader, &metric);
+    metric = NULL;
+    result = unpack_metric(reader, decode_context, &metric);
 
     if (CMT_DECODE_MSGPACK_SUCCESS == result) {
-        if(0 != index || 0 == map->metric_static_set)
+        if (0 == mk_list_size(&metric->labels)) {
+            /* Should we care about finding more than one "implicitly static metric" in
+             * the array?
+             */
+
+            decode_context->map->metric_static_set = 1;
+
+            decode_context->map->metric.val = metric->val;
+            decode_context->map->metric.hash = metric->hash;
+            decode_context->map->metric.timestamp = metric->timestamp;
+
+            free(metric);
+        }
+        else
         {
-            mk_list_add(&metric->_head, &map->metrics);
+            mk_list_add(&metric->_head, &decode_context->map->metrics);
         }
     }
 
@@ -247,16 +364,16 @@ static int unpack_metric_array_entry(mpack_reader_t *reader, size_t index, void 
 
 static int unpack_header_type(mpack_reader_t *reader, size_t index, void *context)
 {
-    struct cmt_map *map;
-    uint64_t        value;
-    int             result;
-    
-    map = (struct cmt_map *) context;
+    uint64_t                           value;
+    int                                result;
+    struct cmt_msgpack_decode_context *decode_context;
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
 
     result = cmt_mpack_consume_uint_tag(reader, &value);
 
     if (CMT_DECODE_MSGPACK_SUCCESS == result) {
-        map->type = value;
+        decode_context->map->type = value;
     }
 
     return result;
@@ -264,16 +381,16 @@ static int unpack_header_type(mpack_reader_t *reader, size_t index, void *contex
 
 static int unpack_header_metric_static_set(mpack_reader_t *reader, size_t index, void *context)
 {
-    struct cmt_map *map;
-    uint64_t        value;
-    int             result;
-    
-    map = (struct cmt_map *) context;
+    uint64_t                           value;
+    int                                result;
+    struct cmt_msgpack_decode_context *decode_context;
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
 
     result = cmt_mpack_consume_uint_tag(reader, &value);
 
     if (CMT_DECODE_MSGPACK_SUCCESS == result) {
-        map->metric_static_set = value;
+        decode_context->map->metric_static_set = value;
     }
 
     return result;
@@ -281,40 +398,62 @@ static int unpack_header_metric_static_set(mpack_reader_t *reader, size_t index,
 
 static int unpack_header_opts(mpack_reader_t *reader, size_t index, void *context)
 {
-    struct cmt_map *map;
-    
-    map = (struct cmt_map *) context;
+    struct cmt_msgpack_decode_context *decode_context;
 
-    return unpack_opts(reader, map->opts);
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return unpack_opts(reader, decode_context->map->opts);
+}
+
+
+static int unpack_header_label_dictionary(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_msgpack_decode_context *decode_context;
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return cmt_mpack_unpack_array(reader, unpack_label_dictionary_entry, 
+                                  (void *) &decode_context->unique_label_list);
+}
+
+static int unpack_header_label(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_msgpack_decode_context *decode_context;
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return unpack_label(reader, index, 
+                        &decode_context->unique_label_list, 
+                        &decode_context->map->label_keys);
 }
 
 static int unpack_header_labels(mpack_reader_t *reader, size_t index, void *context)
 {
-    struct cmt_map *map;
-    
-    map = (struct cmt_map *) context;
+    struct cmt_msgpack_decode_context *decode_context;
 
-    return cmt_mpack_unpack_array(reader, unpack_label, (void *) &map->label_keys);
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return cmt_mpack_unpack_array(reader, unpack_header_label, (void *) decode_context);
 }
 
 static int unpack_basic_type_header(mpack_reader_t *reader, size_t index, void *context)
 {
-    struct cmt_map             *map;
-    int                         result;
+    int                                   result;
+    struct cmt_msgpack_decode_context    *decode_context;
     struct cmt_mpack_map_entry_callback_t callbacks[] =   {
                                                     {"type",              unpack_header_type},
-                                                    {"metric_static_set", unpack_header_metric_static_set},
                                                     {"opts",              unpack_header_opts},
+                                                    {"label_dictionary",  unpack_header_label_dictionary},
                                                     {"labels",            unpack_header_labels},
                                                     {NULL,                NULL}
                                                 };
 
-    map = (struct cmt_map *) context;
+    decode_context = (struct cmt_msgpack_decode_context *) context;
 
-    result = cmt_mpack_unpack_map(reader, callbacks, (void *) map);
+    result = cmt_mpack_unpack_map(reader, callbacks, (void *) decode_context);
 
     if (CMT_DECODE_MSGPACK_SUCCESS == result) {
-        map->label_count = mk_list_size(&map->label_keys);
+        decode_context->map->label_count = mk_list_size(&decode_context->map->label_keys);
     }
 
     return result;
@@ -323,17 +462,21 @@ static int unpack_basic_type_header(mpack_reader_t *reader, size_t index, void *
 static int unpack_basic_type_values(mpack_reader_t *reader, size_t index, void *context)
 {
     struct cmt_map *map;
+    int             result;
 
     map = (struct cmt_map *) context;
 
-    return cmt_mpack_unpack_array(reader, unpack_metric_array_entry, (void *) map);
+    result = cmt_mpack_unpack_array(reader, unpack_metric_array_entry, (void *) map);
+
+    return result;
 }
 
 static int unpack_basic_type(mpack_reader_t *reader, struct cmt_map **map)
 {
     int                                   result;
+    struct cmt_msgpack_decode_context     decode_context;
     struct cmt_mpack_map_entry_callback_t callbacks[] =   {
-                                                    {"header", unpack_basic_type_header},
+                                                    {"meta",   unpack_basic_type_header},
                                                     {"values", unpack_basic_type_values},
                                                     {NULL,     NULL}
                                                 };
@@ -352,7 +495,11 @@ static int unpack_basic_type(mpack_reader_t *reader, struct cmt_map **map)
         return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
     }
 
-    result = cmt_mpack_unpack_map(reader, callbacks, (void *) *map);
+    decode_context.map = *map;
+
+    mk_list_init(&decode_context.unique_label_list);
+
+    result = cmt_mpack_unpack_map(reader, callbacks, (void *) &decode_context);
 
     if (CMT_DECODE_MSGPACK_SUCCESS != result) {
         cmt_map_destroy(*map);
@@ -360,6 +507,8 @@ static int unpack_basic_type(mpack_reader_t *reader, struct cmt_map **map)
 
         *map = NULL;
     }
+
+    destroy_label_list(&decode_context.unique_label_list);
 
     return result;
 }
@@ -428,7 +577,9 @@ int cmt_decode_msgpack(struct cmt **out_cmt, void *in_buf, size_t in_size)
 
     mpack_reader_init_data(&reader, in_buf, in_size);
 
-    while (CMT_DECODE_MSGPACK_SUCCESS == result) {
+    while (CMT_DECODE_MSGPACK_SUCCESS == result &&
+           0 < mpack_reader_remaining(&reader, NULL)) {
+
         result = unpack_basic_type(&reader, &map);
 
         if (CMT_DECODE_MSGPACK_SUCCESS == result) {

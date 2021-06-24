@@ -33,6 +33,14 @@
 #define CMT_DECODE_MSGPACK_UNEXPECTED_KEY_ERROR       CMT_MPACK_UNEXPECTED_KEY_ERROR
 #define CMT_DECODE_MSGPACK_UNEXPECTED_DATA_TYPE_ERROR CMT_MPACK_UNEXPECTED_DATA_TYPE_ERROR
 
+#define CMT_DECODE_MSGPACK_DICTIONARY_LOOKUP_ERROR    CMT_MPACK_ERROR_CUTOFF + 1
+
+struct cmt_msgpack_decode_context {
+    struct cmt_map    *map;
+    struct cmt_metric *metric;
+    struct mk_list     unique_label_list;
+};
+
 int cmt_decode_msgpack(struct cmt **out_cmt, void *in_buf, size_t in_size);
 
 #endif
