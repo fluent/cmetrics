@@ -35,7 +35,7 @@ void mk_utils_hexdump(uint8_t *buffer, size_t buffer_length, size_t line_length)
         line_length = 40;
     }
 
-    printable_line = alloca(line_length + 1);
+    printable_line = malloc(line_length + 1);
 
     if (NULL == printable_line)
     {
@@ -78,6 +78,8 @@ void mk_utils_hexdump(uint8_t *buffer, size_t buffer_length, size_t line_length)
 
         memset(printable_line, '.', line_length);
     }
+
+    free(printable_line);
 }
 
 
