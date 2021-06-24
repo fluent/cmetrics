@@ -577,6 +577,8 @@ int cmt_decode_msgpack(struct cmt **out_cmt, void *in_buf, size_t in_size)
 
     mpack_reader_init_data(&reader, in_buf, in_size);
 
+    result = CMT_DECODE_MSGPACK_SUCCESS;
+
     while (CMT_DECODE_MSGPACK_SUCCESS == result &&
            0 < mpack_reader_remaining(&reader, NULL)) {
 
