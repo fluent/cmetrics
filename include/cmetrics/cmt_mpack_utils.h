@@ -27,14 +27,20 @@
 #include <mpack/mpack.h>
 
 #define CMT_MPACK_SUCCESS                    0
-#define CMT_MPACK_ALLOCATION_ERROR           1
-#define CMT_MPACK_CONSUME_ERROR              2
-#define CMT_MPACK_ENGINE_ERROR               3
-#define CMT_MPACK_PENDING_MAP_ENTRIES        4
-#define CMT_MPACK_PENDING_ARRAY_ENTRIES      5
-#define CMT_MPACK_UNEXPECTED_KEY_ERROR       6
-#define CMT_MPACK_UNEXPECTED_DATA_TYPE_ERROR 7
+#define CMT_MPACK_INVALID_ARGUMENT_ERROR     1
+#define CMT_MPACK_ALLOCATION_ERROR           2
+#define CMT_MPACK_CORRUPT_INPUT_DATA_ERROR   3
+#define CMT_MPACK_CONSUME_ERROR              4
+#define CMT_MPACK_ENGINE_ERROR               5
+#define CMT_MPACK_PENDING_MAP_ENTRIES        6
+#define CMT_MPACK_PENDING_ARRAY_ENTRIES      7
+#define CMT_MPACK_UNEXPECTED_KEY_ERROR       8
+#define CMT_MPACK_UNEXPECTED_DATA_TYPE_ERROR 9
 #define CMT_MPACK_ERROR_CUTOFF               20
+
+#define CMT_MPACK_MAX_ARRAY_ENTRY_COUNT      65535
+#define CMT_MPACK_MAX_MAP_ENTRY_COUNT        10
+#define CMT_MPACK_MAX_STRING_LENGTH          1024
 
 typedef int (*cmt_mpack_unpacker_entry_callback_fn_t)(mpack_reader_t *reader, 
                                                       size_t index, void *context);

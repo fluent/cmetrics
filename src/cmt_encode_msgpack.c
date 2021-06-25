@@ -47,22 +47,6 @@ static ptrdiff_t find_label_index(struct mk_list *label_list, cmt_sds_t label_na
 
     return -1;    
 }
-static void destroy_label_list(struct mk_list *label_list)
-{
-    struct mk_list       *tmp;
-    struct mk_list       *head;
-    struct cmt_map_label *label;
-    
-    mk_list_foreach_safe(head, tmp, label_list) {
-        label = mk_list_entry(head, struct cmt_map_label, _head);
-
-        cmt_sds_destroy(label->name);
-
-        mk_list_del(&label->_head);
-
-        free(label);
-    }
-}
 
 struct cmt_map_label *create_label(char *label_text)
 {

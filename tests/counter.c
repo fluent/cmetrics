@@ -25,61 +25,137 @@
 
 #include "cmt_tests.h"
 
-void mk_utils_hexdump(uint8_t *buffer, size_t buffer_length, size_t line_length) {
-    char  *printable_line;
-    size_t buffer_index;
-    size_t filler_index;
+static struct cmt *generate_encoder_test_data()
+{
+    int ret;
+    double val;
+    uint64_t ts;
+    struct cmt *cmt;
+    struct cmt_counter *c;
 
-    if (40 < line_length)
-    {
-        line_length = 40;
+    cmt = cmt_create();
+
+    c = cmt_counter_create(cmt, "kubernetes", "network", "load", "Network load",
+                           2, (char *[]) {"hostname", "app"});
+
+    ts = cmt_time_now();
+
+    ret = cmt_counter_get_val(c, 0, NULL, &val);
+    ret = cmt_counter_inc(c, ts, 0, NULL);
+    ret = cmt_counter_add(c, ts, 2, 0, NULL);
+    ret = cmt_counter_get_val(c, 0, NULL, &val);
+
+    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"localhost", "cmetrics"});
+    ret = cmt_counter_get_val(c, 2, (char *[]) {"localhost", "cmetrics"}, &val);
+    ret = cmt_counter_add(c, ts, 10.55, 2, (char *[]) {"localhost", "test"});
+    ret = cmt_counter_get_val(c, 2, (char *[]) {"localhost", "test"}, &val);
+    ret = cmt_counter_set(c, ts, 12.15, 2, (char *[]) {"localhost", "test"});
+    ret = cmt_counter_set(c, ts, 1, 2, (char *[]) {"localhost", "test"});
+
+    return cmt;
+}
+
+void test_msgpack()
+{
+    struct cmt *cmt;
+    int         result;
+    char       *msgpack_buffer_a;
+    char       *msgpack_buffer_b;
+    size_t      msgpack_buffer_size_a;
+    size_t      msgpack_buffer_size_b;
+
+    msgpack_buffer_a = NULL;
+    msgpack_buffer_b = NULL;
+    msgpack_buffer_size_a = 0;
+    msgpack_buffer_size_b = 0;
+
+    cmt = generate_encoder_test_data();
+
+    TEST_CHECK(NULL != cmt);
+
+    if (NULL != cmt) {
+        goto cleanup;
     }
 
-    printable_line = malloc(line_length + 1);
+    result = cmt_encode_msgpack(cmt, &msgpack_buffer_a, &msgpack_buffer_size_a);
 
-    if (NULL == printable_line)
-    {
-        printf("Alloca returned NULL\n");
+    TEST_CHECK(0 == result);
 
-        return;
+    if(0 != result) {
+        goto cleanup;
     }
 
-    memset(printable_line, '\0', line_length + 1);
+    result = cmt_decode_msgpack(&cmt, msgpack_buffer_a, msgpack_buffer_size_a);
 
-    for (buffer_index = 0 ; buffer_index < buffer_length ; buffer_index++) {
-        if (0 != buffer_index &&
-            0 == (buffer_index % line_length)) {
-
-            printf("%s\n", printable_line);
-
-            memset(printable_line, '\0', line_length + 1);
-        }
-
-        if (0 != isprint(buffer[buffer_index])) {
-            printable_line[(buffer_index % line_length)] = buffer[buffer_index];
-        }
-        else {
-            printable_line[(buffer_index % line_length)] = '.';
-        }
-
-        printf("%02X ", buffer[buffer_index]);
+    if (0 != result) {
+        goto cleanup;
     }
 
-    if (0 != buffer_index &&
-        0 != (buffer_index % line_length)) {
+    msgpack_buffer_size_b = 0;
 
-        for (filler_index = 0 ;
-             filler_index < (line_length - (buffer_index % line_length)) ;
-             filler_index++) {
-            printf("   ");
-        }
+    result = cmt_encode_msgpack(cmt, &msgpack_buffer_b, &msgpack_buffer_size_b);
 
-        printf("%s\n", printable_line);
+    TEST_CHECK(result == 0);
 
-        memset(printable_line, '.', line_length);
+    if (0 != result) {
+        goto cleanup;
     }
 
-    free(printable_line);
+    TEST_CHECK(msgpack_buffer_size_a == msgpack_buffer_size_b);
+
+    if (msgpack_buffer_size_a != msgpack_buffer_size_b) {
+        goto cleanup;
+    }
+
+    result = memcmp(msgpack_buffer_a, msgpack_buffer_b, msgpack_buffer_size_a);
+
+    TEST_CHECK(0 == result);
+
+    if (NULL != msgpack_buffer_a) {
+        free(msgpack_buffer_a);
+        msgpack_buffer_a = NULL;
+    }
+
+    if (NULL != msgpack_buffer_b) {
+        free(msgpack_buffer_b);
+        msgpack_buffer_b = NULL;
+    }
+
+cleanup:
+    if (NULL != cmt) {
+        cmt_destroy(cmt);
+    }
+}
+
+void test_prometheus()
+{
+    struct cmt *cmt;
+    cmt_sds_t   prom;
+
+    cmt = generate_encoder_test_data();
+
+    TEST_CHECK(NULL != cmt);
+
+    if (NULL != cmt) {
+        goto cleanup;
+    }
+
+    prom = cmt_encode_prometheus_create(cmt, CMT_TRUE);
+
+    TEST_CHECK(NULL != prom);
+
+    if (NULL == prom) {
+        goto cleanup;
+    }
+
+    printf("%s\n", prom);
+
+    cmt_encode_prometheus_destroy(prom);    
+
+cleanup:
+    if (NULL != cmt) {
+        cmt_destroy(cmt);
+    }
 }
 
 
@@ -126,7 +202,6 @@ void test_labels()
     int ret;
     double val;
     uint64_t ts;
-    cmt_sds_t prom;
     struct cmt *cmt;
     struct cmt_counter *c;
 
@@ -196,79 +271,13 @@ void test_labels()
     ret = cmt_counter_set(c, ts, 1, 2, (char *[]) {"localhost", "test"});
     TEST_CHECK(ret == -1);
 
-    printf("\n");
-
-    prom = cmt_encode_prometheus_create(cmt, CMT_TRUE);
-    printf("%s\n", prom);
-    cmt_encode_prometheus_destroy(prom);
-
-{
-    char  *msgpack_buffer_a;
-    size_t msgpack_buffer_size_a;
-    char  *msgpack_buffer_b;
-    size_t msgpack_buffer_size_b;
-
-    msgpack_buffer_a = NULL;
-    msgpack_buffer_b = NULL;
-    msgpack_buffer_size_a = 0;
-    msgpack_buffer_size_b = 0;
-
-    ret = cmt_encode_msgpack(cmt, &msgpack_buffer_a, &msgpack_buffer_size_a);
-
-    printf("MSGPACK encode result : %d\n", ret);
-    TEST_CHECK(0 == ret);
-
-    if(0 == ret) {
-        printf("MSGPACK encoded context : \n\n");
-        mk_utils_hexdump(msgpack_buffer_a, msgpack_buffer_size_a, 16);
-        printf("\n\n");
-
-        ret = cmt_decode_msgpack(&cmt, msgpack_buffer_a, msgpack_buffer_size_a);
-
-        printf("MSGPACK decode result : %d\n", ret);
-
-    // exit(0);
-
-        if (0 == ret) {
-            msgpack_buffer_size_b = 0;
-
-            ret = cmt_encode_msgpack(cmt, &msgpack_buffer_b, &msgpack_buffer_size_b);
-
-            TEST_CHECK(ret == 0);
-
-            printf("MSGPACK re-encoded context (%zu): \n\n", msgpack_buffer_size_b);
-            mk_utils_hexdump(msgpack_buffer_b, msgpack_buffer_size_b, 16);
-            printf("\n\n");
-
-            if (0 == ret) {
-                TEST_CHECK(msgpack_buffer_size_a == msgpack_buffer_size_b);
-
-                if (msgpack_buffer_size_a == msgpack_buffer_size_b) {
-                    ret = memcmp(msgpack_buffer_a, msgpack_buffer_b, msgpack_buffer_size_a);
-
-                    TEST_CHECK(0 == ret);
-                }
-            }
-        }
-    }
-
-    if (NULL != msgpack_buffer_a) {
-        free(msgpack_buffer_a);
-        msgpack_buffer_a = NULL;
-    }
-
-    if (NULL != msgpack_buffer_b) {
-        free(msgpack_buffer_b);
-        msgpack_buffer_b = NULL;
-    }
-
-}
-
     cmt_destroy(cmt);
 }
 
 TEST_LIST = {
     {"basic", test_counter},
     {"labels", test_labels},
+    {"msgpack", test_msgpack},
+    {"prometheus", test_prometheus},
     { 0 }
 };
