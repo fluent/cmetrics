@@ -36,7 +36,6 @@ static ptrdiff_t find_label_index(struct mk_list *label_list, cmt_sds_t label_na
 
     mk_list_foreach(head, label_list) {
         label = mk_list_entry(head, struct cmt_map_label, _head);
-        // printf("[%s] == [%s]?\n", label->name, label_name);
 
         if (0 == strcmp(label_name, label->name)) {
             return entry_index;
@@ -52,7 +51,7 @@ struct cmt_map_label *create_label(char *label_text)
 {
     struct cmt_map_label *new_label;
 
-    new_label = malloc(sizeof(struct cmt_map_label));
+    new_label = calloc(1, sizeof(struct cmt_map_label));
 
     if (NULL != new_label) {
         new_label->name = cmt_sds_create(label_text);

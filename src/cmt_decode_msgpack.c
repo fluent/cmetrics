@@ -150,7 +150,7 @@ static int unpack_label_dictionary_entry(mpack_reader_t *reader,
         return result;
     }
 
-    new_label = malloc(sizeof(struct cmt_map_label));
+    new_label = calloc(1, sizeof(struct cmt_map_label));
 
     if (NULL == new_label) {
         cmt_sds_destroy(label_name);
@@ -196,7 +196,7 @@ static int unpack_label(mpack_reader_t *reader,
         return CMT_DECODE_MSGPACK_DICTIONARY_LOOKUP_ERROR;
     }
 
-    new_label = malloc(sizeof(struct cmt_map_label));
+    new_label = calloc(1, sizeof(struct cmt_map_label));
 
     if (NULL == new_label) {
         return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
@@ -305,13 +305,11 @@ static int unpack_metric(mpack_reader_t *reader,
      * destructor and update map_metric_create and map_metric_destroy to use them right?
      */
 
-    metric = malloc(sizeof(struct cmt_metric));
+    metric = calloc(1, sizeof(struct cmt_metric));
 
     if (NULL == metric) {
         return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
     }
-
-    memset(metric, 0, sizeof(struct cmt_metric));
 
     mk_list_init(&metric->labels);
 
@@ -510,7 +508,7 @@ static int unpack_basic_type(mpack_reader_t *reader, struct cmt_map **map)
         return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
     }
 
-    (*map)->opts = malloc(sizeof(struct cmt_opts));
+    (*map)->opts = calloc(1, sizeof(struct cmt_opts));
 
     if (NULL == (*map)->opts) {
         cmt_map_destroy(*map);
@@ -546,7 +544,7 @@ static int append_unpacked_counter_to_metrics_context(struct cmt *context,
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
-    counter = malloc(sizeof(struct cmt_counter));    
+    counter = calloc(1, sizeof(struct cmt_counter));    
 
     if (NULL == counter) {
         return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
@@ -575,7 +573,7 @@ static int append_unpacked_gauge_to_metrics_context(struct cmt *context,
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
-    gauge = malloc(sizeof(struct cmt_gauge));    
+    gauge = calloc(1, sizeof(struct cmt_gauge));    
 
     if (NULL == gauge) {
         return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
