@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        distro: [ rpm, deb ]
+        format: [ rpm, deb ]
 
     runs-on: [ ubuntu-latest ]
     steps:
