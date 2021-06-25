@@ -242,3 +242,27 @@ void cmt_map_destroy(struct cmt_map *map)
 
     free(map);
 }
+
+/* I don't know if we should leave this or promote the label type so it has its own
+ * header and source files with their own constructor / destructor and an agnostic name.
+ * That last bit comes from the fact that we are using the cmt_map_label type both in the
+ * dimension definition list held by the map structure and the dimension value list held
+ * by the metric structure.
+ */
+
+void destroy_label_list(struct mk_list *label_list)
+{
+    struct mk_list       *tmp;
+    struct mk_list       *head;
+    struct cmt_map_label *label;
+    
+    mk_list_foreach_safe(head, tmp, label_list) {
+        label = mk_list_entry(head, struct cmt_map_label, _head);
+
+        cmt_sds_destroy(label->name);
+
+        mk_list_del(&label->_head);
+
+        free(label);
+    }
+}
