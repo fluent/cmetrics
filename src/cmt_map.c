@@ -250,7 +250,7 @@ void cmt_map_destroy(struct cmt_map *map)
  * by the metric structure.
  */
 
-inline void destroy_label_list(struct mk_list *label_list)
+void destroy_label_list(struct mk_list *label_list)
 {
     struct mk_list       *tmp;
     struct mk_list       *head;
