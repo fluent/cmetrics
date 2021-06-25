@@ -20,8 +20,9 @@ include(CheckCSourceCompiles)
 include(GNUInstallDirs)
 
 # Configuration options
-option(CMT_DEV     "Enable development mode"  No)
-option(CMT_TESTS   "Enable unit testing"      No)
+option(CMT_DEV             "Enable development mode"                   No)
+option(CMT_TESTS           "Enable unit testing"                       No)
+option(CMT_INSTALL_TARGETS "Enable subdirectory library installations" Yes)
 
 if(CMT_DEV)
   set(CMT_TESTS   Yes)
@@ -92,11 +93,13 @@ if(NOT TARGET xxhash)
   set(BUILD_SHARED_LIBS OFF)
   add_subdirectory(lib/xxHash-0.8.0/cmake_unofficial EXCLUDE_FROM_ALL)
 
-  install(TARGETS xxhash
-    RUNTIME DESTINATION ${CMT_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMT_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMT_INSTALL_LIBDIR}
-    COMPONENT library)
+  if (CMT_INSTALL_TARGETS)
+    install(TARGETS xxhash
+      RUNTIME DESTINATION ${CMT_INSTALL_BINDIR}
+      LIBRARY DESTINATION ${CMT_INSTALL_LIBDIR}
+      ARCHIVE DESTINATION ${CMT_INSTALL_LIBDIR}
+      COMPONENT library)
+  endif()
 endif()
 
 # mpack
@@ -104,11 +107,13 @@ if(NOT TARGET mpack-static)
   include_directories(lib/mpack/src/)
   add_subdirectory(lib/mpack EXCLUDE_FROM_ALL)
 
-  install(TARGETS mpack-static
-    RUNTIME DESTINATION ${CMT_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMT_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMT_INSTALL_LIBDIR}
-    COMPONENT library)
+  if (CMT_INSTALL_TARGETS)
+    install(TARGETS mpack-static
+      RUNTIME DESTINATION ${CMT_INSTALL_BINDIR}
+      LIBRARY DESTINATION ${CMT_INSTALL_LIBDIR}
+      ARCHIVE DESTINATION ${CMT_INSTALL_LIBDIR}
+      COMPONENT library)
+  endif()
 endif()
 
 # Source code
