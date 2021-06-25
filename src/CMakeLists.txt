@@ -33,3 +33,17 @@ set(src
 # Static Library
 add_library(cmetrics-static STATIC ${src})
 target_link_libraries(cmetrics-static xxhash mpack-static)
+
+# Install Library
+if(MSVC)
+  # Rename the output for Windows environment to avoid naming issues
+  set_target_properties(cmetrics-static PROPERTIES OUTPUT_NAME libcmetrics)
+else()
+  set_target_properties(cmetrics-static PROPERTIES OUTPUT_NAME cmetrics)
+endif(MSVC)
+
+install(TARGETS cmetrics-static
+  RUNTIME DESTINATION ${CMT_INSTALL_BINDIR}
+  LIBRARY DESTINATION ${CMT_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMT_INSTALL_LIBDIR}
+  COMPONENT library)
