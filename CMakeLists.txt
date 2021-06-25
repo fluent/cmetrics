@@ -74,21 +74,6 @@ configure_file(
   "${PROJECT_SOURCE_DIR}/include/cmetrics/cmt_info.h"
   )
 
-# xxHash
-if(NOT TARGET xxhash)
-  # Do something when target found
-  set(XXHASH_BUILD_ENABLE_INLINE_API OFF)
-  set(XXHASH_BUILD_XXHSUM OFF)
-  set(BUILD_SHARED_LIBS OFF)
-  add_subdirectory(lib/xxHash-0.8.0/cmake_unofficial EXCLUDE_FROM_ALL)
-endif()
-
-# mpack
-if(NOT TARGET mpack-static)
-  include_directories(lib/mpack/src/)
-  add_subdirectory(lib/mpack EXCLUDE_FROM_ALL)
-endif()
-
 # Installation Directories
 # ========================
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -97,6 +82,33 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 else()
   set(CMT_INSTALL_LIBDIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
   set(CMT_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_PREFIX}/include")
+endif()
+
+# xxHash
+if(NOT TARGET xxhash)
+  # Do something when target found
+  set(XXHASH_BUILD_ENABLE_INLINE_API OFF)
+  set(XXHASH_BUILD_XXHSUM OFF)
+  set(BUILD_SHARED_LIBS OFF)
+  add_subdirectory(lib/xxHash-0.8.0/cmake_unofficial EXCLUDE_FROM_ALL)
+
+  install(TARGETS xxhash
+    RUNTIME DESTINATION ${CMT_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMT_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMT_INSTALL_LIBDIR}
+    COMPONENT library)
+endif()
+
+# mpack
+if(NOT TARGET mpack-static)
+  include_directories(lib/mpack/src/)
+  add_subdirectory(lib/mpack EXCLUDE_FROM_ALL)
+
+  install(TARGETS mpack-static
+    RUNTIME DESTINATION ${CMT_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMT_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMT_INSTALL_LIBDIR}
+    COMPONENT library)
 endif()
 
 # Source code
