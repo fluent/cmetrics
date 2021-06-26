@@ -30,7 +30,7 @@
  * https://github.com/prometheus/docs/blob/master/content/docs/instrumenting/exposition_formats.md
  */
 
-void sds_cat_safe(cmt_sds_t *buf, const char *str, int len)
+static void sds_cat_safe(cmt_sds_t *buf, const char *str, int len)
 {
     cmt_sds_t tmp;
 
@@ -143,7 +143,7 @@ static void format_metric(cmt_sds_t *buf, struct cmt_map *map,
     }
 }
 
-void format_metrics(cmt_sds_t *buf, struct cmt_map *map, int add_timestamp)
+static void format_metrics(cmt_sds_t *buf, struct cmt_map *map, int add_timestamp)
 {
     struct mk_list *head;
     struct cmt_metric *metric;
