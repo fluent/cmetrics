@@ -22,6 +22,7 @@
 #include <cmetrics/cmt_encode_msgpack.h>
 #include <cmetrics/cmt_decode_msgpack.h>
 #include <cmetrics/cmt_encode_prometheus.h>
+#include <cmetrics/cmt_encode_text.h>
 
 #include "cmt_tests.h"
 
@@ -150,10 +151,35 @@ void test_prometheus()
 
     printf("%s\n", prom);
 
-    cmt_encode_prometheus_destroy(prom);    
+    cmt_encode_prometheus_destroy(prom);
 
 cleanup:
     if (NULL != cmt) {
+        cmt_destroy(cmt);
+    }
+}
+
+void test_text()
+{
+    struct cmt *cmt;
+    cmt_sds_t   text;
+
+    cmt = generate_encoder_test_data();
+    TEST_CHECK(cmt != NULL);
+    if (cmt == NULL) {
+        goto cleanup;
+    }
+
+    text = cmt_encode_text_create(cmt);
+    TEST_CHECK(text != NULL);
+
+    if (text == NULL) {
+        goto cleanup;
+    }
+    cmt_sds_destroy(text);
+
+cleanup:
+    if (cmt != NULL) {
         cmt_destroy(cmt);
     }
 }
@@ -279,5 +305,6 @@ TEST_LIST = {
     {"labels", test_labels},
     {"msgpack", test_msgpack},
     {"prometheus", test_prometheus},
+    {"text", test_text},
     { 0 }
 };
