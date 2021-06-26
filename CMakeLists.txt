@@ -81,6 +81,10 @@ if(NOT TARGET mpack-static)
   add_subdirectory(lib/mpack EXCLUDE_FROM_ALL)
 endif()
 
+# snappy
+include_directories(lib/snappy/src/)
+add_subdirectory(lib/snappy EXCLUDE_FROM_ALL)
+
 # Source code
 add_subdirectory(src)
 

@@ -15,6 +15,7 @@ PROTOBUF_C__BEGIN_DECLS
 #endif
 
 #include "types.pb-c.h"
+// #include "gogoproto/gogo.pb-c.h"
 
 typedef struct _Prometheus__WriteRequest Prometheus__WriteRequest;
 typedef struct _Prometheus__ReadRequest Prometheus__ReadRequest;

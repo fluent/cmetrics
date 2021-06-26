@@ -98,51 +98,6 @@ void   prometheus__sample__free_unpacked
   assert(message->base.descriptor == &prometheus__sample__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
-void   prometheus__exemplar__init
-                     (Prometheus__Exemplar         *message)
-{
-  static const Prometheus__Exemplar init_value = PROMETHEUS__EXEMPLAR__INIT;
-  *message = init_value;
-}
-size_t prometheus__exemplar__get_packed_size
-                     (const Prometheus__Exemplar *message)
-{
-  assert(message->base.descriptor == &prometheus__exemplar__descriptor);
-  return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
-}
-size_t prometheus__exemplar__pack
-                     (const Prometheus__Exemplar *message,
-                      uint8_t       *out)
-{
-  assert(message->base.descriptor == &prometheus__exemplar__descriptor);
-  return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
-}
-size_t prometheus__exemplar__pack_to_buffer
-                     (const Prometheus__Exemplar *message,
-                      ProtobufCBuffer *buffer)
-{
-  assert(message->base.descriptor == &prometheus__exemplar__descriptor);
-  return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
-}
-Prometheus__Exemplar *
-       prometheus__exemplar__unpack
-                     (ProtobufCAllocator  *allocator,
-                      size_t               len,
-                      const uint8_t       *data)
-{
-  return (Prometheus__Exemplar *)
-     protobuf_c_message_unpack (&prometheus__exemplar__descriptor,
-                                allocator, len, data);
-}
-void   prometheus__exemplar__free_unpacked
-                     (Prometheus__Exemplar *message,
-                      ProtobufCAllocator *allocator)
-{
-  if(!message)
-    return;
-  assert(message->base.descriptor == &prometheus__exemplar__descriptor);
-  protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
-}
 void   prometheus__time_series__init
                      (Prometheus__TimeSeries         *message)
 {
@@ -627,71 +582,7 @@ const ProtobufCMessageDescriptor prometheus__sample__descriptor =
   (ProtobufCMessageInit) prometheus__sample__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor prometheus__exemplar__field_descriptors[3] =
-{
-  {
-    "labels",
-    1,
-    PROTOBUF_C_LABEL_REPEATED,
-    PROTOBUF_C_TYPE_MESSAGE,
-    offsetof(Prometheus__Exemplar, n_labels),
-    offsetof(Prometheus__Exemplar, labels),
-    &prometheus__label__descriptor,
-    NULL,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
-    "value",
-    2,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_DOUBLE,
-    0,   /* quantifier_offset */
-    offsetof(Prometheus__Exemplar, value),
-    NULL,
-    NULL,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
-    "timestamp",
-    3,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_INT64,
-    0,   /* quantifier_offset */
-    offsetof(Prometheus__Exemplar, timestamp),
-    NULL,
-    NULL,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-};
-static const unsigned prometheus__exemplar__field_indices_by_name[] = {
-  0,   /* field[0] = labels */
-  2,   /* field[2] = timestamp */
-  1,   /* field[1] = value */
-};
-static const ProtobufCIntRange prometheus__exemplar__number_ranges[1 + 1] =
-{
-  { 1, 0 },
-  { 0, 3 }
-};
-const ProtobufCMessageDescriptor prometheus__exemplar__descriptor =
-{
-  PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
-  "prometheus.Exemplar",
-  "Exemplar",
-  "Prometheus__Exemplar",
-  "prometheus",
-  sizeof(Prometheus__Exemplar),
-  3,
-  prometheus__exemplar__field_descriptors,
-  prometheus__exemplar__field_indices_by_name,
-  1,  prometheus__exemplar__number_ranges,
-  (ProtobufCMessageInit) prometheus__exemplar__init,
-  NULL,NULL,NULL    /* reserved[123] */
-};
-static const ProtobufCFieldDescriptor prometheus__time_series__field_descriptors[3] =
+static const ProtobufCFieldDescriptor prometheus__time_series__field_descriptors[2] =
 {
   {
     "labels",
@@ -717,28 +608,15 @@ static const ProtobufCFieldDescriptor prometheus__time_series__field_descriptors
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
-  {
-    "exemplars",
-    3,
-    PROTOBUF_C_LABEL_REPEATED,
-    PROTOBUF_C_TYPE_MESSAGE,
-    offsetof(Prometheus__TimeSeries, n_exemplars),
-    offsetof(Prometheus__TimeSeries, exemplars),
-    &prometheus__exemplar__descriptor,
-    NULL,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
 };
 static const unsigned prometheus__time_series__field_indices_by_name[] = {
-  2,   /* field[2] = exemplars */
   0,   /* field[0] = labels */
   1,   /* field[1] = samples */
 };
 static const ProtobufCIntRange prometheus__time_series__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 3 }
+  { 0, 2 }
 };
 const ProtobufCMessageDescriptor prometheus__time_series__descriptor =
 {
@@ -748,7 +626,7 @@ const ProtobufCMessageDescriptor prometheus__time_series__descriptor =
   "Prometheus__TimeSeries",
   "prometheus",
   sizeof(Prometheus__TimeSeries),
-  3,
+  2,
   prometheus__time_series__field_descriptors,
   prometheus__time_series__field_indices_by_name,
   1,  prometheus__time_series__number_ranges,

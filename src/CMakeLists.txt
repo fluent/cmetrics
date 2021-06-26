@@ -33,4 +33,4 @@ set(src
 
 # Static Library
 add_library(cmetrics-static STATIC ${src})
-target_link_libraries(cmetrics-static xxhash mpack-static protobuf-c)
+target_link_libraries(cmetrics-static snappy xxhash mpack-static protobuf-c)
