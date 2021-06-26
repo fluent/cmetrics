@@ -30,7 +30,7 @@ static void hex_dump_sds(cmt_sds_t buf)
 
     if (NULL != buf) {
         for (idx = 0 ; idx < cmt_sds_len(buf) ; idx++) {
-            printf("%02x ", buf[idx]);
+            printf("%02x ", (unsigned char)buf[idx]);
         }
     }
 }

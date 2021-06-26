@@ -121,7 +121,7 @@ static int format_metric(struct cmt_prometheus_write_request_context *context,
     /* Metric info */
     time_series_entry->data.n_labels  = label_count;
     time_series_entry->data.labels    = sample_label_list;
-    time_series_entry->data.n_samples = label_count;
+    time_series_entry->data.n_samples = sample_count;
     time_series_entry->data.samples   = sample_value_list;
 
     label_index = 0;
@@ -193,26 +193,24 @@ static int format_metrics(struct cmt_prometheus_write_request_context *context, 
             return 2;
         }
     }
-    else
-    {
-        if (mk_list_size(&map->metrics) > 0) {
-            metric = mk_list_entry_first(&map->metrics, struct cmt_metric, _head);
-            result = metric_banner(context, map, metric);
 
-            if (0 != result) {
-                return 3;
-            }
+    if (mk_list_size(&map->metrics) > 0) {
+        metric = mk_list_entry_first(&map->metrics, struct cmt_metric, _head);
+        result = metric_banner(context, map, metric);
+
+        if (0 != result) {
+            return 3;
         }
-
-        mk_list_foreach(head, &map->metrics) {
-            metric = mk_list_entry(head, struct cmt_metric, _head);
-            result = format_metric(context, map, metric, add_timestamp);
-
-            if (0 != result) {
-                return 4;
-            }
-        }        
     }
+
+    mk_list_foreach(head, &map->metrics) {
+        metric = mk_list_entry(head, struct cmt_metric, _head);
+        result = format_metric(context, map, metric, add_timestamp);
+
+        if (0 != result) {
+            return 4;
+        }
+    }        
 
     return 0;
 }

@@ -25,6 +25,10 @@
 #include <cmetrics/cmt_sds.h>
 #include <protobuf-c/remote.pb-c.h>
 
+#define CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS                0
+#define CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR       1
+#define CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR 2
+
 struct cmt_prometheus_metric_metadata {
     Prometheus__MetricMetadata data;
     struct mk_list _head;
