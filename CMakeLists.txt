@@ -46,6 +46,30 @@ if(CMT_HAVE_TIMESPEC_GET)
   CMT_DEFINITION(CMT_HAVE_TIMESPEC_GET)
 endif()
 
+# gmtime_r() support
+check_c_source_compiles("
+  #include <time.h>
+  int main() {
+     struct tm tm;
+     struct timespec tms;
+     return gmtime_r(&tms.tv_sec, &tm);
+  }" CMT_HAVE_GMTIME_R)
+if(CMT_HAVE_GMTIME_R)
+  CMT_DEFINITION(CMT_HAVE_GMTIME_R)
+endif()
+
+# gmtime_s() support
+check_c_source_compiles("
+  #include <time.h>
+  int main() {
+     struct tm tm;
+     struct timespec tms;
+     return gmtime_s(&tm, &tms.tv_sec);
+  }" CMT_HAVE_GMTIME_S)
+if(CMT_HAVE_GMTIME_S)
+  CMT_DEFINITION(CMT_HAVE_GMTIME_S)
+endif()
+
 # clock_get_time() support for macOS.
 check_c_source_compiles("
   #include <mach/clock.h>
