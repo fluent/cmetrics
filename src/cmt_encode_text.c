@@ -24,6 +24,7 @@
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_time.h>
+#include <cmetrics/cmt_compat.h>
 
 static void sds_cat_safe(cmt_sds_t *buf, const char *str, int len)
 {
