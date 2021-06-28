@@ -247,15 +247,21 @@ void test_labels()
      * -----------------------------
      */
 
-    /* Default value for hash zero */
+    /*
+     * Default value: this call should fail since the metric has not been
+     * initialized.
+     */
     ret = cmt_counter_get_val(c, 0, NULL, &val);
-    TEST_CHECK(ret == 0);
-    TEST_CHECK(val == 0.0);
+    TEST_CHECK(ret == -1);
 
     /* Increment hash zero by 1 */
     ret = cmt_counter_inc(c, ts, 0, NULL);
     TEST_CHECK(ret == 0);
-    TEST_CHECK(val == 0.0);
+
+    /* validate value */
+    ret = cmt_counter_get_val(c, 0, NULL, &val);
+    TEST_CHECK(ret == 0);
+    TEST_CHECK(val == 1.0);
 
     /* Add two */
     ret = cmt_counter_add(c, ts, 2, 0, NULL);
