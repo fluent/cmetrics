@@ -45,7 +45,7 @@ static void append_metric_value(cmt_sds_t *buf, struct cmt_metric *metric)
     /* Retrieve metric value */
     val = cmt_metric_get_value(metric);
 
-    len = snprintf(tmp, sizeof(tmp) - 1, " %.17g\n", val);
+    len = snprintf(tmp, sizeof(tmp) - 1, " = %.17g\n", val);
     sds_cat_safe(buf, tmp, len);
 }
 
@@ -124,12 +124,6 @@ static void format_metrics(cmt_sds_t *buf, struct cmt_map *map, int add_timestam
     /* Simple metric, no labels */
     if (map->metric_static_set == 1) {
         format_metric(buf, map, &map->metric);
-        return;
-    }
-
-    if (mk_list_size(&map->metrics) > 0) {
-        metric = mk_list_entry_first(&map->metrics, struct cmt_metric, _head);
-        format_metric(buf, map, metric);
     }
 
     mk_list_foreach(head, &map->metrics) {
