@@ -508,6 +508,7 @@ static int unpack_basic_type(mpack_reader_t *reader, struct cmt_map **map)
         return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
     }
 
+    (*map)->metric_static_set = 0;
     (*map)->opts = calloc(1, sizeof(struct cmt_opts));
 
     if (NULL == (*map)->opts) {
