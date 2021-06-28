@@ -149,15 +149,8 @@ void test_cmt_to_msgpack_integrity()
 
     free(mp1_buf);
 
-    if (NULL != text1_buf) {
-        cmt_encode_text_destroy(text1_buf);
-        text1_buf = NULL;
-    }
-
-    if (NULL != text2_buf) {
-        cmt_encode_text_destroy(text2_buf);
-        text2_buf = NULL;
-    }
+    cmt_encode_text_destroy(text1_buf);
+    cmt_encode_text_destroy(text2_buf);
 }
 
 TEST_LIST = {
