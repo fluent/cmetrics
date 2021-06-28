@@ -113,6 +113,11 @@ if(NOT TARGET mpack-static)
       LIBRARY DESTINATION ${CMT_INSTALL_LIBDIR}
       ARCHIVE DESTINATION ${CMT_INSTALL_LIBDIR}
       COMPONENT library)
+
+    install(FILES lib/mpack/src/mpack/mpack.h
+      DESTINATION ${CMT_INSTALL_INCLUDEDIR}/mpack
+      COMPONENT headers
+      PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
   endif()
 endif()
 
