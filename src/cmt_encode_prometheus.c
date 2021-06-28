@@ -149,10 +149,9 @@ static void format_metrics(cmt_sds_t *buf, struct cmt_map *map, int add_timestam
     struct cmt_metric *metric;
 
     /* Simple metric, no labels */
-    if (map->metric_static_set == 1) {
+    if (map->metric_static_set) {
         metric_banner(buf, map, &map->metric);
         format_metric(buf, map, &map->metric, add_timestamp);
-        return;
     }
 
     if (mk_list_size(&map->metrics) > 0) {
