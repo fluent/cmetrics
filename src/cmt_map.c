@@ -153,7 +153,8 @@ static void map_metric_destroy(struct cmt_metric *metric)
 }
 
 struct cmt_metric *cmt_map_metric_get(struct cmt_opts *opts, struct cmt_map *map,
-                                      int labels_count, char **labels_val)
+                                      int labels_count, char **labels_val,
+                                      int write_op)
 {
     int i;
     int len;
@@ -168,29 +169,54 @@ struct cmt_metric *cmt_map_metric_get(struct cmt_opts *opts, struct cmt_map *map
         return NULL;
     }
 
+    /*
+     * If the caller wants the no-labeled metric (metric_static_set) make sure
+     * it was already pre-defined.
+     */
     if (labels_count == 0 && labels_val == NULL) {
-        hash = 0;
-        metric = &map->metric;
-        map->metric_static_set = 1;
-    }
-    else {
-        XXH64_reset(&state, 0);
-        XXH64_update(&state, opts->fqname, cmt_sds_len(opts->fqname));
-        for (i = 0; i < labels_count; i++) {
-            ptr = labels_val[i];
-            if (!ptr) {
-                return NULL;
+        /*
+         * if an upcoming 'write operation' will be performed for a default
+         * static metric, just initialize it and return it.
+         */
+        if (map->metric_static_set) {
+            metric = &map->metric;
+        }
+        else if (write_op) {
+            metric = &map->metric;
+            if (!map->metric_static_set) {
+                map->metric_static_set = 1;
             }
-            len = strlen(ptr);
-            XXH64_update(&state, ptr, len);
         }
 
-        hash = XXH64_digest(&state);
-        metric = metric_hash_lookup(map, hash);
+        /* return the proper context or NULL */
+        return metric;
     }
+
+    /* Lookup the metric */
+    XXH64_reset(&state, 0);
+    XXH64_update(&state, opts->fqname, cmt_sds_len(opts->fqname));
+    for (i = 0; i < labels_count; i++) {
+        ptr = labels_val[i];
+        if (!ptr) {
+            return NULL;
+        }
+        len = strlen(ptr);
+        XXH64_update(&state, ptr, len);
+    }
+
+    hash = XXH64_digest(&state);
+    metric = metric_hash_lookup(map, hash);
 
     if (metric) {
         return metric;
+    }
+
+    /*
+     * If the metric was not found and the caller will not write a value, just
+     * return NULL.
+     */
+    if (!write_op) {
+        return NULL;
     }
 
     /* If the metric has not been found, just create it */
@@ -210,7 +236,7 @@ int cmt_map_metric_get_val(struct cmt_opts *opts, struct cmt_map *map,
     double val = 0;
     struct cmt_metric *metric;
 
-    metric = cmt_map_metric_get(opts, map, labels_count, labels_val);
+    metric = cmt_map_metric_get(opts, map, labels_count, labels_val, CMT_FALSE);
     if (!metric) {
         return -1;
     }
@@ -219,7 +245,6 @@ int cmt_map_metric_get_val(struct cmt_opts *opts, struct cmt_map *map,
     *out_val = val;
     return 0;
 }
-
 
 void cmt_map_destroy(struct cmt_map *map)
 {
@@ -255,7 +280,7 @@ void destroy_label_list(struct mk_list *label_list)
     struct mk_list       *tmp;
     struct mk_list       *head;
     struct cmt_map_label *label;
-    
+
     mk_list_foreach_safe(head, tmp, label_list) {
         label = mk_list_entry(head, struct cmt_map_label, _head);
 
