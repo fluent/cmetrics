@@ -17,13 +17,19 @@
  *  limitations under the License.
  */
 
-#ifndef CMT_TIME_H
-#define CMT_TIME_H
+#ifndef CMT_COMPAT_H
+#define CMT_COMPAT_H
 
-#include <inttypes.h>
 #include <time.h>
 
-uint64_t cmt_time_now();
-void cmt_time_from_ns(struct timespec *tm, uint64_t ns);
+#if CMT_HAVE_GMTIME_S
+static inline struct tm *gmtime_r(const time_t *timep, struct tm *result)
+{
+    if (gmtime_s(result, timep)) {
+        return NULL;
+    }
+    return result;
+}
+#endif
 
 #endif
