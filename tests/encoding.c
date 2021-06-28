@@ -100,7 +100,68 @@ void test_cmt_to_msgpack()
     free(mp2_buf);
 }
 
+/*
+ * perform the following data encoding and compare msgpack buffsers
+ *
+ * CMT -> MSGPACK -> CMT -> TEXT
+ * CMT -> TEXT
+ *          |                  |
+ *          |---> compare <----|
+ */
+
+void test_cmt_to_msgpack_integrity()
+{
+    int ret;
+    char *mp1_buf = NULL;
+    size_t mp1_size = 0;
+    char *text1_buf = NULL;
+    size_t text1_size = 0;
+    char *text2_buf = NULL;
+    size_t text2_size = 0;
+    struct cmt *cmt1 = NULL;
+    struct cmt *cmt2 = NULL;
+
+    /* Generate context with data */
+    cmt1 = generate_encoder_test_data();
+    TEST_CHECK(cmt1 != NULL);
+
+    /* CMT1 -> Msgpack */
+    ret = cmt_encode_msgpack(cmt1, &mp1_buf, &mp1_size);
+    TEST_CHECK(ret == 0);
+
+    /* Msgpack -> CMT2 */
+    ret = cmt_decode_msgpack(&cmt2, mp1_buf, mp1_size);
+    TEST_CHECK(ret == 0);
+
+    /* CMT1 -> Text */
+    text1_buf = cmt_encode_text_create(cmt1, 1);
+    TEST_CHECK(text1_buf != NULL);
+
+    /* CMT2 -> Text */
+    text2_buf = cmt_encode_text_create(cmt2, 1);
+    TEST_CHECK(text2_buf != NULL);
+
+    /* Compare msgpacks */
+    TEST_CHECK(memcmp(text1_buf, text2_buf, text1_size) == 0);
+
+    cmt_destroy(cmt1);
+    cmt_destroy(cmt2);
+
+    free(mp1_buf);
+
+    if (NULL != text1_buf) {
+        cmt_encode_text_destroy(text1_buf);
+        text1_buf = NULL;
+    }
+
+    if (NULL != text2_buf) {
+        cmt_encode_text_destroy(text2_buf);
+        text2_buf = NULL;
+    }
+}
+
 TEST_LIST = {
     {"cmt_msgpack", test_cmt_to_msgpack},
+    {"cmt_msgpack_integrity", test_cmt_to_msgpack_integrity},
     { 0 }
 };

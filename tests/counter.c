@@ -170,7 +170,7 @@ void test_text()
         goto cleanup;
     }
 
-    text = cmt_encode_text_create(cmt);
+    text = cmt_encode_text_create(cmt, 1);
     TEST_CHECK(text != NULL);
 
     if (text == NULL) {
