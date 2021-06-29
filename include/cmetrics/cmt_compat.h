@@ -21,6 +21,9 @@
 #define CMT_COMPAT_H
 
 #include <time.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #if CMT_HAVE_GMTIME_S
 static inline struct tm *gmtime_r(const time_t *timep, struct tm *result)
