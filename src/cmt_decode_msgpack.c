@@ -24,6 +24,7 @@
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_decode_msgpack.h>
+#include <cmetrics/cmt_compat.h>
 
 #include <mpack/mpack.h>
 
