@@ -89,8 +89,7 @@ inline int cmt_atomic_compare_exchange(uint64_t *storage,
 
         result = 1;
     }
-    else
-    {
+    else {
         result = 0;
     }
 
@@ -108,10 +107,11 @@ inline void cmt_atomic_store(uint64_t *storage, uint64_t new_value)
         exit(1);
     }
 
-    do {
-        result = pthread_mutex_lock(&atomic_operation_lock);
+    result = pthread_mutex_lock(&atomic_operation_lock);
+
+    if (result != 0) {
+        /* We should notify the user somehow */
     }
-    while (result != 0);
 
     *storage = new_value;
 
@@ -128,10 +128,11 @@ inline uint64_t cmt_atomic_load(uint64_t *storage)
         exit(1);
     }
 
-    do {
-        result = pthread_mutex_lock(&atomic_operation_lock);
+    result = pthread_mutex_lock(&atomic_operation_lock);
+
+    if (result != 0) {
+        /* We should notify the user somehow */
     }
-    while (result != 0);
 
     retval = *storage;
 

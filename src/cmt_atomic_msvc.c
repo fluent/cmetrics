@@ -24,22 +24,104 @@
  * as soon as the program starts if enabled.
  */
 
+#ifdef _WIN32
+#ifndef CMT_ATOMIC_HAVE_AUTO_INITIALIZE
+#pragma message("CMT_ATOMIC_HAVE_AUTO_INITIALIZE was forced because it is required for 32 bit targets under msvc")
+#define CMT_ATOMIC_HAVE_AUTO_INITIALIZE
+#endif
+
+CRITICAL_SECTION atomic_operation_lock;
+static int       atomic_operation_system_initialized = 0;
+#endif
+
 #ifdef CMT_ATOMIC_HAVE_AUTO_INITIALIZE
 
 #pragma section(".CRT$XCU", read)
 
-static void cmt_atomic_constructor(void);
+
+void cmt_atomic_constructor(void);
 
 __declspec(allocate(".CRT$XCU")) void (*initializer_)(void) = cmt_atomic_constructor;
 
-__pragma(comment(linker,"/include:" "cmt_atomic_constructor_"))
+__pragma(comment(linker,"/include:" "cmt_atomic_constructor"))
 
-static void cmt_atomic_constructor(void)
+void cmt_atomic_constructor(void)
 {
     cmt_atomic_initialize();
 }
 
 #endif
+
+#ifdef _WIN32
+
+int cmt_atomic_initialize()
+{
+    InitializeCriticalSection(&atomic_operation_lock);
+
+    atomic_operation_system_initialized = 1;
+
+    return 0;
+}
+
+int cmt_atomic_compare_exchange(uint64_t *storage, 
+                                uint64_t old_value, uint64_t new_value)
+{
+    uint64_t result;
+
+    if (0 == atomic_operation_system_initialized) {
+        printf("CMT ATOMIC : Atomic operation backend not initalized\n");
+        exit(1);
+    }
+
+    EnterCriticalSection(&atomic_operation_lock);
+
+    if (*storage == old_value) {
+        *storage = new_value;
+
+        result = 1;
+    }
+    else {
+        result = 0;
+    }
+
+    LeaveCriticalSection(&atomic_operation_lock);
+
+    return result;
+}
+
+void cmt_atomic_store(uint64_t *storage, uint64_t new_value)
+{
+    if (0 == atomic_operation_system_initialized) {
+        printf("CMT ATOMIC : Atomic operation backend not initalized\n");
+        exit(1);
+    }
+
+    EnterCriticalSection(&atomic_operation_lock);
+
+    *storage = new_value;
+    
+    LeaveCriticalSection(&atomic_operation_lock);
+}
+
+uint64_t cmt_atomic_load(uint64_t *storage)
+{
+    uint64_t result;
+
+    if (0 == atomic_operation_system_initialized) {
+        printf("CMT ATOMIC : Atomic operation backend not initalized\n");
+        exit(1);
+    }
+
+    EnterCriticalSection(&atomic_operation_lock);
+
+    result = *storage;
+    
+    LeaveCriticalSection(&atomic_operation_lock);
+
+    return result;
+}
+
+#else /* _WIN64 */
 
 int cmt_atomic_initialize()
 {
@@ -70,3 +152,4 @@ uint64_t cmt_atomic_load(uint64_t *storage)
     return _InterlockedOr64(storage, 0);
 }
 
+#endif
