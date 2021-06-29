@@ -21,9 +21,15 @@
 #include <cmetrics/cmt_log.h>
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_counter.h>
+#include <cmetrics/cmt_atomic.h>
 #include <cmetrics/cmt_compat.h>
 
 #include <stdlib.h>
+
+void cmt_initialize()
+{
+    cmt_atomic_initialize();
+}
 
 struct cmt *cmt_create()
 {
