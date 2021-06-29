@@ -1,0 +1,22 @@
+version: v1-winbuild-{build}
+
+image: Visual Studio 2019
+
+platform:
+  - Win32
+  - x64
+
+environment:
+  vspath: 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Community'
+
+configuration:
+  - Release
+  
+skip_commits:
+  message: /workflows/
+  files:
+    - '.github/**'
+
+build_script:
+  - .\scripts\win_build.bat
+  - ctest -C Debug --test-dir .\tests\
