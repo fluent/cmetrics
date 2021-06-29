@@ -96,7 +96,8 @@ void test_atomic_operations()
 
     for(thread_index = 0 ; thread_index < THREAD_COUNT ; thread_index++)
     {
-        pthread_create(&threads[thread_index], NULL, worker_thread, NULL);
+        pthread_create(&threads[thread_index], NULL, 
+                       worker_thread_add_through_compare_exchange, NULL);
     }
 
     for(thread_index = 0 ; thread_index < THREAD_COUNT ; thread_index++)
