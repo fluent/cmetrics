@@ -74,6 +74,8 @@ void test_cmt_to_msgpack()
     struct cmt *cmt1 = NULL;
     struct cmt *cmt2 = NULL;
 
+    cmt_initialize();
+
     /* Generate context with data */
     cmt1 = generate_encoder_test_data();
     TEST_CHECK(cmt1 != NULL);

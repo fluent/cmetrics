@@ -49,7 +49,7 @@ static inline void add_through_compare_exchange(uint64_t val)
     while(0 == result);
 }
 
-void *worker_thread_add_through_compare_exchange(void *ptr)
+unsigned long worker_thread_add_through_compare_exchange(void *ptr)
 {
     int local_counter;
 
@@ -57,6 +57,8 @@ void *worker_thread_add_through_compare_exchange(void *ptr)
     {
         add_through_compare_exchange(1);
     }
+
+    return 0;
 }
 
 #if defined (_WIN32) || defined (_WIN64)
@@ -68,12 +70,14 @@ void test_atomic_operations()
     int    thread_index;
     DWORD  result;
 
+    cmt_initialize();
+
     global_counter = 0;
 
     for(thread_index = 0 ; thread_index < THREAD_COUNT ; thread_index++)
     {
         threads[thread_index] = CreateThread(NULL, 0, 
-                                             worker_thread_add_through_compare_exchange, 
+                                             (LPTHREAD_START_ROUTINE) worker_thread_add_through_compare_exchange, 
                                              NULL, 0, &thread_ids[thread_index]);
     }
 
@@ -91,6 +95,8 @@ void test_atomic_operations()
 {
     pthread_t threads[THREAD_COUNT];
     int       thread_index;
+
+    cmt_initialize();
 
     global_counter = 0;
 

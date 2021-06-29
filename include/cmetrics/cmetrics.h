@@ -48,6 +48,8 @@ struct cmt {
     struct mk_list histograms;
 };
 
+void cmt_initialize();
+
 struct cmt *cmt_create();
 void cmt_destroy(struct cmt *cmt);
 

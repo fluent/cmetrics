@@ -25,40 +25,19 @@
  */
 
 #ifdef _WIN32
-#ifndef CMT_ATOMIC_HAVE_AUTO_INITIALIZE
-#pragma message("CMT_ATOMIC_HAVE_AUTO_INITIALIZE was forced because it is required for 32 bit targets under msvc")
-#define CMT_ATOMIC_HAVE_AUTO_INITIALIZE
-#endif
-
 CRITICAL_SECTION atomic_operation_lock;
 static int       atomic_operation_system_initialized = 0;
-#endif
-
-#ifdef CMT_ATOMIC_HAVE_AUTO_INITIALIZE
-
-#pragma section(".CRT$XCU", read)
-
-
-void cmt_atomic_constructor(void);
-
-__declspec(allocate(".CRT$XCU")) void (*initializer_)(void) = cmt_atomic_constructor;
-
-__pragma(comment(linker,"/include:" "cmt_atomic_constructor"))
-
-void cmt_atomic_constructor(void)
-{
-    cmt_atomic_initialize();
-}
-
 #endif
 
 #ifdef _WIN32
 
 int cmt_atomic_initialize()
 {
-    InitializeCriticalSection(&atomic_operation_lock);
+    if (0 == atomic_operation_system_initialized) {
+        InitializeCriticalSection(&atomic_operation_lock);
 
-    atomic_operation_system_initialized = 1;
+        atomic_operation_system_initialized = 1;
+    }
 
     return 0;
 }

@@ -31,6 +31,8 @@ void test_gauge()
     struct cmt *cmt;
     struct cmt_gauge *g;
 
+    cmt_initialize();
+
     cmt = cmt_create();
     TEST_CHECK(cmt != NULL);
 
@@ -84,6 +86,8 @@ void test_labels()
     cmt_sds_t prom;
     struct cmt *cmt;
     struct cmt_gauge *g;
+
+    cmt_initialize();
 
     cmt = cmt_create();
     TEST_CHECK(cmt != NULL);
