@@ -23,6 +23,7 @@
 #include <cmetrics/cmt_log.h>
 #include <cmetrics/cmt_hash.h>
 #include <cmetrics/cmt_metric.h>
+#include <cmetrics/cmt_compat.h>
 
 struct cmt_map *cmt_map_create(int type, struct cmt_opts *opts, int count, char **labels)
 {
