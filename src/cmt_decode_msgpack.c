@@ -24,6 +24,7 @@
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_decode_msgpack.h>
+#include <cmetrics/cmt_compat.h>
 
 #include <mpack/mpack.h>
 
@@ -508,6 +509,7 @@ static int unpack_basic_type(mpack_reader_t *reader, struct cmt_map **map)
         return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
     }
 
+    (*map)->metric_static_set = 0;
     (*map)->opts = calloc(1, sizeof(struct cmt_opts));
 
     if (NULL == (*map)->opts) {

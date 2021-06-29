@@ -22,6 +22,7 @@
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_atomic.h>
+#include <cmetrics/cmt_compat.h>
 
 #include <stdlib.h>
 
