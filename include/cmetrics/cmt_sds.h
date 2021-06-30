@@ -189,4 +189,15 @@ static inline void cmt_sds_set_len(cmt_sds_t s, size_t len)
     head->len = len;
 }
 
+static inline void cmt_sds_cat_safe(cmt_sds_t *buf, const char *str, int len)
+{
+    cmt_sds_t tmp;
+
+    tmp = cmt_sds_cat(*buf, str, len);
+    if (!tmp) {
+        return;
+    }
+    *buf = tmp;
+}
+
 #endif
