@@ -2,6 +2,7 @@ set(UNIT_TESTS_FILES
   gauge.c
   counter.c
   atomic_operations.c
+  encoding.c
   )
 
 # Prepare list of unit tests
