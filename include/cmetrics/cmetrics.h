@@ -36,11 +36,15 @@
 #include <cmetrics/cmt_math.h>
 #include <cmetrics/cmt_time.h>
 #include <cmetrics/cmt_sds.h>
+#include <cmetrics/cmt_label.h>
 
 struct cmt {
     /* logging */
     int log_level;
     void (*log_cb)(void *, int, const char *, int, const char *);
+
+    /* static labels */
+    struct cmt_labels *static_labels;
 
     /* Metrics list */
     struct mk_list counters;
@@ -52,5 +56,6 @@ void cmt_initialize();
 
 struct cmt *cmt_create();
 void cmt_destroy(struct cmt *cmt);
+int cmt_label_add(struct cmt *cmt, char *key, char *val);
 
 #endif
