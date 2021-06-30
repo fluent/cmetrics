@@ -118,6 +118,48 @@ static int gather_label_entries_in_map(struct mk_list *unique_label_list,
     return result;
 }
 
+static int gather_static_label_entries(struct mk_list *unique_label_list, 
+                                       struct cmt *cmt)
+{
+    struct mk_list       *head;
+    int                   result;
+    struct cmt_map_label *new_label;
+    ptrdiff_t             label_index;
+    struct cmt_label     *static_label;
+
+    mk_list_foreach(head, &cmt->static_labels->list) {
+        static_label = mk_list_entry(head, struct cmt_label, _head);
+
+        label_index = find_label_index(unique_label_list, static_label->key);
+
+        if (-1 == label_index) {
+            new_label = create_label(static_label->key);
+
+            if(NULL == new_label) {
+                return 1;
+            }
+
+            mk_list_add(&new_label->_head, unique_label_list);
+        }
+
+        label_index = find_label_index(unique_label_list, static_label->val);
+
+        if (-1 == label_index) {
+            new_label = create_label(static_label->val);
+
+            if(NULL == new_label) {
+                return 1;
+            }
+
+            mk_list_add(&new_label->_head, unique_label_list);
+        }
+
+        /* If we got this far then we are sure we have the entry in the list */
+    }
+
+    return 0;
+}
+
 static int gather_label_entries_in_context(struct mk_list *unique_label_list, 
                                            struct cmt *cmt)
 {
@@ -154,18 +196,21 @@ static int gather_label_entries_in_context(struct mk_list *unique_label_list,
 }
 
 
-static void pack_header(mpack_writer_t *writer, struct cmt_map *map, struct mk_list *unique_label_list)
+static void pack_header(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map *map, struct mk_list *unique_label_list)
 {
-    struct mk_list *head;
+    struct cmt_opts      *opts;
+    struct mk_list       *head;
     struct cmt_map_label *label;
     ptrdiff_t             label_index;
-    struct cmt_opts *opts = map->opts;
+    struct cmt_label     *static_label;
+
+    opts = map->opts;
 
     mpack_start_map(writer, 2);
 
     /* 'meta' */
     mpack_write_cstr(writer, "meta");
-    mpack_start_map(writer, 4);
+    mpack_start_map(writer, 5);
 
     /* 'type' */
     mpack_write_cstr(writer, "type");
@@ -199,6 +244,23 @@ static void pack_header(mpack_writer_t *writer, struct cmt_map *map, struct mk_l
     mk_list_foreach(head, unique_label_list) {
         label = mk_list_entry(head, struct cmt_map_label, _head);
         mpack_write_cstr(writer, label->name);
+    }
+    mpack_finish_array(writer);
+
+    /* 'static_labels' (static labels) */
+    mpack_write_cstr(writer, "static_labels");
+    mpack_start_array(writer, mk_list_size(&cmt->static_labels->list) * 2);
+    mk_list_foreach(head, &cmt->static_labels->list) {
+        static_label = mk_list_entry(head, struct cmt_label, _head);
+
+        label_index = find_label_index(unique_label_list, static_label->key);
+
+        mpack_write_uint(writer, (uint16_t) label_index);
+
+        label_index = find_label_index(unique_label_list, static_label->val);
+
+        mpack_write_uint(writer, (uint16_t) label_index);
+        /* If we got this far then we are sure we have the entry in the list */
     }
     mpack_finish_array(writer);
 
@@ -260,7 +322,7 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
     mpack_finish_map(writer);
 }
 
-static int pack_basic_type(mpack_writer_t *writer, struct cmt_map *map)
+static int pack_basic_type(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map *map)
 {
     int result;
     int values_size = 0;
@@ -270,6 +332,14 @@ static int pack_basic_type(mpack_writer_t *writer, struct cmt_map *map)
 
     mk_list_init(&unique_label_list);
 
+    
+    result = gather_static_label_entries(&unique_label_list, cmt);
+
+    if (0 != result) {
+        fprintf(stderr, "An error occurred preprocessing the data!\n");
+        return -1;
+    }
+
     result = gather_label_entries_in_map(&unique_label_list, map);
 
     if (0 != result) {
@@ -277,7 +347,7 @@ static int pack_basic_type(mpack_writer_t *writer, struct cmt_map *map)
         return -1;
     }
 
-    pack_header(writer, map, &unique_label_list);
+    pack_header(writer, cmt, map, &unique_label_list);
 
     if (map->metric_static_set) {
         values_size++;
@@ -329,6 +399,7 @@ int cmt_encode_msgpack(struct cmt *cmt, char **out_buf, size_t *out_size)
      *                            'description' => description
      *                           },
      *                 'label_dictionary' => ['', ...],
+     *                 'static_labels' => [n, ...],
      *                 'label_keys' => [n, ...]
      *               },
      *   'values' => [
@@ -346,13 +417,13 @@ int cmt_encode_msgpack(struct cmt *cmt, char **out_buf, size_t *out_size)
     /* Counters */
     mk_list_foreach(head, &cmt->counters) {
         counter = mk_list_entry(head, struct cmt_counter, _head);
-        pack_basic_type(&writer, counter->map);
+        pack_basic_type(&writer, cmt, counter->map);
     }
 
     /* Gauges */
     mk_list_foreach(head, &cmt->gauges) {
         gauge = mk_list_entry(head, struct cmt_gauge, _head);
-        pack_basic_type(&writer, gauge->map);
+        pack_basic_type(&writer, cmt, gauge->map);
     }
 
     if (mpack_writer_destroy(&writer) != mpack_ok) {
