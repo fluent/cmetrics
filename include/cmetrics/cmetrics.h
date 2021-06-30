@@ -33,6 +33,7 @@
 #include <monkey/mk_core/mk_list.h>
 
 #include <cmetrics/cmt_info.h>
+#include <cmetrics/cmt_compat.h>
 #include <cmetrics/cmt_math.h>
 #include <cmetrics/cmt_time.h>
 #include <cmetrics/cmt_sds.h>
