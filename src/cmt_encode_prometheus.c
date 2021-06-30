@@ -170,18 +170,22 @@ static void format_metric(struct cmt *cmt,
 static void format_metrics(struct cmt *cmt, cmt_sds_t *buf, struct cmt_map *map,
                            int add_timestamp)
 {
+    int banner_set = CMT_FALSE;
     struct mk_list *head;
     struct cmt_metric *metric;
 
     /* Simple metric, no labels */
     if (map->metric_static_set) {
         metric_banner(buf, map, &map->metric);
+        banner_set = CMT_TRUE;
         format_metric(cmt, buf, map, &map->metric, add_timestamp);
     }
 
     if (mk_list_size(&map->metrics) > 0) {
         metric = mk_list_entry_first(&map->metrics, struct cmt_metric, _head);
-        metric_banner(buf, map, metric);
+        if (!banner_set) {
+            metric_banner(buf, map, metric);
+        }
     }
 
     mk_list_foreach(head, &map->metrics) {
