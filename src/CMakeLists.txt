@@ -6,6 +6,7 @@ set(src
   cmt_log.c
   cmt_opts.c
   cmt_time.c
+  cmt_label.c
   cmetrics.c
   cmt_encode_prometheus.c
   cmt_encode_text.c
