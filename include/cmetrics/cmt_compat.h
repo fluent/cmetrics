@@ -25,14 +25,18 @@
 #include <windows.h>
 #endif
 
-#if CMT_HAVE_GMTIME_S
-static inline struct tm *gmtime_r(const time_t *timep, struct tm *result)
+static inline struct tm *cmt_platform_gmtime_r(const time_t *timep, struct tm *result)
 {
+#ifdef CMT_HAVE_GMTIME_S
     if (gmtime_s(result, timep)) {
         return NULL;
     }
+
     return result;
-}
+#else
+    /* FIXME: Need to handle gmtime_r(3) lacking platform? */
+    return gmtime_r(timep, result) ;
 #endif
+}
 
 #endif

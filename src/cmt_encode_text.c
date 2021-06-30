@@ -65,7 +65,7 @@ static void format_metric(struct cmt *cmt, cmt_sds_t *buf, struct cmt_map *map,
 
     cmt_time_from_ns(&tms, ts);
 
-    gmtime_r(&tms.tv_sec, &tm);
+    cmt_platform_gmtime_r(&tms.tv_sec, &tm);
     len = strftime(tmp, sizeof(tmp) - 1, "%Y-%m-%dT%H:%M:%S.", &tm);
     cmt_sds_cat_safe(buf, tmp, len);
 
