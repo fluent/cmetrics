@@ -26,17 +26,6 @@
 #include <cmetrics/cmt_time.h>
 #include <cmetrics/cmt_compat.h>
 
-static void sds_cat_safe(cmt_sds_t *buf, const char *str, int len)
-{
-    cmt_sds_t tmp;
-
-    tmp = cmt_sds_cat(*buf, str, len);
-    if (!tmp) {
-        return;
-    }
-    *buf = tmp;
-}
-
 static void append_metric_value(cmt_sds_t *buf, struct cmt_metric *metric)
 {
     int len;
@@ -47,7 +36,7 @@ static void append_metric_value(cmt_sds_t *buf, struct cmt_metric *metric)
     val = cmt_metric_get_value(metric);
 
     len = snprintf(tmp, sizeof(tmp) - 1, " = %.17g\n", val);
-    sds_cat_safe(buf, tmp, len);
+    cmt_sds_cat_safe(buf, tmp, len);
 }
 
 static void format_metric(cmt_sds_t *buf, struct cmt_map *map,
@@ -75,17 +64,17 @@ static void format_metric(cmt_sds_t *buf, struct cmt_map *map,
 
     gmtime_r(&tms.tv_sec, &tm);
     len = strftime(tmp, sizeof(tmp) - 1, "%Y-%m-%dT%H:%M:%S.", &tm);
-    sds_cat_safe(buf, tmp, len);
+    cmt_sds_cat_safe(buf, tmp, len);
 
     len = snprintf(tmp, sizeof(tmp) - 1, "%09luZ ", tms.tv_nsec);
-    sds_cat_safe(buf, tmp, len);
+    cmt_sds_cat_safe(buf, tmp, len);
 
     /* Metric info */
-    sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
+    cmt_sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
 
     n = mk_list_size(&metric->labels);
     if (n > 0) {
-        sds_cat_safe(buf, "{", 1);
+        cmt_sds_cat_safe(buf, "{", 1);
 
         label_k = mk_list_entry_first(&map->label_keys, struct cmt_map_label, _head);
 
@@ -93,22 +82,22 @@ static void format_metric(cmt_sds_t *buf, struct cmt_map *map,
         mk_list_foreach(head, &metric->labels) {
             label_v = mk_list_entry(head, struct cmt_map_label, _head);
 
-            sds_cat_safe(buf, label_k->name, cmt_sds_len(label_k->name));
-            sds_cat_safe(buf, "=\"", 2);
-            sds_cat_safe(buf, label_v->name, cmt_sds_len(label_v->name));
+            cmt_sds_cat_safe(buf, label_k->name, cmt_sds_len(label_k->name));
+            cmt_sds_cat_safe(buf, "=\"", 2);
+            cmt_sds_cat_safe(buf, label_v->name, cmt_sds_len(label_v->name));
 
             if (i < n) {
-                sds_cat_safe(buf, "\",", 2);
+                cmt_sds_cat_safe(buf, "\",", 2);
             }
             else {
-                sds_cat_safe(buf, "\"", 1);
+                cmt_sds_cat_safe(buf, "\"", 1);
             }
             i++;
 
             label_k = mk_list_entry_next(&label_k->_head, struct cmt_map_label,
                                          _head, &map->label_keys);
         }
-        sds_cat_safe(buf, "}", 1);
+        cmt_sds_cat_safe(buf, "}", 1);
 
         append_metric_value(buf, metric);
     }
