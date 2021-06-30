@@ -57,6 +57,8 @@ void cmt_labels_destroy(struct cmt_labels *labels)
         mk_list_del(&l->_head);
         free(l);
     }
+
+    free(labels);
 }
 
 int cmt_labels_add_kv(struct cmt_labels *labels, char *key, char *val)
