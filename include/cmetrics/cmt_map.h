@@ -17,8 +17,8 @@
  *  limitations under the License.
  */
 
-#ifndef CMT_LABELS_H
-#define CMT_LABELS_H
+#ifndef CMT_MAP_H
+#define CMT_MAP_H
 
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_opts.h>
