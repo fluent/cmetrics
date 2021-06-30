@@ -102,7 +102,7 @@ void test_cmt_to_msgpack()
     free(mp2_buf);
 }
 
-void test_static_labels()
+void test_prometheus()
 {
     int ret;
     uint64_t ts;
@@ -150,8 +150,54 @@ void test_static_labels()
     cmt_destroy(cmt);
 }
 
+void test_text()
+{
+    int ret;
+    uint64_t ts;
+    cmt_sds_t text;
+    struct cmt *cmt;
+    struct cmt_counter *c;
+
+    char *out1 = \
+        "1970-01-01T00:00:00.000000000Z cmt_labels_test = 1\n"
+        "1970-01-01T00:00:00.000000000Z cmt_labels_test{host=\"calyptia.com\",app=\"cmetrics\"} = 2\n";
+
+    char *out2 = \
+        "1970-01-01T00:00:00.000000000Z cmt_labels_test{dev=\"Calyptia\",lang=\"C\"} = 1\n"
+        "1970-01-01T00:00:00.000000000Z cmt_labels_test{dev=\"Calyptia\",lang=\"C\",host=\"calyptia.com\",app=\"cmetrics\"} = 2\n";
+
+    cmt = cmt_create();
+    TEST_CHECK(cmt != NULL);
+
+    c = cmt_counter_create(cmt, "cmt", "labels", "test", "Static labels test",
+                           2, (char *[]) {"host", "app"});
+
+    ts = 0;
+    ret = cmt_counter_inc(c, ts, 0, NULL);
+    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
+    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
+
+    /* Encode to prometheus (no static labels) */
+    text = cmt_encode_text_create(cmt);
+    printf("%s\n", text);
+    TEST_CHECK(strcmp(text, out1) == 0);
+    cmt_encode_text_destroy(text);
+
+    /* append static labels */
+    cmt_label_add(cmt, "dev", "Calyptia");
+    cmt_label_add(cmt, "lang", "C");
+
+    text = cmt_encode_text_create(cmt);
+    printf("%s\n", text);
+    TEST_CHECK(strcmp(text, out2) == 0);
+    cmt_encode_text_destroy(text);
+
+    cmt_destroy(cmt);
+}
+
 TEST_LIST = {
     {"cmt_msgpack", test_cmt_to_msgpack},
-    {"static_labels", test_static_labels},
+    {"prometheus" , test_prometheus},
+    {"text"       , test_text},
     { 0 }
 };
