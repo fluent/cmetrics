@@ -24,6 +24,7 @@
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_compat.h>
+#include <cmetrics/cmt_encode_msgpack.h>
 
 #include <mpack/mpack.h>
 
@@ -210,7 +211,11 @@ static void pack_header(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map 
 
     /* 'meta' */
     mpack_write_cstr(writer, "meta");
-    mpack_start_map(writer, 5);
+    mpack_start_map(writer, 6);
+
+    /* 'ver' */
+    mpack_write_cstr(writer, "ver");
+    mpack_write_uint(writer, MSGPACK_ENCODER_VERSION);
 
     /* 'type' */
     mpack_write_cstr(writer, "type");
@@ -388,6 +393,7 @@ int cmt_encode_msgpack(struct cmt *cmt, char **out_buf, size_t *out_size)
      * CMetrics data schema
      * {
      *   'meta' => {
+     *                 'ver' => INTEGER
      *                 'type' => INTEGER
      *                           '0' = counter
      *                           '1' = gauge

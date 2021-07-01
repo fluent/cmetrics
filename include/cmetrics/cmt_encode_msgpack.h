@@ -23,6 +23,8 @@
 
 #include <cmetrics/cmetrics.h>
 
+#define MSGPACK_ENCODER_VERSION 1
+
 int cmt_encode_msgpack(struct cmt *cmt, char **out_buf, size_t *out_size);
 
 #endif
