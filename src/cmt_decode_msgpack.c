@@ -23,8 +23,9 @@
 #include <cmetrics/cmt_sds.h>
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
-#include <cmetrics/cmt_decode_msgpack.h>
 #include <cmetrics/cmt_compat.h>
+#include <cmetrics/cmt_encode_msgpack.h>
+#include <cmetrics/cmt_decode_msgpack.h>
 
 #include <mpack/mpack.h>
 
@@ -436,6 +437,30 @@ static int unpack_metric_array_entry(mpack_reader_t *reader, size_t index, void 
     return result;
 }
 
+static int unpack_meta_ver(mpack_reader_t *reader, size_t index, void *context)
+{
+    uint64_t                           value;
+    int                                result;
+    struct cmt_msgpack_decode_context *decode_context;
+
+    if (NULL == reader || 
+        NULL == context) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    result = cmt_mpack_consume_uint_tag(reader, &value);
+
+    if (CMT_DECODE_MSGPACK_SUCCESS == result) {
+        if (MSGPACK_ENCODER_VERSION != value)  {
+            result = CMT_DECODE_MSGPACK_VERSION_ERROR;
+        }
+    }
+
+    return result;
+}
+
 static int unpack_meta_type(mpack_reader_t *reader, size_t index, void *context)
 {
     uint64_t                           value;
@@ -545,6 +570,7 @@ static int unpack_basic_type_meta(mpack_reader_t *reader, size_t index, void *co
     struct cmt_msgpack_decode_context    *decode_context;
     struct cmt_mpack_map_entry_callback_t callbacks[] = \
         {
+            {"ver",              unpack_meta_ver},
             {"type",             unpack_meta_type},
             {"opts",             unpack_meta_opts},
             {"label_dictionary", unpack_meta_label_dictionary},
