@@ -9,11 +9,14 @@ set(src
   cmt_label.c
   cmetrics.c
   cmt_encode_prometheus.c
+  cmt_encode_prometheus_remote_write.c
   cmt_encode_text.c
   cmt_encode_influx.c
   cmt_encode_msgpack.c
   cmt_decode_msgpack.c
   cmt_mpack_utils.c
+  remote.pb-c.c
+  types.pb-c.c
   )
 
 if (${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
@@ -35,7 +38,7 @@ set(src
 
 # Static Library
 add_library(cmetrics-static STATIC ${src})
-target_link_libraries(cmetrics-static xxhash mpack-static)
+target_link_libraries(cmetrics-static xxhash mpack-static protobuf-c)
 
 # Install Library
 if(MSVC)
