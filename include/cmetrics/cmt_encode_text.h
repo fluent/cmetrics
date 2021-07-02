@@ -24,7 +24,7 @@
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_sds.h>
 
-cmt_sds_t cmt_encode_text_create(struct cmt *cmt);
+cmt_sds_t cmt_encode_text_create(struct cmt *cmt, int add_timestamp);
 void cmt_encode_text_destroy(cmt_sds_t text);
 
 #endif

@@ -133,6 +133,58 @@ void test_cmt_to_msgpack()
     free(mp2_buf);
 }
 
+/*
+ * perform the following data encoding and compare msgpack buffsers
+ *
+ * CMT -> MSGPACK -> CMT -> TEXT
+ * CMT -> TEXT
+ *          |                  |
+ *          |---> compare <----|
+ */
+void test_cmt_to_msgpack_integrity()
+{
+    int ret;
+    char *mp1_buf = NULL;
+    size_t mp1_size = 0;
+    char *text1_buf = NULL;
+    size_t text1_size = 0;
+    char *text2_buf = NULL;
+    size_t text2_size = 0;
+    struct cmt *cmt1 = NULL;
+    struct cmt *cmt2 = NULL;
+
+    /* Generate context with data */
+    cmt1 = generate_encoder_test_data();
+    TEST_CHECK(cmt1 != NULL);
+
+    /* CMT1 -> Msgpack */
+    ret = cmt_encode_msgpack(cmt1, &mp1_buf, &mp1_size);
+    TEST_CHECK(ret == 0);
+
+    /* Msgpack -> CMT2 */
+    ret = cmt_decode_msgpack(&cmt2, mp1_buf, mp1_size);
+    TEST_CHECK(ret == 0);
+
+    /* CMT1 -> Text */
+    text1_buf = cmt_encode_text_create(cmt1, 1);
+    TEST_CHECK(text1_buf != NULL);
+
+    /* CMT2 -> Text */
+    text2_buf = cmt_encode_text_create(cmt2, 1);
+    TEST_CHECK(text2_buf != NULL);
+
+    /* Compare msgpacks */
+    TEST_CHECK(memcmp(text1_buf, text2_buf, text1_size) == 0);
+
+    cmt_destroy(cmt1);
+    cmt_destroy(cmt2);
+
+    free(mp1_buf);
+
+    cmt_encode_text_destroy(text1_buf);
+    cmt_encode_text_destroy(text2_buf);
+}
+
 void test_cmt_to_msgpack_labels()
 {
     int ret;
@@ -173,7 +225,7 @@ void test_cmt_to_msgpack_labels()
     cmt_label_add(cmt2, "dev", "Calyptia");
     cmt_label_add(cmt2, "lang", "C");
 
-    text_result = cmt_encode_text_create(cmt2);
+    text_result = cmt_encode_text_create(cmt2, 1);
     TEST_CHECK(NULL != text_result);
     TEST_CHECK(0 == strcmp(text_result, expected_text));
 
@@ -263,7 +315,7 @@ void test_text()
     ret = cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
 
     /* Encode to prometheus (no static labels) */
-    text = cmt_encode_text_create(cmt);
+    text = cmt_encode_text_create(cmt, 1);
     printf("\n%s\n", text);
     TEST_CHECK(strcmp(text, out1) == 0);
     cmt_encode_text_destroy(text);
@@ -272,7 +324,7 @@ void test_text()
     cmt_label_add(cmt, "dev", "Calyptia");
     cmt_label_add(cmt, "lang", "C");
 
-    text = cmt_encode_text_create(cmt);
+    text = cmt_encode_text_create(cmt, 1);
     printf("%s\n", text);
     TEST_CHECK(strcmp(text, out2) == 0);
     cmt_encode_text_destroy(text);
@@ -326,10 +378,11 @@ void test_influx()
 }
 
 TEST_LIST = {
-    {"cmt_msgpack_labels", test_cmt_to_msgpack_labels},
-    {"cmt_msgpack",        test_cmt_to_msgpack},
-    {"prometheus" ,        test_prometheus},
-    {"text"       ,        test_text},
-    {"influx"     ,        test_influx},  
+    {"cmt_msgpack_integrity", test_cmt_to_msgpack_integrity},
+    {"cmt_msgpack_labels",    test_cmt_to_msgpack_labels},
+    {"cmt_msgpack",           test_cmt_to_msgpack},
+    {"prometheus" ,           test_prometheus},
+    {"text"       ,           test_text},
+    {"influx"     ,           test_influx},  
     { 0 }
 };
