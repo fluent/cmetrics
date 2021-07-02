@@ -17,26 +17,24 @@
  *  limitations under the License.
  */
 
-#ifndef CMT_COMPAT_H
-#define CMT_COMPAT_H
+#ifndef CMT_LABEL_H
+#define CMT_LABEL_H
 
-#include <time.h>
-#ifdef _WIN32
-#include <windows.h>
-#endif
+#include <cmetrics/cmetrics.h>
 
-static inline struct tm *cmt_platform_gmtime_r(const time_t *timep, struct tm *result)
-{
-#ifdef CMT_HAVE_GMTIME_S
-    if (gmtime_s(result, timep)) {
-        return NULL;
-    }
+struct cmt_label {
+    cmt_sds_t key;             /* Label key */
+    cmt_sds_t val;             /* Label value */
+    struct mk_list _head;      /* Link to list cmt_labels->list */
+};
 
-    return result;
-#else
-    /* FIXME: Need to handle gmtime_r(3) lacking platform? */
-    return gmtime_r(timep, result) ;
-#endif
-}
+struct cmt_labels {
+    struct mk_list list;
+};
+
+struct cmt_labels *cmt_labels_create();
+void cmt_labels_destroy(struct cmt_labels *labels);
+int cmt_labels_add_kv(struct cmt_labels *labels, char *key, char *val);
+int cmt_labels_count(struct cmt_labels *labels);
 
 #endif

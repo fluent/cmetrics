@@ -26,17 +26,6 @@
 #include <cmetrics/cmt_time.h>
 #include <cmetrics/cmt_compat.h>
 
-static void sds_cat_safe(cmt_sds_t *buf, const char *str, int len)
-{
-    cmt_sds_t tmp;
-
-    tmp = cmt_sds_cat(*buf, str, len);
-    if (!tmp) {
-        return;
-    }
-    *buf = tmp;
-}
-
 static void append_metric_value(cmt_sds_t *buf, struct cmt_metric *metric)
 {
     int len;
@@ -47,15 +36,17 @@ static void append_metric_value(cmt_sds_t *buf, struct cmt_metric *metric)
     val = cmt_metric_get_value(metric);
 
     len = snprintf(tmp, sizeof(tmp) - 1, " = %.17g\n", val);
-    sds_cat_safe(buf, tmp, len);
+    cmt_sds_cat_safe(buf, tmp, len);
 }
 
-static void format_metric(cmt_sds_t *buf, struct cmt_map *map,
+static void format_metric(struct cmt *cmt, cmt_sds_t *buf, struct cmt_map *map,
                           struct cmt_metric *metric)
 {
     int i;
     int n;
     int len;
+    int count = 0;
+    int static_labels = 0;
     double val;
     char tmp[128];
     uint64_t ts;
@@ -65,6 +56,7 @@ static void format_metric(cmt_sds_t *buf, struct cmt_map *map,
     struct cmt_map_label *label_v;
     struct mk_list *head;
     struct cmt_opts *opts;
+    struct cmt_label *slabel;
 
     opts = map->opts;
 
@@ -73,19 +65,42 @@ static void format_metric(cmt_sds_t *buf, struct cmt_map *map,
 
     cmt_time_from_ns(&tms, ts);
 
-    gmtime_r(&tms.tv_sec, &tm);
+    cmt_platform_gmtime_r(&tms.tv_sec, &tm);
     len = strftime(tmp, sizeof(tmp) - 1, "%Y-%m-%dT%H:%M:%S.", &tm);
-    sds_cat_safe(buf, tmp, len);
+    cmt_sds_cat_safe(buf, tmp, len);
 
     len = snprintf(tmp, sizeof(tmp) - 1, "%09luZ ", tms.tv_nsec);
-    sds_cat_safe(buf, tmp, len);
+    cmt_sds_cat_safe(buf, tmp, len);
 
     /* Metric info */
-    sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
+    cmt_sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
+
+    /* Static labels */
+    static_labels = cmt_labels_count(cmt->static_labels);
+    if (static_labels > 0) {
+        cmt_sds_cat_safe(buf, "{", 1);
+        mk_list_foreach(head, &cmt->static_labels->list) {
+            count++;
+            slabel = mk_list_entry(head, struct cmt_label, _head);
+            cmt_sds_cat_safe(buf, slabel->key, cmt_sds_len(slabel->key));
+            cmt_sds_cat_safe(buf, "=\"", 2);
+            cmt_sds_cat_safe(buf, slabel->val, cmt_sds_len(slabel->val));
+            cmt_sds_cat_safe(buf, "\"", 1);
+
+            if (count < static_labels) {
+                cmt_sds_cat_safe(buf, ",", 1);
+            }
+        }
+    }
 
     n = mk_list_size(&metric->labels);
     if (n > 0) {
-        sds_cat_safe(buf, "{", 1);
+        if (static_labels > 0) {
+            cmt_sds_cat_safe(buf, ",", 1);
+        }
+        else {
+            cmt_sds_cat_safe(buf, "{", 1);
+        }
 
         label_k = mk_list_entry_first(&map->label_keys, struct cmt_map_label, _head);
 
@@ -93,43 +108,47 @@ static void format_metric(cmt_sds_t *buf, struct cmt_map *map,
         mk_list_foreach(head, &metric->labels) {
             label_v = mk_list_entry(head, struct cmt_map_label, _head);
 
-            sds_cat_safe(buf, label_k->name, cmt_sds_len(label_k->name));
-            sds_cat_safe(buf, "=\"", 2);
-            sds_cat_safe(buf, label_v->name, cmt_sds_len(label_v->name));
+            cmt_sds_cat_safe(buf, label_k->name, cmt_sds_len(label_k->name));
+            cmt_sds_cat_safe(buf, "=\"", 2);
+            cmt_sds_cat_safe(buf, label_v->name, cmt_sds_len(label_v->name));
 
             if (i < n) {
-                sds_cat_safe(buf, "\",", 2);
+                cmt_sds_cat_safe(buf, "\",", 2);
             }
             else {
-                sds_cat_safe(buf, "\"", 1);
+                cmt_sds_cat_safe(buf, "\"", 1);
             }
             i++;
 
             label_k = mk_list_entry_next(&label_k->_head, struct cmt_map_label,
                                          _head, &map->label_keys);
         }
-        sds_cat_safe(buf, "}", 1);
+        cmt_sds_cat_safe(buf, "}", 1);
 
         append_metric_value(buf, metric);
     }
     else {
+        if (static_labels > 0) {
+            cmt_sds_cat_safe(buf, "}", 1);
+        }
         append_metric_value(buf, metric);
     }
 }
 
-static void format_metrics(cmt_sds_t *buf, struct cmt_map *map, int add_timestamp)
+static void format_metrics(struct cmt *cmt,
+                           cmt_sds_t *buf, struct cmt_map *map, int add_timestamp)
 {
     struct mk_list *head;
     struct cmt_metric *metric;
 
     /* Simple metric, no labels */
     if (map->metric_static_set == 1) {
-        format_metric(buf, map, &map->metric);
+        format_metric(cmt, buf, map, &map->metric);
     }
 
     mk_list_foreach(head, &map->metrics) {
         metric = mk_list_entry(head, struct cmt_metric, _head);
-        format_metric(buf, map, metric);
+        format_metric(cmt, buf, map, metric);
     }
 }
 
@@ -150,13 +169,13 @@ cmt_sds_t cmt_encode_text_create(struct cmt *cmt, int add_timestamp)
     /* Counters */
     mk_list_foreach(head, &cmt->counters) {
         counter = mk_list_entry(head, struct cmt_counter, _head);
-        format_metrics(&buf, counter->map, add_timestamp);
+        format_metrics(cmt, &buf, counter->map, add_timestamp);
     }
 
     /* Gauges */
     mk_list_foreach(head, &cmt->gauges) {
         gauge = mk_list_entry(head, struct cmt_gauge, _head);
-        format_metrics(&buf, gauge->map, add_timestamp);
+        format_metrics(cmt, &buf, gauge->map, add_timestamp);
     }
 
     return buf;

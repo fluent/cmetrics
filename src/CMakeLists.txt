@@ -6,9 +6,11 @@ set(src
   cmt_log.c
   cmt_opts.c
   cmt_time.c
+  cmt_label.c
   cmetrics.c
   cmt_encode_prometheus.c
   cmt_encode_text.c
+  cmt_encode_influx.c
   cmt_encode_msgpack.c
   cmt_decode_msgpack.c
   cmt_mpack_utils.c

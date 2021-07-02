@@ -36,8 +36,10 @@
 #define CMT_DECODE_MSGPACK_UNEXPECTED_DATA_TYPE_ERROR CMT_MPACK_UNEXPECTED_DATA_TYPE_ERROR
 
 #define CMT_DECODE_MSGPACK_DICTIONARY_LOOKUP_ERROR    CMT_MPACK_ERROR_CUTOFF + 1
+#define CMT_DECODE_MSGPACK_VERSION_ERROR              CMT_MPACK_ERROR_CUTOFF + 2
 
 struct cmt_msgpack_decode_context {
+    struct cmt        *cmt;
     struct cmt_map    *map;
     struct cmt_metric *metric;
     struct mk_list     unique_label_list;

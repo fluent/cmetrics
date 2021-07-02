@@ -70,6 +70,8 @@ void test_msgpack()
     msgpack_buffer_size_a = 0;
     msgpack_buffer_size_b = 0;
 
+    cmt_initialize();
+
     cmt = generate_encoder_test_data();
 
     TEST_CHECK(NULL != cmt);
@@ -133,6 +135,8 @@ void test_prometheus()
     struct cmt *cmt;
     cmt_sds_t   prom;
 
+    cmt_initialize();
+
     cmt = generate_encoder_test_data();
 
     TEST_CHECK(NULL != cmt);
@@ -164,6 +168,8 @@ void test_text()
     struct cmt *cmt;
     cmt_sds_t   text;
 
+    cmt_initialize();
+
     cmt = generate_encoder_test_data();
     TEST_CHECK(cmt != NULL);
     if (cmt == NULL) {
@@ -192,6 +198,8 @@ void test_counter()
     uint64_t ts;
     struct cmt *cmt;
     struct cmt_counter *c;
+
+    cmt_initialize();
 
     cmt = cmt_create();
     TEST_CHECK(cmt != NULL);
@@ -230,6 +238,8 @@ void test_labels()
     uint64_t ts;
     struct cmt *cmt;
     struct cmt_counter *c;
+
+    cmt_initialize();
 
     cmt = cmt_create();
     TEST_CHECK(cmt != NULL);

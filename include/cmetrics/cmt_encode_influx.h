@@ -17,26 +17,14 @@
  *  limitations under the License.
  */
 
-#ifndef CMT_COMPAT_H
-#define CMT_COMPAT_H
 
-#include <time.h>
-#ifdef _WIN32
-#include <windows.h>
-#endif
+#ifndef CMT_ENCODE_INFLUX_H
+#define CMT_ENCODE_INFLUX_H
 
-static inline struct tm *cmt_platform_gmtime_r(const time_t *timep, struct tm *result)
-{
-#ifdef CMT_HAVE_GMTIME_S
-    if (gmtime_s(result, timep)) {
-        return NULL;
-    }
+#include <cmetrics/cmetrics.h>
+#include <cmetrics/cmt_sds.h>
 
-    return result;
-#else
-    /* FIXME: Need to handle gmtime_r(3) lacking platform? */
-    return gmtime_r(timep, result) ;
-#endif
-}
+cmt_sds_t cmt_encode_influx_create(struct cmt *cmt);
+void cmt_encode_influx_destroy(cmt_sds_t text);
 
 #endif
