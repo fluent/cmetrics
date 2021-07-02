@@ -225,7 +225,7 @@ void test_cmt_to_msgpack_labels()
     cmt_label_add(cmt2, "dev", "Calyptia");
     cmt_label_add(cmt2, "lang", "C");
 
-    text_result = cmt_encode_text_create(cmt2);
+    text_result = cmt_encode_text_create(cmt2, 1);
     TEST_CHECK(NULL != text_result);
     TEST_CHECK(0 == strcmp(text_result, expected_text));
 
@@ -315,7 +315,7 @@ void test_text()
     ret = cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
 
     /* Encode to prometheus (no static labels) */
-    text = cmt_encode_text_create(cmt);
+    text = cmt_encode_text_create(cmt, 1);
     printf("\n%s\n", text);
     TEST_CHECK(strcmp(text, out1) == 0);
     cmt_encode_text_destroy(text);
@@ -324,7 +324,7 @@ void test_text()
     cmt_label_add(cmt, "dev", "Calyptia");
     cmt_label_add(cmt, "lang", "C");
 
-    text = cmt_encode_text_create(cmt);
+    text = cmt_encode_text_create(cmt, 1);
     printf("%s\n", text);
     TEST_CHECK(strcmp(text, out2) == 0);
     cmt_encode_text_destroy(text);
