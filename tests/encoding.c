@@ -133,6 +133,32 @@ void test_cmt_to_msgpack()
     free(mp2_buf);
 }
 
+
+void test_cmt_to_msgpack_validation()
+{
+    int ret;
+    char *mp1_buf = NULL;
+    size_t mp1_size = 1;
+    struct cmt *cmt1 = NULL;
+
+    cmt_initialize();
+
+    /* Generate context with data */
+    cmt1 = generate_encoder_test_data();
+    TEST_CHECK(cmt1 != NULL);
+
+    /* Encode the context */
+    ret = cmt_encode_msgpack(cmt1, &mp1_buf, &mp1_size);
+    TEST_CHECK(ret == 0);
+
+    /* Validate the context */
+    ret = cmt_validate_msgpack(mp1_buf, mp1_size, CMT_VALIDATE_DEEPLY);
+    TEST_CHECK(ret == 0);
+
+    cmt_destroy(cmt1);
+    free(mp1_buf);
+}
+
 /*
  * perform the following data encoding and compare msgpack buffsers
  *
@@ -378,11 +404,12 @@ void test_influx()
 }
 
 TEST_LIST = {
-    {"cmt_msgpack_integrity", test_cmt_to_msgpack_integrity},
-    {"cmt_msgpack_labels",    test_cmt_to_msgpack_labels},
-    {"cmt_msgpack",           test_cmt_to_msgpack},
-    {"prometheus" ,           test_prometheus},
-    {"text"       ,           test_text},
-    {"influx"     ,           test_influx},  
+    {"cmt_msgpack_validation", test_cmt_to_msgpack_validation},
+    {"cmt_msgpack_integrity",  test_cmt_to_msgpack_integrity},
+    {"cmt_msgpack_labels",     test_cmt_to_msgpack_labels},
+    {"cmt_msgpack",            test_cmt_to_msgpack},
+    {"prometheus" ,            test_prometheus},
+    {"text"       ,            test_text},
+    {"influx"     ,            test_influx},  
     { 0 }
 };

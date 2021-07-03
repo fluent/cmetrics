@@ -38,6 +38,12 @@
 #define CMT_DECODE_MSGPACK_DICTIONARY_LOOKUP_ERROR    CMT_MPACK_ERROR_CUTOFF + 1
 #define CMT_DECODE_MSGPACK_VERSION_ERROR              CMT_MPACK_ERROR_CUTOFF + 2
 
+#define CMT_VALIDATE_LIGHTLY                          0
+#define CMT_VALIDATE_DEEPLY                           1
+
+#define CMT_VALIDATE_MSGPACK_SUCCESS                  0
+#define CMT_VALIDATE_MSGPACK_FAILURE                  1
+
 struct cmt_msgpack_decode_context {
     struct cmt        *cmt;
     struct cmt_map    *map;
@@ -45,6 +51,13 @@ struct cmt_msgpack_decode_context {
     struct mk_list     unique_label_list;
 };
 
+struct cmt_msgpack_validate_context {
+    uint8_t in_depth_validation;    
+    uint8_t meta_found;
+    uint8_t values_found;
+};
+
 int cmt_decode_msgpack(struct cmt **out_cmt, void *in_buf, size_t in_size);
+int cmt_validate_msgpack(void *in_buf, size_t in_size, int in_depth_validation);
 
 #endif

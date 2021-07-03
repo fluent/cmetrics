@@ -57,6 +57,64 @@ int cmt_mpack_consume_uint_tag(mpack_reader_t *reader, uint64_t *output_buffer)
     return CMT_MPACK_SUCCESS;
 }
 
+int cmt_mpack_consume_string_tag_in_place(mpack_reader_t *reader, 
+                                          char **output_buffer,
+                                          size_t *output_buffer_length)
+{
+    uint32_t    string_length;
+    int         result;
+    mpack_tag_t tag;
+
+    if (NULL == output_buffer) {
+        return CMT_MPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    if (NULL == reader) {
+        return CMT_MPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    tag = mpack_read_tag(reader);
+
+    if (mpack_ok != mpack_reader_error(reader)) {
+        return CMT_MPACK_ENGINE_ERROR;
+    }
+
+    if (mpack_type_str != mpack_tag_type(&tag)) {
+        return CMT_MPACK_UNEXPECTED_DATA_TYPE_ERROR;
+    }
+
+    string_length = mpack_tag_str_length(&tag);
+
+    /* This validation only applies to cmetrics and its use cases, we know 
+     * for a fact that our label names and values are not supposed to be really
+     * long so a huge value here probably means that the data stream got corrupted.
+     */
+
+    if (CMT_MPACK_MAX_STRING_LENGTH < string_length) {
+        return CMT_MPACK_CORRUPT_INPUT_DATA_ERROR;
+    }
+
+    *output_buffer = mpack_read_bytes_inplace(reader, string_length);
+
+    if (mpack_ok != mpack_reader_error(reader)) {
+        *output_buffer = NULL;
+
+        return CMT_MPACK_ENGINE_ERROR;
+    }
+
+    mpack_done_str(reader);
+
+    if (mpack_ok != mpack_reader_error(reader)) {        
+        *output_buffer = NULL;
+
+        return CMT_MPACK_ENGINE_ERROR;
+    }
+
+    *output_buffer_length = string_length;
+
+    return CMT_MPACK_SUCCESS;
+}
+
 int cmt_mpack_consume_string_tag(mpack_reader_t *reader, cmt_sds_t *output_buffer)
 {
     uint32_t    string_length;
@@ -127,10 +185,11 @@ int cmt_mpack_unpack_map(mpack_reader_t *reader,
                          struct cmt_mpack_map_entry_callback_t *callback_list, 
                          void *context)
 {
+    size_t                                 key_name_length;
     struct cmt_mpack_map_entry_callback_t *callback_entry;
     uint32_t                               entry_index;
     uint32_t                               entry_count;
-    cmt_sds_t                              key_name;
+    char                                  *key_name;
     int                                    result;
     mpack_tag_t                            tag;
 
@@ -160,7 +219,7 @@ int cmt_mpack_unpack_map(mpack_reader_t *reader,
     result = 0;
     
     for (entry_index = 0 ; 0 == result && entry_index < entry_count ; entry_index++) {
-        result = cmt_mpack_consume_string_tag(reader, &key_name);
+        result = cmt_mpack_consume_string_tag_in_place(reader, &key_name, &key_name_length);
 
         if (CMT_MPACK_SUCCESS == result) {
             callback_entry = callback_list;
@@ -170,14 +229,12 @@ int cmt_mpack_unpack_map(mpack_reader_t *reader,
             while (CMT_MPACK_UNEXPECTED_KEY_ERROR == result &&
                    NULL != callback_entry->identifier) {
 
-                if (0 == strcmp(callback_entry->identifier, key_name)) {
+                if (0 == strncmp(callback_entry->identifier, key_name, key_name_length)) {
                     result = callback_entry->handler(reader, entry_index, context);
                 }
 
                 callback_entry++;
             }
-
-            cmt_sds_destroy(key_name);
         }
     }
 
@@ -250,4 +307,11 @@ int cmt_mpack_unpack_array(mpack_reader_t *reader,
     }
 
     return 0;
+}
+
+int cmt_mpack_discard(mpack_reader_t *reader)
+{
+    mpack_discard(reader);
+
+    return mpack_reader_error(reader);
 }

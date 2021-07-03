@@ -764,5 +764,7 @@ int cmt_decode_msgpack(struct cmt **out_cmt, void *in_buf, size_t in_size)
         *out_cmt = cmt;
     }
 
+    mpack_reader_destroy(&reader);
+
     return result;
 }

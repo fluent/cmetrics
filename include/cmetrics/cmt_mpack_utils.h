@@ -53,12 +53,16 @@ struct cmt_mpack_map_entry_callback_t {
 int cmt_mpack_consume_double_tag(mpack_reader_t *reader, double *output_buffer);
 int cmt_mpack_consume_uint_tag(mpack_reader_t *reader, uint64_t *output_buffer);
 int cmt_mpack_consume_string_tag(mpack_reader_t *reader, cmt_sds_t *output_buffer);
+int cmt_mpack_consume_string_tag_in_place(mpack_reader_t *reader, 
+                                          char **output_buffer,
+                                          size_t *output_buffer_length);
 int cmt_mpack_unpack_map(mpack_reader_t *reader, 
                          struct cmt_mpack_map_entry_callback_t *callback_list, 
                          void *context);
 int cmt_mpack_unpack_array(mpack_reader_t *reader, 
                            cmt_mpack_unpacker_entry_callback_fn_t entry_processor_callback, 
                            void *context);
+int cmt_mpack_discard(mpack_reader_t *reader);
 
 
 #endif
