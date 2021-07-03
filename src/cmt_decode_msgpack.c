@@ -33,7 +33,7 @@ static struct cmt_map_label *find_label_by_index(struct mk_list *label_list, siz
 {
     struct mk_list *head;
     size_t          entry_index;
-    
+
     entry_index = 0;
 
     mk_list_foreach(head, label_list) {
@@ -44,7 +44,7 @@ static struct cmt_map_label *find_label_by_index(struct mk_list *label_list, siz
         entry_index++;
     }
 
-    return NULL;    
+    return NULL;
 }
 
 static int unpack_opts_ns(mpack_reader_t *reader, size_t index, void *context)
@@ -59,7 +59,7 @@ static int unpack_opts_ns(mpack_reader_t *reader, size_t index, void *context)
 static int unpack_opts_ss(mpack_reader_t *reader, size_t index, void *context)
 {
     struct cmt_opts *opts;
-    
+
     opts = (struct cmt_opts *) context;
 
     return cmt_mpack_consume_string_tag(reader, &opts->subsystem);
@@ -68,7 +68,7 @@ static int unpack_opts_ss(mpack_reader_t *reader, size_t index, void *context)
 static int unpack_opts_name(mpack_reader_t *reader, size_t index, void *context)
 {
     struct cmt_opts *opts;
-    
+
     opts = (struct cmt_opts *) context;
 
     return cmt_mpack_consume_string_tag(reader, &opts->name);
@@ -77,7 +77,7 @@ static int unpack_opts_name(mpack_reader_t *reader, size_t index, void *context)
 static int unpack_opts_desc(mpack_reader_t *reader, size_t index, void *context)
 {
     struct cmt_opts *opts;
-    
+
     opts = (struct cmt_opts *) context;
 
     return cmt_mpack_consume_string_tag(reader, &opts->description);
@@ -94,7 +94,7 @@ static int unpack_opts(mpack_reader_t *reader, struct cmt_opts *opts)
                                                             {NULL,     NULL}
                                                         };
 
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == opts   ) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
@@ -104,7 +104,7 @@ static int unpack_opts(mpack_reader_t *reader, struct cmt_opts *opts)
     result = cmt_mpack_unpack_map(reader, callbacks, (void *) opts);
 
     if (CMT_DECODE_MSGPACK_SUCCESS == result) {
-        /* Allocate enough space for the three components, the separators 
+        /* Allocate enough space for the three components, the separators
          * and the terminator so we don't have to worry about possible realloc issues
          * later on.
          */
@@ -112,10 +112,10 @@ static int unpack_opts(mpack_reader_t *reader, struct cmt_opts *opts)
         opts->fqname = cmt_sds_create_size(cmt_sds_len(opts->namespace) + \
                                            cmt_sds_len(opts->subsystem) + \
                                            cmt_sds_len(opts->name) + \
-                                           4); 
+                                           4);
 
         if (NULL == opts->fqname) {
-            return CMT_DECODE_MSGPACK_ALLOCATION_ERROR; 
+            return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
         }
 
         cmt_sds_cat(opts->fqname, opts->namespace, cmt_sds_len(opts->namespace));
@@ -128,8 +128,8 @@ static int unpack_opts(mpack_reader_t *reader, struct cmt_opts *opts)
     return result;
 }
 
-static int unpack_label_dictionary_entry(mpack_reader_t *reader, 
-                                         size_t index, 
+static int unpack_label_dictionary_entry(mpack_reader_t *reader,
+                                         size_t index,
                                          void *context)
 {
     int                   result;
@@ -137,18 +137,17 @@ static int unpack_label_dictionary_entry(mpack_reader_t *reader,
     cmt_sds_t             label_name;
     struct mk_list       *target_label_list;
 
-    if (NULL == reader  || 
+    if (NULL == reader  ||
         NULL == context ) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
     target_label_list = (struct mk_list *) context;
-    
+
     result = cmt_mpack_consume_string_tag(reader, &label_name);
 
     if (CMT_DECODE_MSGPACK_SUCCESS != result) {
         cmt_sds_destroy(label_name);
-
         return result;
     }
 
@@ -169,18 +168,17 @@ static int unpack_label_dictionary_entry(mpack_reader_t *reader,
     return CMT_DECODE_MSGPACK_SUCCESS;
 }
 
-static int unpack_label(mpack_reader_t *reader, 
-                        size_t index, 
-                        struct mk_list *unique_label_list, 
+static int unpack_label(mpack_reader_t *reader,
+                        size_t index,
+                        struct mk_list *unique_label_list,
                         struct mk_list *target_label_list)
 {
     int                   result;
     struct cmt_map_label *new_label;
-    cmt_sds_t             label_name;
     uint64_t              label_index;
     struct cmt_map_label *dictionary_entry;
 
-    if (NULL == reader            || 
+    if (NULL == reader            ||
         NULL == unique_label_list ||
         NULL == target_label_list ) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
@@ -218,19 +216,18 @@ static int unpack_label(mpack_reader_t *reader,
     return CMT_DECODE_MSGPACK_SUCCESS;
 }
 
-static int unpack_static_label(mpack_reader_t *reader, 
-                               size_t index, 
-                               struct mk_list *unique_label_list, 
+static int unpack_static_label(mpack_reader_t *reader,
+                               size_t index,
+                               struct mk_list *unique_label_list,
                                struct mk_list *target_label_list)
 {
     int                   result;
-    cmt_sds_t             label_name;
     uint64_t              label_index;
     struct cmt_label     *new_static_label;
     struct cmt_label     *last_static_label;
     struct cmt_map_label *dictionary_entry;
 
-    if (NULL == reader            || 
+    if (NULL == reader            ||
         NULL == unique_label_list ||
         NULL == target_label_list ) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
@@ -289,16 +286,16 @@ static int unpack_metric_label(mpack_reader_t *reader, size_t index, void *conte
 {
     struct cmt_msgpack_decode_context *decode_context;
 
-    if (NULL == reader  || 
+    if (NULL == reader  ||
         NULL == context ) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
     decode_context = (struct cmt_msgpack_decode_context *) context;
 
-    return unpack_label(reader, 
-                        index, 
-                        &decode_context->unique_label_list, 
+    return unpack_label(reader,
+                        index,
+                        &decode_context->unique_label_list,
                         &decode_context->metric->labels);
 }
 
@@ -306,7 +303,7 @@ static int unpack_metric_ts(mpack_reader_t *reader, size_t index, void *context)
 {
     struct cmt_msgpack_decode_context *decode_context;
 
-    if (NULL == reader  || 
+    if (NULL == reader  ||
         NULL == context ) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
@@ -319,10 +316,10 @@ static int unpack_metric_ts(mpack_reader_t *reader, size_t index, void *context)
 static int unpack_metric_value(mpack_reader_t *reader, size_t index, void *context)
 {
     double                             value;
-    int                                result;    
+    int                                result;
     struct cmt_msgpack_decode_context *decode_context;
 
-    if (NULL == reader  || 
+    if (NULL == reader  ||
         NULL == context ) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
@@ -340,18 +337,18 @@ static int unpack_metric_value(mpack_reader_t *reader, size_t index, void *conte
 
 static int unpack_metric_labels(mpack_reader_t *reader, size_t index, void *context)
 {
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
-    return cmt_mpack_unpack_array(reader, 
-                                  unpack_metric_label, 
+    return cmt_mpack_unpack_array(reader,
+                                  unpack_metric_label,
                                   context);
 }
 
-static int unpack_metric(mpack_reader_t *reader, 
-                         struct cmt_msgpack_decode_context *decode_context, 
+static int unpack_metric(mpack_reader_t *reader,
+                         struct cmt_msgpack_decode_context *decode_context,
                          struct cmt_metric **out_metric)
 {
     int                                   result;
@@ -364,13 +361,13 @@ static int unpack_metric(mpack_reader_t *reader,
             {NULL,     NULL}
         };
 
-    if (NULL == reader         || 
+    if (NULL == reader         ||
         NULL == decode_context ||
         NULL == out_metric) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
-    /* Maybe we could move this cmt_metric constructor code to its own file, add a 
+    /* Maybe we could move this cmt_metric constructor code to its own file, add a
      * destructor and update map_metric_create and map_metric_destroy to use them right?
      */
 
@@ -404,7 +401,7 @@ static int unpack_metric_array_entry(mpack_reader_t *reader, size_t index, void 
     struct cmt_metric                 *metric;
     struct cmt_msgpack_decode_context *decode_context;
 
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
@@ -441,14 +438,11 @@ static int unpack_meta_ver(mpack_reader_t *reader, size_t index, void *context)
 {
     uint64_t                           value;
     int                                result;
-    struct cmt_msgpack_decode_context *decode_context;
 
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
-
-    decode_context = (struct cmt_msgpack_decode_context *) context;
 
     result = cmt_mpack_consume_uint_tag(reader, &value);
 
@@ -467,7 +461,7 @@ static int unpack_meta_type(mpack_reader_t *reader, size_t index, void *context)
     int                                result;
     struct cmt_msgpack_decode_context *decode_context;
 
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
@@ -487,7 +481,7 @@ static int unpack_meta_opts(mpack_reader_t *reader, size_t index, void *context)
 {
     struct cmt_msgpack_decode_context *decode_context;
 
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
@@ -501,14 +495,14 @@ static int unpack_meta_label_dictionary(mpack_reader_t *reader, size_t index, vo
 {
     struct cmt_msgpack_decode_context *decode_context;
 
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
     decode_context = (struct cmt_msgpack_decode_context *) context;
 
-    return cmt_mpack_unpack_array(reader, unpack_label_dictionary_entry, 
+    return cmt_mpack_unpack_array(reader, unpack_label_dictionary_entry,
                                   (void *) &decode_context->unique_label_list);
 }
 
@@ -516,15 +510,15 @@ static int unpack_header_static_label(mpack_reader_t *reader, size_t index, void
 {
     struct cmt_msgpack_decode_context *decode_context;
 
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
     decode_context = (struct cmt_msgpack_decode_context *) context;
 
-    return unpack_static_label(reader, index, 
-                               &decode_context->unique_label_list, 
+    return unpack_static_label(reader, index,
+                               &decode_context->unique_label_list,
                                &decode_context->cmt->static_labels->list);
 }
 
@@ -532,21 +526,21 @@ static int unpack_meta_label(mpack_reader_t *reader, size_t index, void *context
 {
     struct cmt_msgpack_decode_context *decode_context;
 
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
     decode_context = (struct cmt_msgpack_decode_context *) context;
 
-    return unpack_label(reader, index, 
-                        &decode_context->unique_label_list, 
+    return unpack_label(reader, index,
+                        &decode_context->unique_label_list,
                         &decode_context->map->label_keys);
 }
 
 static int unpack_meta_static_labels(mpack_reader_t *reader, size_t index, void *context)
 {
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
@@ -556,7 +550,7 @@ static int unpack_meta_static_labels(mpack_reader_t *reader, size_t index, void 
 
 static int unpack_meta_labels(mpack_reader_t *reader, size_t index, void *context)
 {
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
@@ -579,7 +573,7 @@ static int unpack_basic_type_meta(mpack_reader_t *reader, size_t index, void *co
             {NULL,               NULL}
         };
 
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
@@ -597,13 +591,13 @@ static int unpack_basic_type_meta(mpack_reader_t *reader, size_t index, void *co
 
 static int unpack_basic_type_values(mpack_reader_t *reader, size_t index, void *context)
 {
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
-    return cmt_mpack_unpack_array(reader, 
-                                  unpack_metric_array_entry, 
+    return cmt_mpack_unpack_array(reader,
+                                  unpack_metric_array_entry,
                                   context);
 }
 
@@ -618,7 +612,7 @@ static int unpack_basic_type(mpack_reader_t *reader, struct cmt *cmt, struct cmt
             {NULL,     NULL}
         };
 
-    if (NULL == reader || 
+    if (NULL == reader ||
         NULL == map) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
@@ -657,17 +651,17 @@ static int unpack_basic_type(mpack_reader_t *reader, struct cmt *cmt, struct cmt
     return result;
 }
 
-static int append_unpacked_counter_to_metrics_context(struct cmt *context, 
+static int append_unpacked_counter_to_metrics_context(struct cmt *context,
                                                       struct cmt_map *map)
 {
     struct cmt_counter *counter;
 
-    if (NULL == context || 
+    if (NULL == context ||
         NULL == map     ) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
-    counter = calloc(1, sizeof(struct cmt_counter));    
+    counter = calloc(1, sizeof(struct cmt_counter));
 
     if (NULL == counter) {
         return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
@@ -686,17 +680,17 @@ static int append_unpacked_counter_to_metrics_context(struct cmt *context,
     return CMT_DECODE_MSGPACK_SUCCESS;
 }
 
-static int append_unpacked_gauge_to_metrics_context(struct cmt *context, 
+static int append_unpacked_gauge_to_metrics_context(struct cmt *context,
                                                     struct cmt_map *map)
 {
     struct cmt_gauge *gauge;
 
-    if (NULL == context || 
+    if (NULL == context ||
         NULL == map     ) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
-    gauge = calloc(1, sizeof(struct cmt_gauge));    
+    gauge = calloc(1, sizeof(struct cmt_gauge));
 
     if (NULL == gauge) {
         return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
@@ -723,8 +717,8 @@ int cmt_decode_msgpack(struct cmt **out_cmt, void *in_buf, size_t in_size)
     mpack_reader_t  reader;
     int             result;
 
-    if (NULL == out_cmt || 
-        NULL == in_buf  || 
+    if (NULL == out_cmt ||
+        NULL == in_buf  ||
         0 == in_size    ) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }

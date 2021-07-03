@@ -47,7 +47,6 @@ static void format_metric(struct cmt *cmt, cmt_sds_t *buf, struct cmt_map *map,
     int len;
     int count = 0;
     int static_labels = 0;
-    double val;
     char tmp[128];
     uint64_t ts;
     struct tm tm;
