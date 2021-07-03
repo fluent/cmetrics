@@ -34,6 +34,7 @@ static struct cmt *generate_encoder_test_data()
     struct cmt *cmt;
     struct cmt_counter *c;
 
+    printf("version: %s", cmt_version());
     cmt = cmt_create();
 
     c = cmt_counter_create(cmt, "kubernetes", "network", "load", "Network load",
