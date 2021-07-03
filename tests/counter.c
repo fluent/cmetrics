@@ -28,7 +28,6 @@
 
 static struct cmt *generate_encoder_test_data()
 {
-    int ret;
     double val;
     uint64_t ts;
     struct cmt *cmt;
@@ -42,17 +41,17 @@ static struct cmt *generate_encoder_test_data()
 
     ts = cmt_time_now();
 
-    ret = cmt_counter_get_val(c, 0, NULL, &val);
-    ret = cmt_counter_inc(c, ts, 0, NULL);
-    ret = cmt_counter_add(c, ts, 2, 0, NULL);
-    ret = cmt_counter_get_val(c, 0, NULL, &val);
+    cmt_counter_get_val(c, 0, NULL, &val);
+    cmt_counter_inc(c, ts, 0, NULL);
+    cmt_counter_add(c, ts, 2, 0, NULL);
+    cmt_counter_get_val(c, 0, NULL, &val);
 
-    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"localhost", "cmetrics"});
-    ret = cmt_counter_get_val(c, 2, (char *[]) {"localhost", "cmetrics"}, &val);
-    ret = cmt_counter_add(c, ts, 10.55, 2, (char *[]) {"localhost", "test"});
-    ret = cmt_counter_get_val(c, 2, (char *[]) {"localhost", "test"}, &val);
-    ret = cmt_counter_set(c, ts, 12.15, 2, (char *[]) {"localhost", "test"});
-    ret = cmt_counter_set(c, ts, 1, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_inc(c, ts, 2, (char *[]) {"localhost", "cmetrics"});
+    cmt_counter_get_val(c, 2, (char *[]) {"localhost", "cmetrics"}, &val);
+    cmt_counter_add(c, ts, 10.55, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_get_val(c, 2, (char *[]) {"localhost", "test"}, &val);
+    cmt_counter_set(c, ts, 12.15, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_set(c, ts, 1, 2, (char *[]) {"localhost", "test"});
 
     return cmt;
 }

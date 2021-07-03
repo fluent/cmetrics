@@ -29,7 +29,6 @@
 
 static struct cmt *generate_simple_encoder_test_data()
 {
-    int ret;
     double val;
     uint64_t ts;
     struct cmt *cmt;
@@ -42,24 +41,23 @@ static struct cmt *generate_simple_encoder_test_data()
 
     ts = 0;
 
-    ret = cmt_counter_get_val(c, 0, NULL, &val);
-    ret = cmt_counter_inc(c, ts, 0, NULL);
-    ret = cmt_counter_add(c, ts, 2, 0, NULL);
-    ret = cmt_counter_get_val(c, 0, NULL, &val);
+    cmt_counter_get_val(c, 0, NULL, &val);
+    cmt_counter_inc(c, ts, 0, NULL);
+    cmt_counter_add(c, ts, 2, 0, NULL);
+    cmt_counter_get_val(c, 0, NULL, &val);
 
-    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"localhost", "cmetrics"});
-    ret = cmt_counter_get_val(c, 2, (char *[]) {"localhost", "cmetrics"}, &val);
-    ret = cmt_counter_add(c, ts, 10.55, 2, (char *[]) {"localhost", "test"});
-    ret = cmt_counter_get_val(c, 2, (char *[]) {"localhost", "test"}, &val);
-    ret = cmt_counter_set(c, ts, 12.15, 2, (char *[]) {"localhost", "test"});
-    ret = cmt_counter_set(c, ts, 1, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_inc(c, ts, 2, (char *[]) {"localhost", "cmetrics"});
+    cmt_counter_get_val(c, 2, (char *[]) {"localhost", "cmetrics"}, &val);
+    cmt_counter_add(c, ts, 10.55, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_get_val(c, 2, (char *[]) {"localhost", "test"}, &val);
+    cmt_counter_set(c, ts, 12.15, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_set(c, ts, 1, 2, (char *[]) {"localhost", "test"});
 
     return cmt;
 }
 
 static struct cmt *generate_encoder_test_data()
 {
-    int ret;
     double val;
     uint64_t ts;
     struct cmt *cmt;
@@ -72,17 +70,17 @@ static struct cmt *generate_encoder_test_data()
 
     ts = cmt_time_now();
 
-    ret = cmt_counter_get_val(c, 0, NULL, &val);
-    ret = cmt_counter_inc(c, ts, 0, NULL);
-    ret = cmt_counter_add(c, ts, 2, 0, NULL);
-    ret = cmt_counter_get_val(c, 0, NULL, &val);
+    cmt_counter_get_val(c, 0, NULL, &val);
+    cmt_counter_inc(c, ts, 0, NULL);
+    cmt_counter_add(c, ts, 2, 0, NULL);
+    cmt_counter_get_val(c, 0, NULL, &val);
 
-    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"localhost", "cmetrics"});
-    ret = cmt_counter_get_val(c, 2, (char *[]) {"localhost", "cmetrics"}, &val);
-    ret = cmt_counter_add(c, ts, 10.55, 2, (char *[]) {"localhost", "test"});
-    ret = cmt_counter_get_val(c, 2, (char *[]) {"localhost", "test"}, &val);
-    ret = cmt_counter_set(c, ts, 12.15, 2, (char *[]) {"localhost", "test"});
-    ret = cmt_counter_set(c, ts, 1, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_inc(c, ts, 2, (char *[]) {"localhost", "cmetrics"});
+    cmt_counter_get_val(c, 2, (char *[]) {"localhost", "cmetrics"}, &val);
+    cmt_counter_add(c, ts, 10.55, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_get_val(c, 2, (char *[]) {"localhost", "test"}, &val);
+    cmt_counter_set(c, ts, 12.15, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_set(c, ts, 1, 2, (char *[]) {"localhost", "test"});
 
     return cmt;
 }
@@ -168,12 +166,15 @@ void test_cmt_to_msgpack_integrity()
     /* CMT1 -> Text */
     text1_buf = cmt_encode_text_create(cmt1, 1);
     TEST_CHECK(text1_buf != NULL);
+    text1_size = cmt_sds_len(text1_buf);
 
     /* CMT2 -> Text */
     text2_buf = cmt_encode_text_create(cmt2, 1);
     TEST_CHECK(text2_buf != NULL);
+    text2_size = cmt_sds_len(text2_buf);
 
     /* Compare msgpacks */
+    TEST_CHECK(text1_size == text2_size);
     TEST_CHECK(memcmp(text1_buf, text2_buf, text1_size) == 0);
 
     cmt_destroy(cmt1);
@@ -238,7 +239,6 @@ void test_cmt_to_msgpack_labels()
 
 void test_prometheus()
 {
-    int ret;
     uint64_t ts;
     cmt_sds_t text;
     struct cmt *cmt;
@@ -263,9 +263,9 @@ void test_prometheus()
                            2, (char *[]) {"host", "app"});
 
     ts = 0;
-    ret = cmt_counter_inc(c, ts, 0, NULL);
-    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
-    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
+    cmt_counter_inc(c, ts, 0, NULL);
+    cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
+    cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
 
     /* Encode to prometheus (no static labels) */
     text = cmt_encode_prometheus_create(cmt, CMT_TRUE);
@@ -287,7 +287,6 @@ void test_prometheus()
 
 void test_text()
 {
-    int ret;
     uint64_t ts;
     cmt_sds_t text;
     struct cmt *cmt;
@@ -310,9 +309,9 @@ void test_text()
                            2, (char *[]) {"host", "app"});
 
     ts = 0;
-    ret = cmt_counter_inc(c, ts, 0, NULL);
-    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
-    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
+    cmt_counter_inc(c, ts, 0, NULL);
+    cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
+    cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
 
     /* Encode to prometheus (no static labels) */
     text = cmt_encode_text_create(cmt, 1);
@@ -334,7 +333,6 @@ void test_text()
 
 void test_influx()
 {
-    int ret;
     uint64_t ts;
     cmt_sds_t text;
     struct cmt *cmt;
@@ -355,9 +353,9 @@ void test_influx()
                            2, (char *[]) {"host", "app"});
 
     ts = 1435658235000000123;
-    ret = cmt_counter_inc(c, ts, 0, NULL);
-    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
-    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
+    cmt_counter_inc(c, ts, 0, NULL);
+    cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
+    cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
 
     /* Encode to prometheus (no static labels) */
     text = cmt_encode_influx_create(cmt);
@@ -383,6 +381,6 @@ TEST_LIST = {
     {"cmt_msgpack",           test_cmt_to_msgpack},
     {"prometheus" ,           test_prometheus},
     {"text"       ,           test_text},
-    {"influx"     ,           test_influx},  
+    {"influx"     ,           test_influx},
     { 0 }
 };
