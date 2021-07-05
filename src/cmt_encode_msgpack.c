@@ -160,42 +160,6 @@ static int gather_static_label_entries(struct mk_list *unique_label_list,
     return 0;
 }
 
-static int gather_label_entries_in_context(struct mk_list *unique_label_list,
-                                           struct cmt *cmt)
-{
-    struct cmt_counter *counter;
-    int                 result;
-    struct cmt_gauge   *gauge;
-    struct mk_list     *head;
-
-    result = 0;
-
-    /* Counters */
-    mk_list_foreach(head, &cmt->counters) {
-        counter = mk_list_entry(head, struct cmt_counter, _head);
-
-        result = gather_label_entries_in_map(unique_label_list, counter->map);
-
-        if (0 != result) {
-            break;
-        }
-    }
-
-    /* Gauges */
-    mk_list_foreach(head, &cmt->gauges) {
-        gauge = mk_list_entry(head, struct cmt_gauge, _head);
-
-        result = gather_label_entries_in_map(unique_label_list, gauge->map);
-
-        if (0 != result) {
-            break;
-        }
-    }
-
-    return result;
-}
-
-
 static void pack_header(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map *map, struct mk_list *unique_label_list)
 {
     struct cmt_opts      *opts;
