@@ -166,12 +166,12 @@ void test_cmt_to_msgpack_integrity()
     TEST_CHECK(ret == 0);
 
     /* CMT1 -> Text */
-    text1_buf = cmt_encode_text_create(cmt1, 1);
+    text1_buf = cmt_encode_text_create(cmt1);
     TEST_CHECK(text1_buf != NULL);
     text1_size = cmt_sds_len(text1_buf);
 
     /* CMT2 -> Text */
-    text2_buf = cmt_encode_text_create(cmt2, 1);
+    text2_buf = cmt_encode_text_create(cmt2);
     TEST_CHECK(text2_buf != NULL);
     text2_size = cmt_sds_len(text2_buf);
 
@@ -219,8 +219,8 @@ void test_cmt_msgpack_partial_processing()
     TEST_CHECK(0 == ret);
 
     /* Since we are modifying the counter on each iteration we have to re-encode it */
-    for (iteration = 0 ; 
-         iteration < MSGPACK_PARTIAL_PROCESSING_ELEMENT_COUNT ; 
+    for (iteration = 0 ;
+         iteration < MSGPACK_PARTIAL_PROCESSING_ELEMENT_COUNT ;
          iteration++) {
 
         ret = cmt_counter_inc(first_counter, 0, 0, NULL);
@@ -256,7 +256,7 @@ void test_cmt_msgpack_partial_processing()
     serialized_data_buffer_length = cmt_sds_len(serialized_data_buffer);
 
     while (CMT_DECODE_MSGPACK_SUCCESS == ret) {
-        ret = cmt_decode_msgpack_create(&cmt2, serialized_data_buffer, 
+        ret = cmt_decode_msgpack_create(&cmt2, serialized_data_buffer,
                                         serialized_data_buffer_length, &offset);
 
         if (CMT_DECODE_MSGPACK_INSUFFICIENT_DATA == ret) {
@@ -352,7 +352,7 @@ void test_cmt_to_msgpack_labels()
     cmt_label_add(cmt2, "dev", "Calyptia");
     cmt_label_add(cmt2, "lang", "C");
 
-    text_result = cmt_encode_text_create(cmt2, 1);
+    text_result = cmt_encode_text_create(cmt2);
     TEST_CHECK(NULL != text_result);
     TEST_CHECK(0 == strcmp(text_result, expected_text));
 
@@ -440,7 +440,7 @@ void test_text()
     cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
 
     /* Encode to prometheus (no static labels) */
-    text = cmt_encode_text_create(cmt, 1);
+    text = cmt_encode_text_create(cmt);
     printf("\n%s\n", text);
     TEST_CHECK(strcmp(text, out1) == 0);
     cmt_encode_text_destroy(text);
@@ -449,7 +449,7 @@ void test_text()
     cmt_label_add(cmt, "dev", "Calyptia");
     cmt_label_add(cmt, "lang", "C");
 
-    text = cmt_encode_text_create(cmt, 1);
+    text = cmt_encode_text_create(cmt);
     printf("%s\n", text);
     TEST_CHECK(strcmp(text, out2) == 0);
     cmt_encode_text_destroy(text);

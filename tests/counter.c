@@ -75,7 +75,7 @@ void test_msgpack()
     result = cmt_encode_msgpack_create(cmt, &msgpack_buffer_a, &msgpack_buffer_size_a);
     TEST_CHECK(0 == result);
 
-    result = cmt_decode_msgpack_create(&cmt2, msgpack_buffer_a, msgpack_buffer_size_a, 
+    result = cmt_decode_msgpack_create(&cmt2, msgpack_buffer_a, msgpack_buffer_size_a,
                                        &offset);
     TEST_CHECK(0 == result);
 
@@ -120,7 +120,7 @@ void test_text()
     cmt = generate_encoder_test_data();
     TEST_CHECK(cmt != NULL);
 
-    text = cmt_encode_text_create(cmt, 1);
+    text = cmt_encode_text_create(cmt);
     TEST_CHECK(text != NULL);
 
     cmt_destroy(cmt);
