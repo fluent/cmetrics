@@ -751,6 +751,8 @@ int cmt_decode_msgpack(struct cmt **out_cmt, void *in_buf, size_t in_size)
         }
     }
 
+    result = mpack_reader_destroy(&reader);
+
     if (CMT_DECODE_MSGPACK_SUCCESS != result) {
         cmt_destroy(cmt);
     }
