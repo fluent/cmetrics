@@ -382,7 +382,7 @@ static int pack_basic_type(mpack_writer_t *writer, struct cmt *cmt, struct cmt_m
 
 
 /* Takes a cmetrics context and serialize it using msgpack */
-int cmt_encode_msgpack(struct cmt *cmt, char **out_buf, size_t *out_size)
+int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size)
 {
     char *data;
     size_t size;
@@ -443,4 +443,11 @@ int cmt_encode_msgpack(struct cmt *cmt, char **out_buf, size_t *out_size)
     *out_size = size;
 
     return 0;
+}
+
+void cmt_encode_msgpack_destroy(char *out_buf)
+{
+    if (NULL != out_buf) {
+        MPACK_FREE(out_buf);
+    }
 }

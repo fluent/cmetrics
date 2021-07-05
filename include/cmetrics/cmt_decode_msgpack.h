@@ -45,6 +45,8 @@ struct cmt_msgpack_decode_context {
     struct mk_list     unique_label_list;
 };
 
-int cmt_decode_msgpack(struct cmt **out_cmt, void *in_buf, size_t in_size);
+int cmt_decode_msgpack_create(struct cmt **out_cmt, void *in_buf, size_t in_size, 
+                              size_t *offset);
+void cmt_decode_msgpack_destroy(struct cmt *cmt);
 
 #endif

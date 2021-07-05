@@ -96,10 +96,11 @@ static struct cmt *generate_encoder_test_data()
 void test_cmt_to_msgpack()
 {
     int ret;
+    size_t offset = 0;
     char *mp1_buf = NULL;
-    size_t mp1_size = 1;
+    size_t mp1_size = 0;
     char *mp2_buf = NULL;
-    size_t mp2_size = 2;
+    size_t mp2_size = 0;
     struct cmt *cmt1 = NULL;
     struct cmt *cmt2 = NULL;
 
@@ -110,15 +111,15 @@ void test_cmt_to_msgpack()
     TEST_CHECK(cmt1 != NULL);
 
     /* CMT1 -> Msgpack */
-    ret = cmt_encode_msgpack(cmt1, &mp1_buf, &mp1_size);
+    ret = cmt_encode_msgpack_create(cmt1, &mp1_buf, &mp1_size);
     TEST_CHECK(ret == 0);
 
     /* Msgpack -> CMT2 */
-    ret = cmt_decode_msgpack(&cmt2, mp1_buf, mp1_size);
+    ret = cmt_decode_msgpack_create(&cmt2, mp1_buf, mp1_size, &offset);
     TEST_CHECK(ret == 0);
 
     /* CMT2 -> Msgpack */
-    ret = cmt_encode_msgpack(cmt2, &mp2_buf, &mp2_size);
+    ret = cmt_encode_msgpack_create(cmt2, &mp2_buf, &mp2_size);
     TEST_CHECK(ret == 0);
 
     /* Compare msgpacks */
@@ -126,9 +127,9 @@ void test_cmt_to_msgpack()
     TEST_CHECK(memcmp(mp1_buf, mp2_buf, mp1_size) == 0);
 
     cmt_destroy(cmt1);
-    cmt_destroy(cmt2);
-    free(mp1_buf);
-    free(mp2_buf);
+    cmt_decode_msgpack_destroy(cmt2);
+    cmt_encode_msgpack_destroy(mp1_buf);
+    cmt_encode_msgpack_destroy(mp2_buf);
 }
 
 /*
@@ -142,6 +143,7 @@ void test_cmt_to_msgpack()
 void test_cmt_to_msgpack_integrity()
 {
     int ret;
+    size_t offset = 0;
     char *mp1_buf = NULL;
     size_t mp1_size = 0;
     char *text1_buf = NULL;
@@ -156,11 +158,11 @@ void test_cmt_to_msgpack_integrity()
     TEST_CHECK(cmt1 != NULL);
 
     /* CMT1 -> Msgpack */
-    ret = cmt_encode_msgpack(cmt1, &mp1_buf, &mp1_size);
+    ret = cmt_encode_msgpack_create(cmt1, &mp1_buf, &mp1_size);
     TEST_CHECK(ret == 0);
 
     /* Msgpack -> CMT2 */
-    ret = cmt_decode_msgpack(&cmt2, mp1_buf, mp1_size);
+    ret = cmt_decode_msgpack_create(&cmt2, mp1_buf, mp1_size, &offset);
     TEST_CHECK(ret == 0);
 
     /* CMT1 -> Text */
@@ -178,9 +180,9 @@ void test_cmt_to_msgpack_integrity()
     TEST_CHECK(memcmp(text1_buf, text2_buf, text1_size) == 0);
 
     cmt_destroy(cmt1);
-    cmt_destroy(cmt2);
 
-    free(mp1_buf);
+    cmt_decode_msgpack_destroy(cmt2);
+    cmt_encode_msgpack_destroy(mp1_buf);
 
     cmt_encode_text_destroy(text1_buf);
     cmt_encode_text_destroy(text2_buf);
@@ -189,6 +191,7 @@ void test_cmt_to_msgpack_integrity()
 void test_cmt_to_msgpack_labels()
 {
     int ret;
+    size_t offset = 0;
     char *mp1_buf = NULL;
     size_t mp1_size = 1;
     char *mp2_buf = NULL;
@@ -207,15 +210,15 @@ void test_cmt_to_msgpack_labels()
     TEST_CHECK(NULL != cmt1);
 
     /* CMT1 -> Msgpack */
-    ret = cmt_encode_msgpack(cmt1, &mp1_buf, &mp1_size);
+    ret = cmt_encode_msgpack_create(cmt1, &mp1_buf, &mp1_size);
     TEST_CHECK(0 == ret);
 
     /* Msgpack -> CMT2 */
-    ret = cmt_decode_msgpack(&cmt2, mp1_buf, mp1_size);
+    ret = cmt_decode_msgpack_create(&cmt2, mp1_buf, mp1_size, &offset);
     TEST_CHECK(0 == ret);
 
     /* CMT2 -> Msgpack */
-    ret = cmt_encode_msgpack(cmt2, &mp2_buf, &mp2_size);
+    ret = cmt_encode_msgpack_create(cmt2, &mp2_buf, &mp2_size);
     TEST_CHECK(0 == ret);
 
     /* Compare msgpacks */
@@ -230,11 +233,11 @@ void test_cmt_to_msgpack_labels()
     TEST_CHECK(NULL != text_result);
     TEST_CHECK(0 == strcmp(text_result, expected_text));
 
-    cmt_encode_text_destroy(text_result);
     cmt_destroy(cmt1);
-    cmt_destroy(cmt2);
-    free(mp1_buf);
-    free(mp2_buf);
+    cmt_encode_text_destroy(text_result);
+    cmt_decode_msgpack_destroy(cmt2);
+    cmt_encode_msgpack_destroy(mp1_buf);
+    cmt_encode_msgpack_destroy(mp2_buf);
 }
 
 void test_prometheus()
