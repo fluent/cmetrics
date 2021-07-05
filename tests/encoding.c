@@ -188,6 +188,34 @@ void test_cmt_to_msgpack_integrity()
     cmt_encode_text_destroy(text2_buf);
 }
 
+void test_cmt_to_msgpack_stability()
+{
+    int ret = 0;
+    int iteration = 0;
+    size_t offset = 0;
+    char *mp1_buf = NULL;
+    size_t mp1_size = 0;
+    struct cmt *cmt1 = NULL;
+    struct cmt *cmt2 = NULL;
+
+    for (iteration = 0 ; iteration < MSGPACK_STABILITY_TEST_ITERATION_COUNT ; iteration++) {
+        cmt1 = generate_encoder_test_data();
+        TEST_CHECK(cmt1 != NULL);
+
+        ret = cmt_encode_msgpack_create(cmt1, &mp1_buf, &mp1_size);
+        TEST_CHECK(ret == 0);
+
+        offset = 0;
+        ret = cmt_decode_msgpack_create(&cmt2, mp1_buf, mp1_size, &offset);
+        TEST_CHECK(ret == 0);
+
+        cmt_destroy(cmt1);
+        cmt_decode_msgpack_destroy(cmt2);
+        cmt_encode_msgpack_destroy(mp1_buf);
+    }
+
+}
+
 void test_cmt_to_msgpack_labels()
 {
     int ret;
@@ -379,6 +407,7 @@ void test_influx()
 }
 
 TEST_LIST = {
+    {"cmt_msgpack_stability", test_cmt_to_msgpack_stability},
     {"cmt_msgpack_integrity", test_cmt_to_msgpack_integrity},
     {"cmt_msgpack_labels",    test_cmt_to_msgpack_labels},
     {"cmt_msgpack",           test_cmt_to_msgpack},

@@ -22,4 +22,6 @@
 
 #include "lib/acutest/acutest.h"
 
+#define MSGPACK_STABILITY_TEST_ITERATION_COUNT 1000
+
 #endif

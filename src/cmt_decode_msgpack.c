@@ -710,7 +710,7 @@ static int append_unpacked_gauge_to_metrics_context(struct cmt *context,
 }
 
 /* Convert cmetrics msgpack payload and generate a CMetrics context */
-int cmt_decode_msgpack_create(struct cmt **out_cmt, void *in_buf, size_t in_size,
+int cmt_decode_msgpack_create(struct cmt **out_cmt, unsigned char *in_buf, size_t in_size,
                               size_t *offset)
 {
     struct cmt     *cmt;
@@ -756,7 +756,7 @@ int cmt_decode_msgpack_create(struct cmt **out_cmt, void *in_buf, size_t in_size
 
     remainder = mpack_reader_remaining(&reader, NULL);    
     *offset += in_size - remainder;
-    
+
     result = mpack_reader_destroy(&reader);
 
     if (CMT_DECODE_MSGPACK_SUCCESS != result) {
