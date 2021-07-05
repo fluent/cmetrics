@@ -710,7 +710,7 @@ static int append_unpacked_gauge_to_metrics_context(struct cmt *context,
 }
 
 /* Convert cmetrics msgpack payload and generate a CMetrics context */
-int cmt_decode_msgpack_create(struct cmt **out_cmt, unsigned char *in_buf, size_t in_size,
+int cmt_decode_msgpack_create(struct cmt **out_cmt, char *in_buf, size_t in_size,
                               size_t *offset)
 {
     struct cmt     *cmt;
@@ -719,13 +719,16 @@ int cmt_decode_msgpack_create(struct cmt **out_cmt, unsigned char *in_buf, size_
     int             result;
     size_t          remainder;
 
-    if (NULL == out_cmt          ||
-        NULL == in_buf           ||
-        NULL == offset           ||
-        0 == in_size             ||
-        in_size < *offset        ||
-        0 == (in_size - *offset) ) {
+    if (NULL == out_cmt ||
+        NULL == in_buf ||
+        NULL == offset ||
+        in_size < *offset ) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    if(0 == in_size ||
+       0 == (in_size - *offset) ) {
+        return CMT_DECODE_MSGPACK_INSUFFICIENT_DATA;
     }
 
     cmt = cmt_create();

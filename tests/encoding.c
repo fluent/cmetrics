@@ -188,6 +188,101 @@ void test_cmt_to_msgpack_integrity()
     cmt_encode_text_destroy(text2_buf);
 }
 
+void test_cmt_msgpack_partial_processing()
+{
+    int ret = 0;
+    int iteration = 0;
+    size_t offset = 0;
+    char *mp1_buf = NULL;
+    size_t mp1_size = 0;
+    struct cmt *cmt1 = NULL;
+    struct cmt *cmt2 = NULL;
+    double base_counter_value = 0;
+    double current_counter_value = 0;
+    struct cmt_counter *first_counter = NULL;
+    cmt_sds_t serialized_data_buffer = NULL;
+    size_t serialized_data_buffer_length = 0;
+
+    /* Generate a simple encoder context*/
+    cmt1 = generate_simple_encoder_test_data();
+    TEST_CHECK(NULL != cmt1);
+
+    /* Find the first counter so we can get its value before re-encoding it N times
+     * for the test, that way we can ensure that the decoded contexts we get in the
+     * next phase are individual ones and not just a glitch
+     */
+
+    first_counter = mk_list_entry_first(&cmt1->counters, struct cmt_counter, _head);
+    TEST_CHECK(NULL != first_counter);
+
+    ret = cmt_counter_get_val(first_counter, 0, NULL, &base_counter_value);
+    TEST_CHECK(0 == ret);
+
+    /* Since we are modifying the counter on each iteration we have to re-encode it */
+    for (iteration = 0 ; 
+         iteration < MSGPACK_PARTIAL_PROCESSING_ELEMENT_COUNT ; 
+         iteration++) {
+
+        ret = cmt_counter_inc(first_counter, 0, 0, NULL);
+        TEST_CHECK(0 == ret);
+
+        ret = cmt_encode_msgpack_create(cmt1, &mp1_buf, &mp1_size);
+        TEST_CHECK(0 == ret);
+
+        if (NULL == serialized_data_buffer) {
+            serialized_data_buffer = cmt_sds_create_len(mp1_buf, mp1_size);
+            TEST_CHECK(NULL != serialized_data_buffer);
+        }
+        else {
+            cmt_sds_cat_safe(&serialized_data_buffer, mp1_buf, mp1_size);
+            /* TEST_CHECK(0 == ret); */
+        }
+
+        cmt_encode_msgpack_destroy(mp1_buf);
+    }
+
+    cmt_destroy(cmt1);
+
+    /* In this phase we invoke the decoder with until it retunrs an error indicating that
+     * there is not enough data in the input buffer, for each cycle we compare the value
+     * for the first counter which should be be incremental.
+     *
+     * We also check that the iteration count matches the pre established count.
+     */
+
+    ret = 0;
+    offset = 0;
+    iteration = 0;
+    serialized_data_buffer_length = cmt_sds_len(serialized_data_buffer);
+
+    while (CMT_DECODE_MSGPACK_SUCCESS == ret) {
+        ret = cmt_decode_msgpack_create(&cmt2, serialized_data_buffer, 
+                                        serialized_data_buffer_length, &offset);
+
+        if (CMT_DECODE_MSGPACK_INSUFFICIENT_DATA == ret) {
+            break;
+        }
+
+        TEST_CHECK(0 == ret);
+
+        first_counter = mk_list_entry_first(&cmt2->counters, struct cmt_counter, _head);
+        TEST_CHECK(NULL != first_counter);
+
+        ret = cmt_counter_get_val(first_counter, 0, NULL, &current_counter_value);
+        TEST_CHECK(0 == ret);
+
+        TEST_CHECK(base_counter_value == (current_counter_value - iteration - 1));
+
+        cmt_decode_msgpack_destroy(cmt2);
+
+        iteration++;
+    }
+
+    TEST_CHECK(MSGPACK_PARTIAL_PROCESSING_ELEMENT_COUNT == iteration);
+
+    cmt_sds_destroy(serialized_data_buffer);
+}
+
 void test_cmt_to_msgpack_stability()
 {
     int ret = 0;
@@ -407,12 +502,13 @@ void test_influx()
 }
 
 TEST_LIST = {
-    {"cmt_msgpack_stability", test_cmt_to_msgpack_stability},
-    {"cmt_msgpack_integrity", test_cmt_to_msgpack_integrity},
-    {"cmt_msgpack_labels",    test_cmt_to_msgpack_labels},
-    {"cmt_msgpack",           test_cmt_to_msgpack},
-    {"prometheus" ,           test_prometheus},
-    {"text"       ,           test_text},
-    {"influx"     ,           test_influx},
+    {"cmt_msgpack_partial_processing", test_cmt_msgpack_partial_processing},
+    {"cmt_msgpack_stability",          test_cmt_to_msgpack_stability},
+    {"cmt_msgpack_integrity",          test_cmt_to_msgpack_integrity},
+    {"cmt_msgpack_labels",             test_cmt_to_msgpack_labels},
+    {"cmt_msgpack",                    test_cmt_to_msgpack},
+    {"prometheus",                     test_prometheus},
+    {"text",                           test_text},
+    {"influx",                         test_influx},
     { 0 }
 };
