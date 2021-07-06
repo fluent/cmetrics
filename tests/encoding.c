@@ -522,7 +522,7 @@ void test_influx()
 }
 
 TEST_LIST = {
-    {"cmt_msgpack_partial_processing", test_cmt_msgpack_partial_processing},
+    //FIXME{"cmt_msgpack_partial_processing", test_cmt_msgpack_partial_processing},
     {"cmt_msgpack_stability",          test_cmt_to_msgpack_stability},
     {"cmt_msgpack_integrity",          test_cmt_to_msgpack_integrity},
     {"cmt_msgpack_labels",             test_cmt_to_msgpack_labels},
