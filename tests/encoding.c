@@ -29,6 +29,7 @@
 
 static struct cmt *generate_simple_encoder_test_data()
 {
+
     double val;
     uint64_t ts;
     struct cmt *cmt;
@@ -61,26 +62,45 @@ static struct cmt *generate_encoder_test_data()
     double val;
     uint64_t ts;
     struct cmt *cmt;
-    struct cmt_counter *c;
+    struct cmt_counter *c1;
+    struct cmt_counter *c2;
 
     cmt = cmt_create();
 
-    c = cmt_counter_create(cmt, "kubernetes", "network", "load", "Network load",
-                           2, (char *[]) {"hostname", "app"});
+    c1 = cmt_counter_create(cmt, "kubernetes", "network", "load", "Network load",
+                            2, (char *[]) {"hostname", "app"});
 
-    ts = cmt_time_now();
+    ts = 0;
 
-    cmt_counter_get_val(c, 0, NULL, &val);
-    cmt_counter_inc(c, ts, 0, NULL);
-    cmt_counter_add(c, ts, 2, 0, NULL);
-    cmt_counter_get_val(c, 0, NULL, &val);
+    cmt_counter_get_val(c1, 0, NULL, &val);
+    cmt_counter_inc(c1, ts, 0, NULL);
+    cmt_counter_add(c1, ts, 2, 0, NULL);
+    cmt_counter_get_val(c1, 0, NULL, &val);
 
-    cmt_counter_inc(c, ts, 2, (char *[]) {"localhost", "cmetrics"});
-    cmt_counter_get_val(c, 2, (char *[]) {"localhost", "cmetrics"}, &val);
-    cmt_counter_add(c, ts, 10.55, 2, (char *[]) {"localhost", "test"});
-    cmt_counter_get_val(c, 2, (char *[]) {"localhost", "test"}, &val);
-    cmt_counter_set(c, ts, 12.15, 2, (char *[]) {"localhost", "test"});
-    cmt_counter_set(c, ts, 1, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_inc(c1, ts, 2, (char *[]) {"localhost", "cmetrics"});
+    cmt_counter_get_val(c1, 2, (char *[]) {"localhost", "cmetrics"}, &val);
+    cmt_counter_add(c1, ts, 10.55, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_get_val(c1, 2, (char *[]) {"localhost", "test"}, &val);
+    cmt_counter_set(c1, ts, 12.15, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_set(c1, ts, 1, 2, (char *[]) {"localhost", "test"});
+
+
+    c2 = cmt_counter_create(cmt, "kubernetes", "network", "cpu", "CPU load",
+                            2, (char *[]) {"hostname", "app"});
+
+    ts = 0;
+
+    cmt_counter_get_val(c2, 0, NULL, &val);
+    cmt_counter_inc(c2, ts, 0, NULL);
+    cmt_counter_add(c2, ts, 2, 0, NULL);
+    cmt_counter_get_val(c2, 0, NULL, &val);
+
+    cmt_counter_inc(c2, ts, 2, (char *[]) {"localhost", "cmetrics"});
+    cmt_counter_get_val(c2, 2, (char *[]) {"localhost", "cmetrics"}, &val);
+    cmt_counter_add(c2, ts, 10.55, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_get_val(c2, 2, (char *[]) {"localhost", "test"}, &val);
+    cmt_counter_set(c2, ts, 12.15, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_set(c2, ts, 1, 2, (char *[]) {"localhost", "test"});
 
     return cmt;
 }
