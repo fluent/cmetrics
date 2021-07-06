@@ -358,33 +358,33 @@ int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size)
 
     /*
      * CMetrics data schema
-[
-     * {
-     *   'meta' => {
-     *                 'ver' => INTEGER
-     *                 'type' => INTEGER
-     *                           '0' = counter
-     *                           '1' = gauge
-     *                           '2' = histogram (WIP)
-     *                 'opts' => {
-     *                            'namespace'   => namespace
-     *                            'subsystem'   => subsystem
-     *                            'name'        => name
-     *                            'description' => description
-     *                           },
-     *                 'label_dictionary' => ['', ...],
-     *                 'static_labels' => [n, ...],
-     *                 'label_keys' => [n, ...]
-     *               },
-     *   'values' => [
-     *                 {
-     *                  'ts'   : nanosec timestamp,
-     *                  'value': float64 value
-     *                  'label_values': [n, ...]
-     *                 }
-     *               ]
-     * }
-]     
+     * [
+     *   {
+     *     'meta' => {
+     *                   'ver' => INTEGER
+     *                   'type' => INTEGER
+     *                             '0' = counter
+     *                             '1' = gauge
+     *                             '2' = histogram (WIP)
+     *                   'opts' => {
+     *                              'namespace'   => namespace
+     *                              'subsystem'   => subsystem
+     *                              'name'        => name
+     *                              'description' => description
+     *                             },
+     *                   'label_dictionary' => ['', ...],
+     *                   'static_labels' => [n, ...],
+     *                   'label_keys' => [n, ...]
+     *                 },
+     *     'values' => [
+     *                   {
+     *                    'ts'   : nanosec timestamp,
+     *                    'value': float64 value
+     *                    'label_values': [n, ...]
+     *                   }
+     *                 ]
+     *   }
+     * ]     
      */
 
     mpack_writer_init_growable(&writer, &data, &size);
