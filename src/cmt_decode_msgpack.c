@@ -726,8 +726,8 @@ int cmt_decode_msgpack_create(struct cmt **out_cmt, char *in_buf, size_t in_size
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
-    if(0 == in_size ||
-       0 == (in_size - *offset) ) {
+    if (0 == in_size ||
+        0 == (in_size - *offset) ) {
         return CMT_DECODE_MSGPACK_INSUFFICIENT_DATA;
     }
 
@@ -743,21 +743,27 @@ int cmt_decode_msgpack_create(struct cmt **out_cmt, char *in_buf, size_t in_size
 
     result = CMT_DECODE_MSGPACK_SUCCESS;
 
-    result = unpack_basic_type(&reader, cmt, &map);
+    //result = unpack_basic_type(&reader, cmt, &map);
 
-    if (CMT_DECODE_MSGPACK_SUCCESS == result) {
-        if (CMT_COUNTER == map->type) {
-            result = append_unpacked_counter_to_metrics_context(cmt, map);
-        }
-        else if (CMT_GAUGE == map->type) {
-            result = append_unpacked_gauge_to_metrics_context(cmt, map);
-        }
-        else if (CMT_HISTOGRAM == map->type) {
-            // result = append_unpacked_histogram_to_metrics_context(cmt, map);
+    while (CMT_DECODE_MSGPACK_SUCCESS == result &&
+           0 < mpack_reader_remaining(&reader, NULL)) {
+
+        result = unpack_basic_type(&reader, cmt, &map);
+
+        if (CMT_DECODE_MSGPACK_SUCCESS == result) {
+            if (CMT_COUNTER == map->type) {
+                result = append_unpacked_counter_to_metrics_context(cmt, map);
+            }
+            else if (CMT_GAUGE == map->type) {
+                result = append_unpacked_gauge_to_metrics_context(cmt, map);
+            }
+            else if (CMT_HISTOGRAM == map->type) {
+                // result = append_unpacked_histogram_to_metrics_context(cmt, map);
+            }
         }
     }
 
-    remainder = mpack_reader_remaining(&reader, NULL);    
+    remainder = mpack_reader_remaining(&reader, NULL);
     *offset += in_size - remainder;
 
     result = mpack_reader_destroy(&reader);
