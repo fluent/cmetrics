@@ -477,6 +477,8 @@ int pack_metric_metadata(struct cmt_prometheus_remote_write_context *context,
     metadata_entry = calloc(1, sizeof(struct cmt_prometheus_metric_metadata));
 
     if (metadata_entry == NULL) {
+        cmt_errno();
+
         return CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
     }
 
