@@ -6,7 +6,7 @@
 #define PROTOBUF_C__NO_DEPRECATED
 #endif
 
-#include <protobuf-c/remote.pb-c.h>
+#include <prometheus_remote_write/remote.pb-c.h>
 
 void   prometheus__write_request__init
                      (Prometheus__WriteRequest         *message)

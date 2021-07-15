@@ -6,7 +6,7 @@
 #define PROTOBUF_C__NO_DEPRECATED
 #endif
 
-#include <protobuf-c/types.pb-c.h>
+#include <prometheus_remote_write/types.pb-c.h>
 
 void   prometheus__metric_metadata__init
                      (Prometheus__MetricMetadata         *message)

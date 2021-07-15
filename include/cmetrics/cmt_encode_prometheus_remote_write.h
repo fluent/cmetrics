@@ -23,11 +23,12 @@
 
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_sds.h>
-#include <protobuf-c/remote.pb-c.h>
+#include <prometheus_remote_write/remote.pb-c.h>
 
 #define CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS                0
 #define CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR       1
 #define CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR 2
+#define CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_UNEXPECTED_METRIC_TYPE 3
 
 struct cmt_prometheus_metric_metadata {
     Prometheus__MetricMetadata data;
@@ -50,7 +51,7 @@ struct cmt_prometheus_remote_write_context
     struct cmt              *cmt;
 };
 
-cmt_sds_t cmt_encode_prometheus_remote_write_create(struct cmt *cmt, int add_timestamp);
+cmt_sds_t cmt_encode_prometheus_remote_write_create(struct cmt *cmt);
 void cmt_encode_prometheus_remote_write_destroy(cmt_sds_t text);
 
 #endif

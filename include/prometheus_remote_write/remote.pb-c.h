@@ -4,7 +4,7 @@
 #ifndef PROTOBUF_C_remote_2eproto__INCLUDED
 #define PROTOBUF_C_remote_2eproto__INCLUDED
 
-#include <protobuf-c/protobuf-c.h>
+#include <prometheus_remote_write/protobuf-c.h>
 
 PROTOBUF_C__BEGIN_DECLS
 

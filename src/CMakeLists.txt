@@ -1,6 +1,7 @@
 set(src
   cmt_gauge.c
   cmt_counter.c
+  cmt_untyped.c
   cmt_metric.c
   cmt_map.c
   cmt_log.c
@@ -15,8 +16,8 @@ set(src
   cmt_encode_msgpack.c
   cmt_decode_msgpack.c
   cmt_mpack_utils.c
-  remote.pb-c.c
-  types.pb-c.c
+  external/remote.pb-c.c
+  external/types.pb-c.c
   )
 
 if (${CMAKE_C_COMPILER_ID} STREQUAL "Clang")

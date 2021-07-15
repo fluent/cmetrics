@@ -17,15 +17,29 @@
  *  limitations under the License.
  */
 
-
-#ifndef CMT_ENCODE_MSGPACK_H
-#define CMT_ENCODE_MSGPACK_H
+#ifndef CMT_UNTYPED_H
+#define CMT_UNTYPED_H
 
 #include <cmetrics/cmetrics.h>
+#include <cmetrics/cmt_opts.h>
 
-#define MSGPACK_ENCODER_VERSION 2
+struct cmt_untyped {
+    struct cmt_opts opts;
+    struct cmt_map *map;
+    struct mk_list _head;
+};
 
-int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size);
-void cmt_encode_msgpack_destroy(char *out_buf);
+struct cmt_untyped *cmt_untyped_create(struct cmt *cmt,
+                                       char *namespace, char *subsystem,
+                                       char *name, char *help,
+                                       int label_count, char **label_keys);
+
+int cmt_untyped_destroy(struct cmt_untyped *counter);
+
+int cmt_untyped_set(struct cmt_untyped *counter, uint64_t timestamp, double val,
+                    int labels_count, char **label_vals);
+
+int cmt_untyped_get_val(struct cmt_untyped *counter,
+                        int labels_count, char **label_vals, double *out_val);
 
 #endif

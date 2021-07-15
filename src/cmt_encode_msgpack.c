@@ -23,6 +23,7 @@
 #include <cmetrics/cmt_sds.h>
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
+#include <cmetrics/cmt_untyped.h>
 #include <cmetrics/cmt_compat.h>
 #include <cmetrics/cmt_encode_msgpack.h>
 
@@ -33,7 +34,7 @@ static ptrdiff_t find_label_index(struct mk_list *label_list, cmt_sds_t label_na
     struct mk_list       *head;
     struct cmt_map_label *label;
     size_t                entry_index;
-    
+
     entry_index = 0;
 
     mk_list_foreach(head, label_list) {
@@ -46,7 +47,7 @@ static ptrdiff_t find_label_index(struct mk_list *label_list, cmt_sds_t label_na
         entry_index++;
     }
 
-    return -1;    
+    return -1;
 }
 
 struct cmt_map_label *create_label(char *label_text)
@@ -68,7 +69,7 @@ struct cmt_map_label *create_label(char *label_text)
     return new_label;
 }
 
-static int gather_label_entries(struct mk_list *unique_label_list, 
+static int gather_label_entries(struct mk_list *unique_label_list,
                                 struct mk_list *source_label_list)
 {
     struct mk_list       *head;
@@ -78,7 +79,7 @@ static int gather_label_entries(struct mk_list *unique_label_list,
 
     mk_list_foreach(head, source_label_list) {
         label = mk_list_entry(head, struct cmt_map_label, _head);
-        
+
         label_index = find_label_index(unique_label_list, label->name);
 
         if (-1 == label_index) {
@@ -95,7 +96,7 @@ static int gather_label_entries(struct mk_list *unique_label_list,
     return 0;
 }
 
-static int gather_label_entries_in_map(struct mk_list *unique_label_list, 
+static int gather_label_entries_in_map(struct mk_list *unique_label_list,
                                        struct cmt_map *map)
 {
     struct mk_list       *head;
@@ -107,7 +108,7 @@ static int gather_label_entries_in_map(struct mk_list *unique_label_list,
     if (0 == result) {
         mk_list_foreach(head, &map->metrics) {
             metric = mk_list_entry(head, struct cmt_metric, _head);
-            
+
             result = gather_label_entries(unique_label_list, &metric->labels);
 
             if (0 != result) {
@@ -119,11 +120,10 @@ static int gather_label_entries_in_map(struct mk_list *unique_label_list,
     return result;
 }
 
-static int gather_static_label_entries(struct mk_list *unique_label_list, 
+static int gather_static_label_entries(struct mk_list *unique_label_list,
                                        struct cmt *cmt)
 {
     struct mk_list       *head;
-    int                   result;
     struct cmt_map_label *new_label;
     ptrdiff_t             label_index;
     struct cmt_label     *static_label;
@@ -160,42 +160,6 @@ static int gather_static_label_entries(struct mk_list *unique_label_list,
 
     return 0;
 }
-
-static int gather_label_entries_in_context(struct mk_list *unique_label_list, 
-                                           struct cmt *cmt)
-{
-    struct cmt_counter *counter;
-    int                 result;
-    struct cmt_gauge   *gauge;
-    struct mk_list     *head;
-
-    result = 0;
-
-    /* Counters */
-    mk_list_foreach(head, &cmt->counters) {
-        counter = mk_list_entry(head, struct cmt_counter, _head);
-
-        result = gather_label_entries_in_map(unique_label_list, counter->map);
-
-        if (0 != result) {
-            break;
-        }
-    }
-
-    /* Gauges */
-    mk_list_foreach(head, &cmt->gauges) {
-        gauge = mk_list_entry(head, struct cmt_gauge, _head);
-
-        result = gather_label_entries_in_map(unique_label_list, gauge->map);
-
-        if (0 != result) {
-            break;
-        }
-    }
-
-    return result;
-}
-
 
 static void pack_header(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map *map, struct mk_list *unique_label_list)
 {
@@ -242,7 +206,7 @@ static void pack_header(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map 
     mpack_write_cstr(writer, opts->description);
 
     mpack_finish_map(writer); /* 'opts' */
-    
+
     /* 'label_dictionary' (unique label key text) */
     mpack_write_cstr(writer, "label_dictionary");
     mpack_start_array(writer, mk_list_size(unique_label_list));
@@ -325,6 +289,8 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
         mpack_finish_array(writer);
     }
     mpack_finish_map(writer);
+
+    return 0;
 }
 
 static int pack_basic_type(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map *map)
@@ -337,7 +303,7 @@ static int pack_basic_type(mpack_writer_t *writer, struct cmt *cmt, struct cmt_m
 
     mk_list_init(&unique_label_list);
 
-    
+
     result = gather_static_label_entries(&unique_label_list, cmt);
 
     if (0 != result) {
@@ -375,22 +341,26 @@ static int pack_basic_type(mpack_writer_t *writer, struct cmt *cmt, struct cmt_m
     mpack_finish_map(writer);
 
     destroy_label_list(&unique_label_list);
+
+    return 0;
 }
 
 
 /* Takes a cmetrics context and serialize it using msgpack */
-int cmt_encode_msgpack(struct cmt *cmt, char **out_buf, size_t *out_size)
+int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size)
 {
     char *data;
     size_t size;
-    int result;
     mpack_writer_t writer;
     struct mk_list *head;
     struct cmt_counter *counter;
     struct cmt_gauge *gauge;
+    struct cmt_untyped *untyped;
+    size_t metric_count;
 
     /*
      * CMetrics data schema
+[
      * {
      *   'meta' => {
      *                 'ver' => INTEGER
@@ -416,9 +386,18 @@ int cmt_encode_msgpack(struct cmt *cmt, char **out_buf, size_t *out_size)
      *                 }
      *               ]
      * }
+]
      */
 
     mpack_writer_init_growable(&writer, &data, &size);
+
+    metric_count  = 0;
+    metric_count += mk_list_size(&cmt->counters);
+    metric_count += mk_list_size(&cmt->gauges);
+    metric_count += mk_list_size(&cmt->untypeds);
+
+    /* We want an array to group all these metrics in a context */
+    mpack_start_array(&writer, metric_count);
 
     /* Counters */
     mk_list_foreach(head, &cmt->counters) {
@@ -432,13 +411,28 @@ int cmt_encode_msgpack(struct cmt *cmt, char **out_buf, size_t *out_size)
         pack_basic_type(&writer, cmt, gauge->map);
     }
 
+    /* Untyped */
+    mk_list_foreach(head, &cmt->untypeds) {
+        untyped = mk_list_entry(head, struct cmt_untyped, _head);
+        pack_basic_type(&writer, cmt, untyped->map);
+    }
+
     if (mpack_writer_destroy(&writer) != mpack_ok) {
         fprintf(stderr, "An error occurred encoding the data!\n");
         return -1;
     }
 
+    mpack_finish_array(&writer);
+
     *out_buf = data;
     *out_size = size;
 
     return 0;
+}
+
+void cmt_encode_msgpack_destroy(char *out_buf)
+{
+    if (NULL != out_buf) {
+        MPACK_FREE(out_buf);
+    }
 }

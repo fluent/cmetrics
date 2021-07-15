@@ -1,6 +1,8 @@
 set(UNIT_TESTS_FILES
+  basic.c
   gauge.c
   counter.c
+  untyped.c
   atomic_operations.c
   encoding.c
   )

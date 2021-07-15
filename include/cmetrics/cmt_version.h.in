@@ -1,8 +1,8 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 
-/*  CMetrics
- *  ========
- *  Copyright 2021 Eduardo Silva <eduardo@calyptia.com>
+/*  Chunk I/O
+ *  =========
+ *  Copyright 2018 Eduardo Silva <eduardo@monkey.io>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -17,15 +17,20 @@
  *  limitations under the License.
  */
 
+#ifndef CMT_VERSION_H
+#define CMT_VERSION_H
 
-#ifndef CMT_ENCODE_MSGPACK_H
-#define CMT_ENCODE_MSGPACK_H
+/* Helpers to convert/format version string */
+#define STR_HELPER(s)      #s
+#define STR(s)             STR_HELPER(s)
 
-#include <cmetrics/cmetrics.h>
-
-#define MSGPACK_ENCODER_VERSION 2
-
-int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size);
-void cmt_encode_msgpack_destroy(char *out_buf);
+/* Chunk I/O Version */
+#define CMT_VERSION_MAJOR   @CMT_VERSION_MAJOR@
+#define CMT_VERSION_MINOR   @CMT_VERSION_MINOR@
+#define CMT_VERSION_PATCH   @CMT_VERSION_PATCH@
+#define CMT_VERSION         (CMT_VERSION_MAJOR * 10000 \
+                             CMT_VERSION_MINOR * 100   \
+                             CMT_VERSION_PATCH)
+#define CMT_VERSION_STR     "@CMT_VERSION_STR@"
 
 #endif

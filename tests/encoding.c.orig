@@ -418,20 +418,14 @@ void test_prometheus_remote_write()
     ts = 0;
     ret = cmt_counter_inc(c, ts, 0, NULL);
     ret = cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
-    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics2"});
+    ret = cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
 
     /* append static labels */
     cmt_label_add(cmt, "dev", "Calyptia");
     cmt_label_add(cmt, "lang", "C");
 
-    payload = cmt_encode_prometheus_remote_write_create(cmt);
+    payload = cmt_encode_prometheus_remote_write_create(cmt, CMT_TRUE);
     TEST_CHECK(NULL != payload);
-
-    if (payload == NULL) {
-        cmt_destroy(cmt);
-
-        return;
-    }
 
     printf("\n\nDumping remote write payload to payload.bin, in order to test it \
 we need to compress it using snappys scmd :\n\
@@ -599,8 +593,15 @@ void test_influx()
 }
 
 TEST_LIST = {
+<<<<<<< HEAD
+    // {"cmt_msgpack_labels",      test_cmt_to_msgpack_labels},
+    // {"cmt_msgpack",             test_cmt_to_msgpack},
+    {"prometheus_remote_write", test_prometheus_remote_write},
+    // {"prometheus" ,             test_prometheus},
+    // {"text"       ,             test_text},
+    // {"influx"     ,             test_influx},  
+=======
     {"cmt_msgpack_partial_processing", test_cmt_msgpack_partial_processing},
-    {"prometheus_remote_write",        test_prometheus_remote_write},
     {"cmt_msgpack_stability",          test_cmt_to_msgpack_stability},
     {"cmt_msgpack_integrity",          test_cmt_to_msgpack_integrity},
     {"cmt_msgpack_labels",             test_cmt_to_msgpack_labels},
@@ -608,5 +609,6 @@ TEST_LIST = {
     {"prometheus",                     test_prometheus},
     {"text",                           test_text},
     {"influx",                         test_influx},
+>>>>>>> master
     { 0 }
 };
