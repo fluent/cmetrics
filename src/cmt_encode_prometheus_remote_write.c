@@ -86,16 +86,18 @@ cmt_sds_t render_remote_write_context_to_sds(
     context->write_request.timeseries = calloc(context->write_request.n_timeseries,
                                                sizeof(Prometheus__TimeSeries *));
 
-    if(NULL == context->write_request.timeseries)
-    {
+    if (context->write_request.timeseries == NULL) {
+        cmt_errno();
+
         return NULL;
     }
 
     context->write_request.metadata = calloc(context->write_request.n_metadata,
                                              sizeof(Prometheus__TimeSeries *));
 
-    if(NULL == context->write_request.metadata)
-    {
+    if (context->write_request.metadata == NULL) {
+        cmt_errno();
+
         free(context->write_request.timeseries);
 
         return NULL;
@@ -121,11 +123,10 @@ cmt_sds_t render_remote_write_context_to_sds(
 
     result_buffer = cmt_sds_create_size(write_request_size);
 
-    if(NULL != result_buffer)
-    {
+    if(result_buffer != NULL) {
         prometheus__write_request__pack(&context->write_request, result_buffer);
 
-        CMT_SDS_HEADER(result_buffer)->len = write_request_size;
+        cmt_sds_set_len(result_buffer, write_request_size);
     }
 
     free(context->write_request.timeseries);
@@ -157,7 +158,6 @@ void cmt_destroy_prometheus_remote_write_context(
                                           time_series_entry->data.n_samples);
         }
 
-
         mk_list_del(&time_series_entry->_head);
 
         free(time_series_entry);
@@ -175,8 +175,8 @@ void cmt_destroy_prometheus_remote_write_context(
 uint64_t calculate_label_set_hash(struct mk_list *label_values, uint64_t seed)
 {
     struct cmt_map_label *label_value;
-    struct mk_list *head;
-    XXH64_state_t state;
+    XXH64_state_t         state;
+    struct mk_list       *head;
 
     XXH64_reset(&state, 0);
 
@@ -225,6 +225,8 @@ int append_entry_to_prometheus_label_list(Prometheus__Label **label_list,
     label_list[*index] = calloc(1, sizeof(Prometheus__Label));
 
     if (label_list[*index] == NULL) {
+        cmt_errno();
+
         return CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
     }
 
@@ -352,13 +354,17 @@ int set_up_time_series_for_label_set(struct cmt_prometheus_remote_write_context 
 
     time_series_entry = calloc(1, sizeof(struct cmt_prometheus_time_series));
 
-    if (NULL == time_series_entry) {
+    if (time_series_entry == NULL) {
+        cmt_errno();
+
         return CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
     }
 
     label_list = calloc(label_count, sizeof(Prometheus__Label *));
 
-    if (NULL == label_list) {
+    if (label_list == NULL) {
+        cmt_errno();
+
         free(time_series_entry);
 
         return CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
@@ -366,7 +372,9 @@ int set_up_time_series_for_label_set(struct cmt_prometheus_remote_write_context 
 
     value_list = calloc(label_set_hash_matches, sizeof(Prometheus__Sample *));
 
-    if (NULL == value_list) {
+    if (value_list == NULL) {
+        cmt_errno();
+
         free(time_series_entry);
         free(label_list);
 
@@ -441,8 +449,7 @@ int set_up_time_series_for_label_set(struct cmt_prometheus_remote_write_context 
         }
     }
 
-    if (result != CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS)
-    {
+    if (result != CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS) {
         destroy_prometheus_label_list(label_list, label_index);
         free(time_series_entry);
         free(value_list);
@@ -469,8 +476,7 @@ int pack_metric_metadata(struct cmt_prometheus_remote_write_context *context,
 
     metadata_entry = calloc(1, sizeof(struct cmt_prometheus_metric_metadata));
 
-    if(metadata_entry == NULL)
-    {
+    if (metadata_entry == NULL) {
         return CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
     }
 
@@ -485,8 +491,7 @@ int pack_metric_metadata(struct cmt_prometheus_remote_write_context *context,
     else if (map->type == CMT_UNTYPED) {
         metadata_entry->data.type = PROMETHEUS__METRIC_METADATA__METRIC_TYPE__UNKNOWN;
     }
-    else
-    {
+    else {
         return CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_UNEXPECTED_METRIC_TYPE;
     }
 
@@ -507,6 +512,8 @@ int append_metric_to_timeseries(struct cmt_prometheus_time_series *time_series,
     sample = calloc(1, sizeof(Prometheus__Sample));
 
     if (sample == NULL) {
+        cmt_errno();
+
         return CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
     }
 
