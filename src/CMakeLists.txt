@@ -16,6 +16,7 @@ set(src
   cmt_encode_msgpack.c
   cmt_decode_msgpack.c
   cmt_mpack_utils.c
+  external/protobuf-c.c
   external/remote.pb-c.c
   external/types.pb-c.c
   )
@@ -39,7 +40,7 @@ set(src
 
 # Static Library
 add_library(cmetrics-static STATIC ${src})
-target_link_libraries(cmetrics-static xxhash mpack-static protobuf-c)
+target_link_libraries(cmetrics-static xxhash mpack-static)
 
 # Install Library
 if(MSVC)
