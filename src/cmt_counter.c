@@ -122,9 +122,6 @@ int cmt_counter_set(struct cmt_counter *counter, uint64_t timestamp, double val,
                                 labels_count, label_vals,
                                 CMT_TRUE);
     if (!metric) {
-        cmt_log_error(counter->cmt, "unable to retrieve metric: %s for counter %s_%s_%s", 
-                        counter->map, counter->opts.namespace, counter->opts.subsystem,
-                        counter->opts.name);
         return -1;
     }
 
