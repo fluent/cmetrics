@@ -58,8 +58,15 @@ struct cmt_counter *cmt_counter_create(struct cmt *cmt,
         cmt_counter_destroy(counter);
         return NULL;
     }
+    
+    counter->cmt = cmt;
 
     return counter;
+}
+
+void cmt_counter_allow_reset(struct cmt_counter *counter)
+{
+    counter->allow_reset = 1;
 }
 
 int cmt_counter_destroy(struct cmt_counter *counter)
@@ -115,10 +122,13 @@ int cmt_counter_set(struct cmt_counter *counter, uint64_t timestamp, double val,
                                 labels_count, label_vals,
                                 CMT_TRUE);
     if (!metric) {
+        cmt_log_error(counter->cmt, "unable to retrieve metric: %s for counter %s_%s_%s", 
+                        counter->map, counter->opts.namespace, counter->opts.subsystem,
+                        counter->opts.name);
         return -1;
     }
 
-    if (cmt_metric_get_value(metric) > val) {
+    if (cmt_metric_get_value(metric) > val && counter->allow_reset == 0) {
         return -1;
     }
     cmt_metric_set(metric, timestamp, val);
