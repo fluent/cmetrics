@@ -31,11 +31,13 @@ struct cmt_counter *cmt_counter_create(struct cmt *cmt,
     int ret;
     struct cmt_counter *counter;
 
-    if (!name || !help) {
+    if (!name || strlen(name) == 0) {
+        cmt_log_error(cmt, "undefined name");
         return NULL;
     }
 
-    if (strlen(name) == 0 || strlen(help) == 0) {
+    if (!help || strlen(help) == 0) {
+        cmt_log_error(cmt, "undefined name");
         return NULL;
     }
 
