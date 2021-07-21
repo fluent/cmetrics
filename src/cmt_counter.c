@@ -72,6 +72,8 @@ struct cmt_counter *cmt_counter_create(struct cmt *cmt,
         cmt_counter_destroy(counter);
         return NULL;
     }
+    
+    counter->cmt = cmt;
 
     counter->cmt = cmt;
 
