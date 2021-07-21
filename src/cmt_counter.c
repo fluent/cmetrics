@@ -37,7 +37,7 @@ struct cmt_counter *cmt_counter_create(struct cmt *cmt,
     }
 
     if (!help || strlen(help) == 0) {
-        cmt_log_error(cmt, "undefined name");
+        cmt_log_error(cmt, "undefined help");
         return NULL;
     }
 
