@@ -31,12 +31,12 @@ struct cmt_untyped *cmt_untyped_create(struct cmt *cmt,
     int ret;
     struct cmt_untyped *untyped;
 
-    if (!namespace == 0) {
+    if (!namespace) {
         cmt_log_error(cmt, "null namespace not allowed");
         return NULL;
     }
 
-    if (!subsystem == 0) {
+    if (!subsystem) {
         cmt_log_error(cmt, "null subsystem not allowed");
         return NULL;
     }
@@ -77,6 +77,8 @@ struct cmt_untyped *cmt_untyped_create(struct cmt *cmt,
         cmt_untyped_destroy(untyped);
         return NULL;
     }
+
+    untyped->cmt = cmt;
 
     return untyped;
 }

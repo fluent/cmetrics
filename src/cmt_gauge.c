@@ -31,12 +31,12 @@ struct cmt_gauge *cmt_gauge_create(struct cmt *cmt,
     int ret;
     struct cmt_gauge *gauge;
 
-    if (!namespace == 0) {
+    if (!namespace) {
         cmt_log_error(cmt, "null namespace not allowed");
         return NULL;
     }
 
-    if (!subsystem == 0) {
+    if (!subsystem) {
         cmt_log_error(cmt, "null subsystem not allowed");
         return NULL;
     }

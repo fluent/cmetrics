@@ -31,12 +31,12 @@ struct cmt_counter *cmt_counter_create(struct cmt *cmt,
     int ret;
     struct cmt_counter *counter;
 
-    if (!namespace == 0) {
+    if (!namespace) {
         cmt_log_error(cmt, "null namespace not allowed");
         return NULL;
     }
 
-    if (!subsystem == 0) {
+    if (!subsystem) {
         cmt_log_error(cmt, "null subsystem not allowed");
         return NULL;
     }
@@ -72,7 +72,7 @@ struct cmt_counter *cmt_counter_create(struct cmt *cmt,
         cmt_counter_destroy(counter);
         return NULL;
     }
-    
+
     counter->cmt = cmt;
 
     counter->cmt = cmt;
