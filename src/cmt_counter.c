@@ -96,8 +96,8 @@ int cmt_counter_inc(struct cmt_counter *counter,
                                 CMT_TRUE);
     if (!metric) {
         cmt_log_error(counter->cmt, "unable to retrieve metric: %s for counter %s_%s_%s",
-                        counter->map, counter->opts.namespace, counter->opts.subsystem,
-                        counter->opts.name);
+                      counter->map, counter->opts.namespace, counter->opts.subsystem,
+                      counter->opts.name);
         return -1;
     }
     cmt_metric_inc(metric, timestamp);
@@ -114,8 +114,8 @@ int cmt_counter_add(struct cmt_counter *counter, uint64_t timestamp, double val,
                                 CMT_TRUE);
     if (!metric) {
         cmt_log_error(counter->cmt, "unable to retrieve metric: %s for counter %s_%s_%s",
-                        counter->map, counter->opts.namespace, counter->opts.subsystem,
-                        counter->opts.name);
+                      counter->map, counter->opts.namespace, counter->opts.subsystem,
+                      counter->opts.name);
         return -1;
     }
     cmt_metric_add(metric, timestamp, val);
@@ -133,14 +133,15 @@ int cmt_counter_set(struct cmt_counter *counter, uint64_t timestamp, double val,
                                 CMT_TRUE);
     if (!metric) {
         cmt_log_error(counter->cmt, "unable to retrieve metric: %s for counter %s_%s_%s",
-                        counter->map, counter->opts.namespace, counter->opts.subsystem,
-                        counter->opts.name);
+                      counter->map, counter->opts.namespace, counter->opts.subsystem,
+                      counter->opts.name);
         return -1;
     }
 
     if (cmt_metric_get_value(metric) > val && counter->allow_reset == 0) {
         cmt_log_error(counter->cmt, "attempting to reset unresetable counter: %s_%s_%s",
-                counter->opts.namespace, counter->opts.subsystem, counter->opts.name);
+                      counter->opts.namespace, counter->opts.subsystem,
+                      counter->opts.name);
         return -1;
     }
     cmt_metric_set(metric, timestamp, val);
@@ -158,8 +159,8 @@ int cmt_counter_get_val(struct cmt_counter *counter,
                                  &val);
     if (ret == -1) {
         cmt_log_error(counter->cmt, "unable to retrieve metric: %s for counter %s_%s_%s",
-                        counter->map, counter->opts.namespace, counter->opts.subsystem,
-                        counter->opts.name);
+                      counter->map, counter->opts.namespace, counter->opts.subsystem,
+                      counter->opts.name);
         return -1;
     }
     *out_val = val;
