@@ -514,6 +514,7 @@ int pack_metric_metadata(struct cmt_prometheus_remote_write_context *context,
 int append_metric_to_timeseries(struct cmt_prometheus_time_series *time_series,
                                 struct cmt_metric *metric)
 {
+    uint64_t ts;
     Prometheus__Sample *sample;
 
     sample = calloc(1, sizeof(Prometheus__Sample));
@@ -527,8 +528,9 @@ int append_metric_to_timeseries(struct cmt_prometheus_time_series *time_series,
     prometheus__sample__init(sample);
 
     sample->value = cmt_metric_get_value(metric);
-    sample->timestamp = cmt_metric_get_timestamp(metric);
 
+    ts = cmt_metric_get_timestamp(metric);
+    sample->timestamp = ts / 1000000;
     time_series->data.samples[time_series->entries_set++] = sample;
 
     return CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS;
