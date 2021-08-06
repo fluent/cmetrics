@@ -98,7 +98,6 @@ static int copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map *
 {
     int c;
     int ret;
-    int max_labels = 256;
     uint64_t ts;
     double val;
     char **labels = NULL;
