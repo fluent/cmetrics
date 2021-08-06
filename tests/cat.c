@@ -20,6 +20,7 @@
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
+#include <cmetrics/cmt_untyped.h>
 #include <cmetrics/cmt_encode_text.h>
 #include <cmetrics/cmt_cat.h>
 
@@ -49,8 +50,8 @@ void test_cat()
                          2, (char *[]) {"label3", "label4"});
     TEST_CHECK(g != NULL);
 
-    u = cmt_gauge_create(cmt1, "cmetrics", "test", "cat_untyped", "first untyped",
-                         2, (char *[]) {"label5", "label6"});
+    u = cmt_untyped_create(cmt1, "cmetrics", "test", "cat_untyped", "first untyped",
+                           2, (char *[]) {"label5", "label6"});
     TEST_CHECK(u != NULL);
 
 
