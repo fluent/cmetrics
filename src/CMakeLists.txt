@@ -9,6 +9,7 @@ set(src
   cmt_time.c
   cmt_label.c
   cmt_cat.c
+  cmt_sds.c
   cmetrics.c
   cmt_encode_prometheus.c
   cmt_encode_prometheus_remote_write.c

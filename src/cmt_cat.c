@@ -164,7 +164,7 @@ static int copy_counter(struct cmt *cmt, struct cmt_counter *counter)
 
     /* create counter */
     c = cmt_counter_create(cmt,
-                           opts->namespace, opts->subsystem,
+                           opts->ns, opts->subsystem,
                            opts->name, opts->description,
                            map->label_count, labels);
 
@@ -199,7 +199,7 @@ static int copy_gauge(struct cmt *cmt, struct cmt_gauge *gauge)
 
     /* create counter */
     g = cmt_gauge_create(cmt,
-                         opts->namespace, opts->subsystem,
+                         opts->ns, opts->subsystem,
                          opts->name, opts->description,
                          map->label_count, labels);
     free(labels);
@@ -233,7 +233,7 @@ static int copy_untyped(struct cmt *cmt, struct cmt_untyped *untyped)
 
     /* create counter */
     u = cmt_untyped_create(cmt,
-                           opts->namespace, opts->subsystem,
+                           opts->ns, opts->subsystem,
                            opts->name, opts->description,
                            map->label_count, labels);
     free(labels);
