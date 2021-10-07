@@ -82,8 +82,6 @@ void test_issue_54()
 
     text_result = cmt_encode_text_create(cmt2);
     TEST_CHECK(NULL != text_result);
-
-    printf("\nresult: %s\nexpected:%s\n", text_result, expected_text);
     TEST_CHECK(0 == strcmp(text_result, expected_text));
 
     cmt_destroy(cmt1);
