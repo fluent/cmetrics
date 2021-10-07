@@ -34,6 +34,7 @@ static struct cmt *generate_encoder_test_data()
     struct cmt_counter *c2;
     struct cmt_counter *c3;
 
+    ts = 0;
     cmt = cmt_create();
 
     c1 = cmt_counter_create(cmt, "kubernetes", "", "load", "Network load",
