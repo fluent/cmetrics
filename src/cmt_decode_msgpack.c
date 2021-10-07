@@ -221,6 +221,7 @@ static int unpack_label(mpack_reader_t *reader,
 
 static int unpack_static_label(mpack_reader_t *reader,
                                size_t index,
+                               struct cmt_msgpack_decode_context *decode_context,
                                struct mk_list *unique_label_list,
                                struct mk_list *target_label_list)
 {
@@ -240,6 +241,10 @@ static int unpack_static_label(mpack_reader_t *reader,
 
     if (CMT_DECODE_MSGPACK_SUCCESS != result) {
         return result;
+    }
+
+    if (decode_context->static_labels_unpacked) {
+        return CMT_DECODE_MSGPACK_SUCCESS;
     }
 
     dictionary_entry = find_label_by_index(unique_label_list, label_index);
@@ -520,7 +525,7 @@ static int unpack_header_static_label(mpack_reader_t *reader, size_t index, void
 
     decode_context = (struct cmt_msgpack_decode_context *) context;
 
-    return unpack_static_label(reader, index,
+    return unpack_static_label(reader, index, decode_context,
                                &decode_context->unique_label_list,
                                &decode_context->cmt->static_labels->list);
 }
@@ -588,6 +593,8 @@ static int unpack_basic_type_meta(mpack_reader_t *reader, size_t index, void *co
     if (CMT_DECODE_MSGPACK_SUCCESS == result) {
         decode_context->map->label_count = mk_list_size(&decode_context->map->label_keys);
     }
+
+    decode_context->static_labels_unpacked = CMT_TRUE;
 
     return result;
 }
