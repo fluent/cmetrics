@@ -18,6 +18,7 @@
  */
 
 #include <cmetrics/cmetrics.h>
+#include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_encode_msgpack.h>
 #include <cmetrics/cmt_decode_msgpack.h>
@@ -458,6 +459,7 @@ void test_opentelemetry()
     cmt_sds_t payload;
     struct cmt *cmt;
     struct cmt_counter *c;
+    struct cmt_gauge *g;
     FILE *sample_file;
 
     cmt_initialize();
@@ -472,6 +474,15 @@ void test_opentelemetry()
     cmt_counter_inc(c, ts, 0, NULL);
     cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
     cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics2"});
+
+    g = cmt_gauge_create(cmt, "cmt", "labels", "test 2", "Static labels test",
+                           2, (char *[]) {"host", "app2"});
+
+    ts = 0;
+    cmt_gauge_set(g, ts, 11.0f, 0, NULL);
+    cmt_gauge_inc(g, ts, 0, NULL);
+    cmt_gauge_inc(g, ts, 2, (char *[]) {"calyptia.com.ar", "cmetrics"});
+    cmt_gauge_inc(g, ts, 2, (char *[]) {"calyptia.com.ar", "cmetrics2"});
 
     /* append static labels */
     cmt_label_add(cmt, "dev", "Calyptia");

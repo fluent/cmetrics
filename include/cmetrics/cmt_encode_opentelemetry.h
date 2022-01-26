@@ -32,11 +32,9 @@
 
 struct cmt_opentelemetry_context
 {
-    struct mk_list                                 time_series_entries;
-    struct mk_list                                 metadata_entries;
-    uint64_t                                       sequence_number;
-    Opentelemetry__Proto__Metrics__V1__MetricsData metrics_data;
-    struct cmt                                    *cmt;
+    uint64_t                                        sequence_number;
+    Opentelemetry__Proto__Metrics__V1__MetricsData *metrics_data;
+    struct cmt                                     *cmt;
 };
 
 cmt_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt);
