@@ -6,7 +6,8 @@ on:
       - master
     # Any tag starting with 'v'
     tags:
-      - v*
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build-distro-packages:
