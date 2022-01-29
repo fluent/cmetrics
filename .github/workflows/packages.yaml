@@ -6,7 +6,7 @@ on:
       - master
     # Any tag starting with 'v'
     tags:
-      - v*
+      - 'v*'
 
 jobs:
   build-distro-packages:
