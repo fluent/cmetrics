@@ -24,6 +24,7 @@
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_sds.h>
 #include <opentelemetry/metrics.pb-c.h>
+#include <opentelemetry/metrics_service.pb-c.h>
 
 #define CMT_ENCODE_OPENTELEMETRY_SUCCESS                0
 #define CMT_ENCODE_OPENTELEMETRY_ALLOCATION_ERROR       1
@@ -32,7 +33,6 @@
 
 struct cmt_opentelemetry_context
 {
-    uint64_t                                        sequence_number;
     Opentelemetry__Proto__Metrics__V1__MetricsData *metrics_data;
     struct cmt                                     *cmt;
 };
