@@ -25,6 +25,7 @@ set(src
   external/opentelemetry_common.pb-c.c
   external/opentelemetry_metrics.pb-c.c
   external/opentelemetry_resource.pb-c.c
+  external/opentelemetry_metrics_service.pb-c.c
   )
 
 if (${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
