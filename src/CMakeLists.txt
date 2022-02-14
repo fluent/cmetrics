@@ -1,3 +1,12 @@
+flex_target(cmt_decode_prometheus_lexer cmt_decode_prometheus.l
+  "${FLEX_BISON_GENERATED_DIR}/cmt_decode_prometheus_lexer.c"
+  DEFINES_FILE "${FLEX_BISON_GENERATED_DIR}/cmt_decode_prometheus_lexer.h"
+  )
+bison_target(cmt_decode_prometheus_parser cmt_decode_prometheus.y
+  "${FLEX_BISON_GENERATED_DIR}/cmt_decode_prometheus_parser.c")
+add_flex_bison_dependency(cmt_decode_prometheus_lexer cmt_decode_prometheus_parser)
+
+
 set(src
   cmt_gauge.c
   cmt_counter.c
@@ -41,7 +50,11 @@ set(src
   )
 
 # Static Library
-add_library(cmetrics-static STATIC ${src})
+add_library(cmetrics-static STATIC
+  ${src}
+  ${FLEX_cmt_decode_prometheus_lexer_OUTPUTS}
+  ${BISON_cmt_decode_prometheus_parser_OUTPUTS}
+  )
 target_link_libraries(cmetrics-static xxhash mpack-static)
 
 # Install Library

@@ -4,6 +4,8 @@ set(UNIT_TESTS_FILES
   counter.c
   untyped.c
   atomic_operations.c
+  prometheus_lexer.c
+  prometheus_parser.c
   encoding.c
   cat.c
   issues.c

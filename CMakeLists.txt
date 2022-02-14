@@ -36,11 +36,14 @@ if(CMT_DEV)
   set(CMT_TESTS   Yes)
 endif()
 
+set(FLEX_BISON_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR})
 # Include headers and dependency headers
 include_directories(
+  src
   include
   lib/monkey/include
   lib/xxHash-0.8.0/
+  ${FLEX_BISON_GENERATED_DIR}
   )
 
 # timespec_get() support
@@ -101,6 +104,13 @@ check_c_source_compiles("
      msgpack_sbuffer sbuf;
      return 0;
   }" CMT_HAVE_MSGPACK)
+
+find_package(FLEX)
+find_package(BISON)
+
+if(NOT FLEX_FOUND AND BISON_FOUND)
+  message(FATAL_ERROR "Both flex and bison are required for building cmetrics")
+endif()
 
 configure_file(
   "${PROJECT_SOURCE_DIR}/include/cmetrics/cmt_info.h.in"
