@@ -17,6 +17,7 @@
  *  limitations under the License.
  */
 
+#include <errno.h>
 #include <stdarg.h>
 #include <stdint.h>
 
@@ -416,18 +417,63 @@ static int sample_start(struct cmt_decode_prometheus_context *context)
     return 0;
 }
 
-static void parse_sample(
+static int parse_timestamp(const char *in, int64_t *out)
+{
+    char *end;
+    int64_t val;
+
+    errno = 0;
+    val = strtol(in, &end, 10);
+    if (end == in || *end != 0 || errno)  {
+        return -1;
+    }
+
+    // prometheus text format metrics are in milliseconds, while cmetrics is in
+    // nanoseconds, so multiply by 10e5
+    *out = val * 10e5;
+    return 0;
+}
+
+static int parse_value(const char *in, double *out)
+{
+    char *end;
+    double val;
+
+    errno = 0;
+    val = strtod(in, &end);
+    if (end == in || *end != 0 || errno) {
+        return -1;
+    }
+
+    *out = val;
+    return 0;
+}
+
+static int parse_sample(
         struct cmt_decode_prometheus_context *context,
-        double value,
-        uint64_t timestamp)
+        const char *value,
+        const char *timestamp)
 {
     struct cmt_decode_prometheus_context_sample *sample;
     sample = mk_list_entry_last(&context->metric.samples,
             struct cmt_decode_prometheus_context_sample, _head);
-    sample->value = value;
-    // prometheus text format metrics are in milliseconds, while cmetrics is in
-    // nanoseconds, so multiply by 10e5
-    sample->timestamp = timestamp * 10e5;
+    sample->value = atof(value);
+
+    if (parse_value(value, &sample->value)) {
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_PARSE_VALUE_FAILED,
+                "failed to parse sample: \"%s\" is not a valid "
+                "value", value);
+    }
+
+    if (parse_timestamp(timestamp, &sample->timestamp)) {
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_PARSE_TIMESTAMP_FAILED,
+                "failed to parse sample: \"%s\" is not a valid "
+                "timestamp", timestamp);
+    }
+
+    return 0;
 }
 
 // called automatically by the generated parser code on error

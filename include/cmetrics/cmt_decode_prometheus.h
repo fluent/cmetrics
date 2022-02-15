@@ -30,6 +30,8 @@
 #define CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT_EXCEEDED   30
 #define CMT_DECODE_PROMETHEUS_CMT_SET_ERROR              40
 #define CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR           50
+#define CMT_DECODE_PROMETHEUS_PARSE_VALUE_FAILED         60
+#define CMT_DECODE_PROMETHEUS_PARSE_TIMESTAMP_FAILED     70
 
 // due to a bug in flex/bison code generation, this must be defined before
 // including the generated headers
@@ -44,7 +46,7 @@
 
 struct cmt_decode_prometheus_context_sample {
     double value;
-    uint64_t timestamp;
+    int64_t timestamp;
     size_t label_count;
     cmt_sds_t label_values[CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT];
 

@@ -14,16 +14,15 @@
 
 %union {
     cmt_sds_t str;
-    double fpoint;
-    long long integer;
+    char numstr[64];
+    int integer;
 }
 
 %token '=' '{' '}' ','
 %token <str> IDENTIFIER QUOTED HELP TYPE METRIC_DOC
 %token COUNTER GAUGE SUMMARY UNTYPED HISTOGRAM
 %token START_HEADER START_LABELS START_SAMPLES
-%token <fpoint> FPOINT
-%token <integer> INTEGER
+%token <numstr> NUMSTR
 
 %type <integer> metric_type
 
@@ -126,17 +125,15 @@ label:
 ;
 
 values:
-    FPOINT INTEGER {
-        parse_sample(context, $1, $2);
+    NUMSTR NUMSTR {
+        if (parse_sample(context, $1, $2)) {
+            YYABORT;
+        }
     }
-  | INTEGER INTEGER {
-        parse_sample(context, $1, $2);
-    }
-  | INTEGER {
-        parse_sample(context, $1, 0);
-    }
-  | FPOINT {
-        parse_sample(context, $1, 0);
+  | NUMSTR {
+        if (parse_sample(context, $1, "0")) {
+            YYABORT;
+        }
     }
 ;
 

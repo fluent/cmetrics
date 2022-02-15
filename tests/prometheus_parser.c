@@ -436,6 +436,36 @@ void test_invalid_types()
     TEST_CHECK(strcmp(errbuf, "unsupported metric type: summary") == 0);
 }
 
+void test_invalid_value()
+{
+    int status;
+    char errbuf[256];
+    struct cmt *cmt;
+
+    status = cmt_decode_prometheus_create(&cmt,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name histogram\n"
+            "metric_name {key=\"abc\"} 10e", errbuf, sizeof(errbuf));
+    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_PARSE_VALUE_FAILED);
+    TEST_CHECK(strcmp(errbuf,
+                "failed to parse sample: \"10e\" is not a valid value") == 0);
+}
+
+void test_invalid_timestamp()
+{
+    int status;
+    char errbuf[256];
+    struct cmt *cmt;
+
+    status = cmt_decode_prometheus_create(&cmt,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name histogram\n"
+            "metric_name {key=\"abc\"} 10 3e", errbuf, sizeof(errbuf));
+    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_PARSE_TIMESTAMP_FAILED);
+    TEST_CHECK(strcmp(errbuf,
+                "failed to parse sample: \"3e\" is not a valid timestamp") == 0);
+}
+
 TEST_LIST = {
     {"header_help", test_header_help},
     {"header_type", test_header_type},
@@ -451,5 +481,7 @@ TEST_LIST = {
     {"bison_parsing_error", test_bison_parsing_error},
     {"label_limits", test_label_limits},
     {"invalid_types", test_invalid_types},
+    {"invalid_value", test_invalid_value},
+    {"invalid_timestamp", test_invalid_timestamp},
     { 0 }
 };

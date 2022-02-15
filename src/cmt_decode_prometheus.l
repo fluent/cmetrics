@@ -176,15 +176,9 @@
     return IDENTIFIER;
 }
 
-[0-9]+ {
-    yylval->integer = strtoll(yytext, NULL, 10);
-    return INTEGER;
-}
-
-[0-9]*[0-9.][0-9]*([Ee][-+]?[0-9]+)? {
-    // floating point is defined later so that integers have a preference
-    yylval->fpoint = atof(yytext);
-    return FPOINT;
+[0-9.eE+-]+ {
+    strncpy(yylval->numstr, yytext, sizeof(yylval->numstr) - 1);
+    return NUMSTR;
 }
 
 . {

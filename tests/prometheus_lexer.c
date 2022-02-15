@@ -132,11 +132,11 @@ void test_simple()
     TEST_CHECK(strcmp(f->lval.str, "cmt_labels_test") == 0);
     cmt_sds_destroy(f->lval.str);
 
-    TEST_CHECK(lex(f) == INTEGER);
-    TEST_CHECK(f->lval.integer == 1);
+    TEST_CHECK(lex(f) == NUMSTR);
+    TEST_CHECK(strcmp(f->lval.numstr, "1") == 0);
 
-    TEST_CHECK(lex(f) == INTEGER);
-    TEST_CHECK(f->lval.integer == 0);
+    TEST_CHECK(lex(f) == NUMSTR);
+    TEST_CHECK(strcmp(f->lval.numstr, "0") == 0);
 
     TEST_CHECK(lex(f) == IDENTIFIER);
     TEST_CHECK(strcmp(f->lval.str, "metric2") == 0);
@@ -168,11 +168,11 @@ void test_simple()
 
     TEST_CHECK(lex(f) == '}');
 
-    TEST_CHECK(lex(f) == FPOINT);
-    TEST_CHECK(f->lval.fpoint == 2.5);
+    TEST_CHECK(lex(f) == NUMSTR);
+    TEST_CHECK(strcmp(f->lval.numstr, "2.5") == 0);
 
-    TEST_CHECK(lex(f) == INTEGER);
-    TEST_CHECK(f->lval.fpoint == 0);
+    TEST_CHECK(lex(f) == NUMSTR);
+    TEST_CHECK(strcmp(f->lval.numstr, "0") == 0);
 
     TEST_CHECK(lex(f) == HELP);
     TEST_CHECK(strcmp(f->lval.str, "metric1") == 0);
@@ -200,11 +200,11 @@ void test_simple()
 
     TEST_CHECK(lex(f) == '}');
 
-    TEST_CHECK(lex(f) == FPOINT);
-    TEST_CHECK(f->lval.fpoint == 4.12);
+    TEST_CHECK(lex(f) == NUMSTR);
+    TEST_CHECK(strcmp(f->lval.numstr, "4.12") == 0);
 
-    TEST_CHECK(lex(f) == INTEGER);
-    TEST_CHECK(f->lval.integer == 5);
+    TEST_CHECK(lex(f) == NUMSTR);
+    TEST_CHECK(strcmp(f->lval.numstr, "5") == 0);
 
     destroy(f);
 }
