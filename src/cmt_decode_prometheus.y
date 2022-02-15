@@ -39,7 +39,7 @@ start:
     START_HEADER header
   | START_LABELS labels
   | START_SAMPLES samples
-  | metric {
+  | metrics {
     if (finish_metric(context)) {
         YYABORT;
     }

@@ -412,6 +412,27 @@ void test_label_limits()
     TEST_CHECK(strcmp(errbuf, "maximum number of labels exceeded") == 0);
 }
 
+void test_invalid_types()
+{
+    int status;
+    char errbuf[256];
+    struct cmt *cmt;
+
+    status = cmt_decode_prometheus_create(&cmt,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name histogram\n"
+            "metric_name {key=\"abc\"} 32.4", errbuf, sizeof(errbuf));
+    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE);
+    TEST_CHECK(strcmp(errbuf, "unsupported metric type: histogram") == 0);
+
+    status = cmt_decode_prometheus_create(&cmt,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name summary\n"
+            "metric_name {key=\"abc\"} 32.4", errbuf, sizeof(errbuf));
+    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE);
+    TEST_CHECK(strcmp(errbuf, "unsupported metric type: summary") == 0);
+}
+
 TEST_LIST = {
     {"header_help", test_header_help},
     {"header_type", test_header_type},
@@ -426,5 +447,6 @@ TEST_LIST = {
     {"complete", test_complete},
     {"bison_parsing_error", test_bison_parsing_error},
     {"label_limits", test_label_limits},
+    {"invalid_types", test_invalid_types},
     { 0 }
 };

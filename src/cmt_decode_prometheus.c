@@ -17,6 +17,7 @@
  *  limitations under the License.
  */
 
+#include <stdarg.h>
 #include <stdint.h>
 
 #include <cmetrics/cmetrics.h>
@@ -118,12 +119,15 @@ void cmt_decode_prometheus_destroy(struct cmt *cmt)
 
 static int report_error(struct cmt_decode_prometheus_context *context,
                          int errcode,
-                         const char *msg)
+                         const char *format, ...)
 {
+    va_list args;
+    va_start(args, format);
     context->errcode = errcode;
     if (context->errbuf && context->errbuf_size) {
-        strncpy(context->errbuf, msg, context->errbuf_size - 1);
+        vsnprintf(context->errbuf, context->errbuf_size - 1, format, args);
     }
+    va_end(args);
     return errcode;
 }
 
@@ -302,9 +306,10 @@ static int finish_metric(struct cmt_decode_prometheus_context *context)
             break;
         case HISTOGRAM:
         case SUMMARY:
-            // we continue parsing but return this code to let callers know
-            // some metrics were ignored
-            rv = CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE;
+            rv = report_error(context,
+                    CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE,
+                    "unsupported metric type: %s",
+                    context->metric.type == HISTOGRAM ? "histogram" : "summary");
             break;
         default:
             rv = add_metric_untyped(context);
