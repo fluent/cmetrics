@@ -17,15 +17,45 @@
  *  limitations under the License.
  */
 
-#include "cmetrics/cmetrics.h"
-#include "cmetrics/cmt_untyped.h"
-#include "monkey/mk_core/mk_list.h"
+#include <stdint.h>
+
+#include <cmetrics/cmetrics.h>
+#include <cmetrics/cmt_gauge.h>
+#include <cmetrics/cmt_untyped.h>
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_sds.h>
 #include <cmetrics/cmt_decode_prometheus.h>
-#include <stdint.h>
+#include <monkey/mk_core/mk_list.h>
 
-int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf)
+#include <cmt_decode_prometheus_parser.h>
+
+static void reset_context(struct cmt_decode_prometheus_context *context)
+{
+    int i;
+    int j;
+
+    for (i = 0; i < context->metric.sample_count_start; i++) {
+        for (j = 0; j < context->metric.samples[i].label_count; j++) {
+            cmt_sds_destroy(context->metric.samples[i].label_values[j]);
+        }
+    }
+    for (i = 0; i < context->metric.label_count; i++) {
+        cmt_sds_destroy(context->metric.labels[i]);
+    }
+    if (context->metric.ns) {
+        free(context->metric.ns);
+    }
+    cmt_sds_destroy(context->metric.name_orig);
+    cmt_sds_destroy(context->metric.docstring);
+    cmt_sds_destroy(context->strbuf);
+    context->strbuf = NULL;
+    memset(&context->metric,
+            0,
+            sizeof(struct cmt_decode_prometheus_context_metric));
+}
+
+int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf,
+        char *errbuf, size_t errbuf_size)
 {
     yyscan_t scanner;
     YY_BUFFER_STATE buf;
@@ -41,6 +71,8 @@ int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf)
 
     memset(&context, 0, sizeof(context));
     context.cmt = cmt;
+    context.errbuf = errbuf;
+    context.errbuf_size = errbuf_size;
     cmt_decode_prometheus_lex_init(&scanner);
     buf = cmt_decode_prometheus__scan_string(in_buf, scanner);
     if (!buf) {
@@ -55,6 +87,7 @@ int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf)
     }
     else {
         cmt_destroy(cmt);
+        reset_context(&context);
     }
 
     cmt_decode_prometheus__delete_buffer(buf, scanner);
@@ -97,6 +130,14 @@ static int split_metric_name(cmt_sds_t metric_name, char **ns,
     return 0;
 }
 
+// Use this helper function to return a stub value for docstring when it is not
+// available. This is necessary for now because the metric constructors require
+// a docstring, even though it is not required by prometheus spec.
+static const char *get_docstring(struct cmt_decode_prometheus_context *context)
+{
+    return context->metric.docstring ? context->metric.docstring : "(no information)";
+}
+
 static int add_metric_counter(struct cmt_decode_prometheus_context *context)
 {
     int i;
@@ -107,7 +148,7 @@ static int add_metric_counter(struct cmt_decode_prometheus_context *context)
             context->metric.ns,
             context->metric.subsystem,
             context->metric.name,
-            context->metric.docstring,
+            get_docstring(context),
             context->metric.label_count,
             context->metric.labels);
 
@@ -115,6 +156,33 @@ static int add_metric_counter(struct cmt_decode_prometheus_context *context)
     for (i = 0; i < context->metric.sample_count; i++) {
         label_count = context->metric.samples[i].label_count;
         cmt_counter_set(c,
+                context->metric.samples[i].timestamp,
+                context->metric.samples[i].value,
+                label_count,
+                label_count ? context->metric.samples[i].label_values : NULL);
+    }
+
+    return 0;
+}
+
+static int add_metric_gauge(struct cmt_decode_prometheus_context *context)
+{
+    int i;
+    size_t label_count;
+    struct cmt_gauge *c;
+
+    c = cmt_gauge_create(context->cmt,
+            context->metric.ns,
+            context->metric.subsystem,
+            context->metric.name,
+            get_docstring(context),
+            context->metric.label_count,
+            context->metric.labels);
+
+
+    for (i = 0; i < context->metric.sample_count; i++) {
+        label_count = context->metric.samples[i].label_count;
+        cmt_gauge_set(c,
                 context->metric.samples[i].timestamp,
                 context->metric.samples[i].value,
                 label_count,
@@ -134,7 +202,7 @@ static int add_metric_untyped(struct cmt_decode_prometheus_context *context)
             context->metric.ns,
             context->metric.subsystem,
             context->metric.name,
-            context->metric.docstring ? context->metric.docstring : "(no information)",
+            get_docstring(context),
             context->metric.label_count,
             context->metric.labels);
 
@@ -161,26 +229,21 @@ static int finish_metric(struct cmt_decode_prometheus_context *context)
         case COUNTER:
             rv = add_metric_counter(context);
             break;
+        case GAUGE:
+            rv = add_metric_gauge(context);
+            break;
+        case HISTOGRAM:
+        case SUMMARY:
+            // we continue parsing but return this code to let callers know
+            // some metrics were ignored
+            rv = CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE;
+            break;
         default:
             rv = add_metric_untyped(context);
             break;
     }
 
-    // after a metric is parsed, we free all allocated strings and reset the context
-    for (i = 0; i < context->metric.sample_count; i++) {
-        for (j = 0; j < context->metric.samples[i].label_count; j++) {
-            cmt_sds_destroy(context->metric.samples[i].label_values[j]);
-        }
-    }
-    for (i = 0; i < context->metric.label_count; i++) {
-        cmt_sds_destroy(context->metric.labels[i]);
-    }
-    free(context->metric.ns);
-    cmt_sds_destroy(context->metric.name_orig);
-    cmt_sds_destroy(context->metric.docstring);
-    memset(&context->metric,
-            0,
-            sizeof(struct cmt_decode_prometheus_context_metric));
+    reset_context(context);
 
     return rv;
 }
@@ -242,6 +305,13 @@ static int parse_label(
         context->metric.label_count++;
     }
 
+    if (context->metric.sample_count == context->metric.sample_count_start) {
+        // we just started parsing labels on a new sample.
+        // increase sample_count_start so that `reset_context` can properly free
+        // allocated labels
+        context->metric.sample_count_start++;
+    }
+
     sindex = context->metric.sample_count;
     // Uncomment the following two lines when cmetrics support the following usage:
     //
@@ -275,6 +345,8 @@ static int cmt_decode_prometheus_error(void *yyscanner,
                                        struct cmt_decode_prometheus_context *context,
                                        const char *msg)
 {
-    fprintf(stderr, "%s\n", msg);
+    if (context->errbuf && context->errbuf_size) {
+        strncpy(context->errbuf, msg, context->errbuf_size - 1);
+    }
     return 0;
 }

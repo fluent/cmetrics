@@ -200,7 +200,7 @@ void test_samples()
     cmt_sds_t result;
     const char expected[] = (
             "# HELP cmt_labels_test some docstring\n"
-            "# TYPE cmt_labels_test counter\n"
+            "# TYPE cmt_labels_test gauge\n"
             "cmt_labels_test{dev=\"Calyptia\",lang=\"C\"} 5 999999\n"
             "cmt_labels_test{dev=\"Calyptia\",lang=\"C++\"} 6 7777\n"
 
@@ -208,7 +208,7 @@ void test_samples()
 
     struct fixture *f = init(0,
             "# HELP cmt_labels_test some docstring\n"
-            "# TYPE cmt_labels_test counter\n"
+            "# TYPE cmt_labels_test gauge\n"
             "cmt_labels_test{dev=\"Calyptia\",lang=\"C\",} 5 999999\n"
             "cmt_labels_test{dev=\"Calyptia\",lang=\"C++\"} 6 7777\n"
             );
@@ -296,7 +296,7 @@ void test_complete()
         ;
 
     cmt_initialize();
-    status = cmt_decode_prometheus_create(&cmt, in_buf);
+    status = cmt_decode_prometheus_create(&cmt, in_buf, NULL, 0);
     TEST_CHECK(status == 0);
     result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
     TEST_CHECK(strcmp(result, expected) == 0);
@@ -305,6 +305,66 @@ void test_complete()
     cmt_decode_prometheus_destroy(cmt);
 }
 
+void test_bison_parsing_error()
+{
+    int status;
+    char errbuf[256];
+    struct cmt *cmt;
+
+    status = cmt_decode_prometheus_create(&cmt, "", errbuf, sizeof(errbuf));
+    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
+    TEST_CHECK(strcmp(errbuf,
+                "syntax error, unexpected end of file") == 0);
+
+    status = cmt_decode_prometheus_create(&cmt,
+            "# TYPE metric_name counter", errbuf, sizeof(errbuf));
+    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
+    TEST_CHECK(strcmp(errbuf,
+                "syntax error, unexpected end of file, "
+                "expecting IDENTIFIER") == 0);
+
+    status = cmt_decode_prometheus_create(&cmt,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name counter\n"
+            "metric_name", errbuf, sizeof(errbuf));
+    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
+    TEST_CHECK(strcmp(errbuf,
+                "syntax error, unexpected end of file, expecting '{' "
+                "or FPOINT or INTEGER") == 0);
+
+    status = cmt_decode_prometheus_create(&cmt,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name counter\n"
+            "metric_name {key", errbuf, sizeof(errbuf));
+    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
+    TEST_CHECK(strcmp(errbuf,
+                "syntax error, unexpected end of file, expecting '='") == 0);
+
+    status = cmt_decode_prometheus_create(&cmt,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name counter\n"
+            "metric_name {key=", errbuf, sizeof(errbuf));
+    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
+    TEST_CHECK(strcmp(errbuf,
+                "syntax error, unexpected end of file, expecting QUOTED") == 0);
+
+    status = cmt_decode_prometheus_create(&cmt,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name counter\n"
+            "metric_name {key=\"abc\"", errbuf, sizeof(errbuf));
+    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
+    TEST_CHECK(strcmp(errbuf,
+                "syntax error, unexpected end of file, expecting '}'") == 0);
+
+    status = cmt_decode_prometheus_create(&cmt,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name counter\n"
+            "metric_name {key=\"abc\"}", errbuf, sizeof(errbuf));
+    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
+    TEST_CHECK(strcmp(errbuf,
+                "syntax error, unexpected end of file, expecting "
+                "FPOINT or INTEGER") == 0);
+}
 
 TEST_LIST = {
     {"header_help", test_header_help},
@@ -318,5 +378,6 @@ TEST_LIST = {
     {"escape_sequences", test_escape_sequences},
     {"metric_without_labels", test_metric_without_labels},
     {"complete", test_complete},
+    {"bison_parsing_error", test_bison_parsing_error},
     { 0 }
 };

@@ -27,6 +27,10 @@
 
 %type <integer> metric_type
 
+%destructor {
+    cmt_sds_destroy($$);
+} <str>
+
 %start start;
 
 %%
@@ -88,7 +92,7 @@ samples:
 
 sample:
     IDENTIFIER { 
-        parse_metric_name(context, $1);
+        parse_metric_name(context, $1); $1 = NULL;
     } sample_data
 ;
 

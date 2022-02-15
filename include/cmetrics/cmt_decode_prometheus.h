@@ -22,18 +22,10 @@
 
 #include <cmetrics/cmetrics.h>
 
-#define CMT_DECODE_PROMETHEUS_SUCCESS                    0
-#define CMT_DECODE_PROMETHEUS_INSUFFICIENT_DATA          1
-#define CMT_DECODE_PROMETHEUS_INVALID_ARGUMENT_ERROR     2
-#define CMT_DECODE_PROMETHEUS_ALLOCATION_ERROR           3
-#define CMT_DECODE_PROMETHEUS_CORRUPT_INPUT_DATA_ERROR   4
-#define CMT_DECODE_PROMETHEUS_CONSUME_ERROR              5
-#define CMT_DECODE_PROMETHEUS_ENGINE_ERROR               6
-#define CMT_DECODE_PROMETHEUS_PENDING_MAP_ENTRIES        7
-#define CMT_DECODE_PROMETHEUS_PENDING_ARRAY_ENTRIES      8
-#define CMT_DECODE_PROMETHEUS_UNEXPECTED_KEY_ERROR       9
-#define CMT_DECODE_PROMETHEUS_UNEXPECTED_DATA_TYPE_ERROR 10
-#define CMT_DECODE_PROMETHEUS_ERROR_CUTOFF               20
+#define CMT_DECODE_PROMETHEUS_SUCCESS                     0
+#define CMT_DECODE_PROMETHEUS_SYNTAX_ERROR                1
+#define CMT_DECODE_PROMETHEUS_ALLOCATION_ERROR           10
+#define CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE     20
 
 // due to a bug in flex/bison code generation, this must be defined before
 // including the generated headers
@@ -63,11 +55,14 @@ struct cmt_decode_prometheus_context_metric {
     size_t label_count;
     cmt_sds_t labels[CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT];
     size_t sample_count;
+    size_t sample_count_start;
     struct cmt_decode_prometheus_context_sample samples[50];
 };
 
 struct cmt_decode_prometheus_context {
     struct cmt *cmt;
+    char *errbuf;
+    size_t errbuf_size;
     int start_token;
     cmt_sds_t strbuf;
     struct cmt_decode_prometheus_context_metric metric;
@@ -85,7 +80,8 @@ int cmt_decode_prometheus_lex(YYSTYPE *yylval_param,
 #include "cmt_decode_prometheus_lexer.h"
 #endif
 
-int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf);
+int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf,
+         char *errbuf, size_t errbuf_size);
 void cmt_decode_prometheus_destroy(struct cmt *cmt);
 
 #endif
