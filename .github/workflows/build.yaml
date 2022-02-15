@@ -40,6 +40,6 @@ jobs:
           echo "CC = $CC, CXX = $CXX"
           cmake -DCMT_TESTS=On .
           make all
-          make test
+          CTEST_OUTPUT_ON_FAILURE=1 make test
         env:
           CC: ${{ matrix.compiler }}
