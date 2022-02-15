@@ -171,12 +171,17 @@
     return QUOTED;
 }
 
+[+-]?(?i:(INF|NAN)) {
+    strncpy(yylval->numstr, yytext, sizeof(yylval->numstr) - 1);
+    return INFNAN;
+}
+
 [a-zA-Z_][a-zA-Z_0-9]*  {
     yylval->str = cmt_sds_create(yytext);
     return IDENTIFIER;
 }
 
-[0-9.eE+-]+|[+-](?i:INF|NAN) {
+[0-9.eE+-]+ {
     strncpy(yylval->numstr, yytext, sizeof(yylval->numstr) - 1);
     return NUMSTR;
 }

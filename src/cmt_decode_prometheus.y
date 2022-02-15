@@ -22,9 +22,10 @@
 %token <str> IDENTIFIER QUOTED HELP TYPE METRIC_DOC
 %token COUNTER GAUGE SUMMARY UNTYPED HISTOGRAM
 %token START_HEADER START_LABELS START_SAMPLES
-%token <numstr> NUMSTR
+%token <numstr> NUMSTR INFNAN
 
 %type <integer> metric_type
+%type <numstr> value
 
 %destructor {
     cmt_sds_destroy($$);
@@ -125,16 +126,20 @@ label:
 ;
 
 values:
-    NUMSTR NUMSTR {
+    value value {
         if (parse_sample(context, $1, $2)) {
             YYABORT;
         }
     }
-  | NUMSTR {
+  | value {
         if (parse_sample(context, $1, "0")) {
             YYABORT;
         }
     }
+;
+
+value:
+    NUMSTR | INFNAN
 ;
 
 %%

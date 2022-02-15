@@ -309,7 +309,6 @@ void test_complete()
         "\n"
         "# A histogram, which has a pretty complex representation in the text format:\n"
         "# HELP http_request_duration_seconds_bucket A histogram of the request duration.\n"
-        // replace histogram by counter since cmetrics doesn't support it.
         "# TYPE http_request_duration_seconds_bucket counter\n"
         "http_request_duration_seconds_bucket{le=\"0.05\"} 24054\n"
         "http_request_duration_seconds_bucket{le=\"0.1\"} 33444\n"
@@ -532,6 +531,40 @@ void test_invalid_timestamp()
                 "failed to parse sample: \"3e\" is not a valid timestamp") == 0);
 }
 
+void test_values()
+{
+    int status;
+    cmt_sds_t result;
+    struct cmt *cmt;
+
+    status = cmt_decode_prometheus_create(&cmt,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name gauge\n"
+            "metric_name {key=\"simple integer\"} 54\n"
+            "metric_name {key=\"simple float\"} 12.47\n"
+            "metric_name {key=\"scientific notation 1\"} 1.7560473e+07\n"
+            "metric_name {key=\"scientific notation 2\"} 17560473e-07\n"
+            "metric_name {key=\"Positive \\\"not a number\\\"\"} +NAN\n"
+            "metric_name {key=\"Negative \\\"not a number\\\"\"} -NaN\n"
+            "metric_name {key=\"Positive infinity\"} +INF\n"
+            "metric_name {key=\"Negative infinity\"} -iNf\n", NULL, 0);
+    TEST_CHECK(status == 0);
+    result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
+    TEST_CHECK(strcmp(result,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name gauge\n"
+            "metric_name{key=\"simple integer\"} 54 0\n"
+            "metric_name{key=\"simple float\"} 12.470000000000001 0\n"
+            "metric_name{key=\"scientific notation 1\"} 17560473 0\n"
+            "metric_name{key=\"scientific notation 2\"} 1.7560473000000001 0\n"
+            "metric_name{key=\"Positive \"not a number\"\"} nan 0\n"
+            "metric_name{key=\"Negative \"not a number\"\"} -nan 0\n"
+            "metric_name{key=\"Positive infinity\"} inf 0\n"
+            "metric_name{key=\"Negative infinity\"} -inf 0\n") == 0);
+    cmt_sds_destroy(result);
+    cmt_decode_prometheus_destroy(cmt);
+}
+
 TEST_LIST = {
     {"header_help", test_header_help},
     {"header_type", test_header_type},
@@ -549,5 +582,6 @@ TEST_LIST = {
     {"invalid_types", test_invalid_types},
     {"invalid_value", test_invalid_value},
     {"invalid_timestamp", test_invalid_timestamp},
+    {"values", test_values},
     { 0 }
 };

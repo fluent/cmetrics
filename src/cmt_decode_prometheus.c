@@ -453,28 +453,12 @@ static int parse_value(char *in, double *out)
 {
     char *end;
     double val;
-    int i;
-    size_t len = strlen(in);
-
-    // convert the string to lowercase to simplify parsing infinity/nan
-    for (i = 0; i < len; i++) {
-        in[i] = tolower(in[i]);
+    errno = 0;
+    val = strtod(in, &end);
+    if (end == in || *end != 0 || errno) {
+        return -1;
     }
-
-    if (len > 1 && (!strcmp(in, "inf") || !strcmp(in + 1, "inf"))) {
-        *out = in[0] == '-' ? -INFINITY : INFINITY;
-    }
-    else if (len > 1 && !strcmp(in, "nan")) { 
-        *out = NAN;
-    }
-    else {
-        errno = 0;
-        val = strtod(in, &end);
-        if (end == in || *end != 0 || errno) {
-            return -1;
-        }
-        *out = val;
-    }
+    *out = val;
     return 0;
 }
 
