@@ -287,6 +287,7 @@ void test_metric_without_labels()
 
 void test_complete()
 {
+    char errbuf[256];
     int status;
     size_t offset;
     cmt_sds_t result;
@@ -299,19 +300,84 @@ void test_complete()
         "\n"
         "# Escaping in label values:\n"
         "msdos_file_access_time_seconds{path=\"C:\\\\DIR\\\\FILE.TXT\",error=\"Cannot find file:\\n\\\"FILE.TXT\\\"\"} 1.458255915e9\n"
+        "\n"
+        "# Minimalistic line:\n"
+        "metric_without_timestamp_and_labels 12.47\n"
+        "\n"
+        "# A weird metric from before the epoch:\n"
+        "something_weird{problem=\"division by zero\"} +Inf -3982045\n"
+        "\n"
+        "# A histogram, which has a pretty complex representation in the text format:\n"
+        "# HELP http_request_duration_seconds_bucket A histogram of the request duration.\n"
+        // replace histogram by counter since cmetrics doesn't support it.
+        "# TYPE http_request_duration_seconds_bucket counter\n"
+        "http_request_duration_seconds_bucket{le=\"0.05\"} 24054\n"
+        "http_request_duration_seconds_bucket{le=\"0.1\"} 33444\n"
+        "http_request_duration_seconds_bucket{le=\"0.2\"} 100392\n"
+        "http_request_duration_seconds_bucket{le=\"0.5\"} 129389\n"
+        "http_request_duration_seconds_bucket{le=\"1\"} 133988\n"
+        "http_request_duration_seconds_bucket{le=\"+Inf\"} 144320\n"
+        "http_request_duration_seconds_sum 53423\n"
+        "http_request_duration_seconds_count 144320\n"
+        "\n"
+        "# Finally a summary, which has a complex representation, too:\n"
+        "# HELP rpc_duration_seconds A summary of the RPC duration in seconds.\n"
+        "# TYPE rpc_duration_seconds gauge\n"
+        "rpc_duration_seconds{quantile=\"0.01\"} 3102\n"
+        "rpc_duration_seconds{quantile=\"0.05\"} 3272\n"
+        "rpc_duration_seconds{quantile=\"0.5\"} 4773\n"
+        "rpc_duration_seconds{quantile=\"0.9\"} 9001\n"
+        "rpc_duration_seconds{quantile=\"0.99\"} 76656\n"
+        "rpc_duration_seconds_sum 1.7560473e+07\n"
+        "rpc_duration_seconds_count 2693\n"
         ;
     const char expected[] =
         "# HELP http_requests_total The total number of HTTP requests.\n"
         "# TYPE http_requests_total counter\n"
         "http_requests_total{method=\"post\",code=\"200\"} 1027 1395066363000\n"
         "http_requests_total{method=\"post\",code=\"400\"} 3 1395066363000\n"
+        "# HELP http_request_duration_seconds_bucket A histogram of the request duration.\n"
+        "# TYPE http_request_duration_seconds_bucket counter\n"
+        "http_request_duration_seconds_bucket{le=\"0.05\"} 24054 0\n"
+        "http_request_duration_seconds_bucket{le=\"0.1\"} 33444 0\n"
+        "http_request_duration_seconds_bucket{le=\"0.2\"} 100392 0\n"
+        "http_request_duration_seconds_bucket{le=\"0.5\"} 129389 0\n"
+        "http_request_duration_seconds_bucket{le=\"1\"} 133988 0\n"
+        "http_request_duration_seconds_bucket{le=\"+Inf\"} 144320 0\n"
+        "# HELP rpc_duration_seconds A summary of the RPC duration in seconds.\n"
+        "# TYPE rpc_duration_seconds gauge\n"
+        "rpc_duration_seconds{quantile=\"0.01\"} 3102 0\n"
+        "rpc_duration_seconds{quantile=\"0.05\"} 3272 0\n"
+        "rpc_duration_seconds{quantile=\"0.5\"} 4773 0\n"
+        "rpc_duration_seconds{quantile=\"0.9\"} 9001 0\n"
+        "rpc_duration_seconds{quantile=\"0.99\"} 76656 0\n"
         "# HELP msdos_file_access_time_seconds (no information)\n"
         "# TYPE msdos_file_access_time_seconds untyped\n"
+        // notice how scientific notation cannot be parsed by strtod
         "msdos_file_access_time_seconds{path=\"C:\\DIR\\FILE.TXT\",error=\"Cannot find file:\n\"FILE.TXT\"\"} 1458255915 0\n"
+        "# HELP metric_without_timestamp_and_labels (no information)\n"
+        "# TYPE metric_without_timestamp_and_labels untyped\n"
+        "metric_without_timestamp_and_labels 12.470000000000001 0\n"
+        "# HELP something_weird (no information)\n"
+        "# TYPE something_weird untyped\n"
+        "something_weird{problem=\"division by zero\"} inf 3982045\n"
+        "# HELP http_request_duration_seconds_sum (no information)\n"
+        "# TYPE http_request_duration_seconds_sum untyped\n"
+        "http_request_duration_seconds_sum 53423 0\n"
+        "# HELP http_request_duration_seconds_count (no information)\n"
+        "# TYPE http_request_duration_seconds_count untyped\n"
+        "http_request_duration_seconds_count 144320 0\n"
+        "# HELP rpc_duration_seconds_sum (no information)\n"
+        "# TYPE rpc_duration_seconds_sum untyped\n"
+        // notice how scientific notation cannot be parsed by strtod
+        "rpc_duration_seconds_sum 17560473 0\n"
+        "# HELP rpc_duration_seconds_count (no information)\n"
+        "# TYPE rpc_duration_seconds_count untyped\n"
+        "rpc_duration_seconds_count 2693 0\n"
         ;
 
     cmt_initialize();
-    status = cmt_decode_prometheus_create(&cmt, in_buf, NULL, 0);
+    status = cmt_decode_prometheus_create(&cmt, in_buf, errbuf, sizeof(errbuf));
     TEST_CHECK(status == 0);
     result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
     TEST_CHECK(strcmp(result, expected) == 0);

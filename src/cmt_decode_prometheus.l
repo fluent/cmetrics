@@ -176,7 +176,7 @@
     return IDENTIFIER;
 }
 
-[0-9.eE+-]+ {
+[0-9.eE+-]+|[+-](?i:INF|NAN) {
     strncpy(yylval->numstr, yytext, sizeof(yylval->numstr) - 1);
     return NUMSTR;
 }

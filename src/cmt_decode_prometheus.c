@@ -17,7 +17,9 @@
  *  limitations under the License.
  */
 
+#include <ctype.h>
 #include <errno.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdint.h>
 
@@ -31,6 +33,7 @@
 
 #include <cmt_decode_prometheus_parser.h>
 #include <stdio.h>
+#include <string.h>
 
 static void reset_context(struct cmt_decode_prometheus_context *context)
 {
@@ -54,7 +57,14 @@ static void reset_context(struct cmt_decode_prometheus_context *context)
     }
 
     if (context->metric.ns) {
-        free(context->metric.ns);
+        if (strcmp(context->metric.ns, "")) {
+            // when namespace is empty, "name" contains a pointer to the
+            // allocated string
+            free(context->metric.ns);
+        }
+        else {
+            free(context->metric.name);
+        }
     }
 
     cmt_sds_destroy(context->strbuf);
@@ -145,8 +155,8 @@ static int split_metric_name(struct cmt_decode_prometheus_context *context,
     }
     *subsystem = strchr(*ns, '_');
     if (!subsystem) {
-        *name = metric_name;
-        *ns = NULL;
+        *name = *ns;
+        *ns = "";
     }
     else {
         **subsystem = 0;  // split
@@ -154,7 +164,7 @@ static int split_metric_name(struct cmt_decode_prometheus_context *context,
         *name = strchr(*subsystem, '_');
         if (!(*name)) {
             *name = *subsystem;
-            *subsystem = NULL;
+            *subsystem = "";
         }
         else {
             **name = 0;
@@ -428,24 +438,43 @@ static int parse_timestamp(const char *in, int64_t *out)
         return -1;
     }
 
+    // Even though prometheus text format supports negative numbers, cmetrics
+    // doesn't, so we truncate to 0
+    if (val < 0) {
+        val = 0;
+    }
     // prometheus text format metrics are in milliseconds, while cmetrics is in
     // nanoseconds, so multiply by 10e5
     *out = val * 10e5;
     return 0;
 }
 
-static int parse_value(const char *in, double *out)
+static int parse_value(char *in, double *out)
 {
     char *end;
     double val;
+    int i;
+    size_t len = strlen(in);
 
-    errno = 0;
-    val = strtod(in, &end);
-    if (end == in || *end != 0 || errno) {
-        return -1;
+    // convert the string to lowercase to simplify parsing infinity/nan
+    for (i = 0; i < len; i++) {
+        in[i] = tolower(in[i]);
     }
 
-    *out = val;
+    if (len > 1 && (!strcmp(in, "inf") || !strcmp(in + 1, "inf"))) {
+        *out = in[0] == '-' ? -INFINITY : INFINITY;
+    }
+    else if (len > 1 && !strcmp(in, "nan")) { 
+        *out = NAN;
+    }
+    else {
+        errno = 0;
+        val = strtod(in, &end);
+        if (end == in || *end != 0 || errno) {
+            return -1;
+        }
+        *out = val;
+    }
     return 0;
 }
 
