@@ -20,12 +20,14 @@
 #ifndef CMT_DECODE_PROMETHEUS_H
 #define CMT_DECODE_PROMETHEUS_H
 
+#include "monkey/mk_core/mk_list.h"
 #include <cmetrics/cmetrics.h>
 
 #define CMT_DECODE_PROMETHEUS_SUCCESS                     0
 #define CMT_DECODE_PROMETHEUS_SYNTAX_ERROR                1
 #define CMT_DECODE_PROMETHEUS_ALLOCATION_ERROR           10
 #define CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE     20
+#define CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT_EXCEEDED   30
 
 // due to a bug in flex/bison code generation, this must be defined before
 // including the generated headers
@@ -43,6 +45,8 @@ struct cmt_decode_prometheus_context_sample {
     uint64_t timestamp;
     size_t label_count;
     cmt_sds_t label_values[CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT];
+
+    struct mk_list _head;
 };
 
 struct cmt_decode_prometheus_context_metric {
@@ -54,9 +58,7 @@ struct cmt_decode_prometheus_context_metric {
     cmt_sds_t docstring;
     size_t label_count;
     cmt_sds_t labels[CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT];
-    size_t sample_count;
-    size_t sample_count_start;
-    struct cmt_decode_prometheus_context_sample samples[50];
+    struct mk_list samples;
 };
 
 struct cmt_decode_prometheus_context {

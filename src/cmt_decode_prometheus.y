@@ -93,6 +93,7 @@ samples:
 sample:
     IDENTIFIER { 
         parse_metric_name(context, $1); $1 = NULL;
+        sample_start(context);
     } sample_data
 ;
 

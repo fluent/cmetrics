@@ -28,30 +28,41 @@
 #include <monkey/mk_core/mk_list.h>
 
 #include <cmt_decode_prometheus_parser.h>
+#include <stdio.h>
 
 static void reset_context(struct cmt_decode_prometheus_context *context)
 {
     int i;
-    int j;
+    struct mk_list *head;
+    struct mk_list *tmp;
+    struct cmt_decode_prometheus_context_sample *sample;
 
-    for (i = 0; i < context->metric.sample_count_start; i++) {
-        for (j = 0; j < context->metric.samples[i].label_count; j++) {
-            cmt_sds_destroy(context->metric.samples[i].label_values[j]);
+    while (mk_list_is_empty(&context->metric.samples) != 0) {
+        sample = mk_list_entry_first(&context->metric.samples,
+                struct cmt_decode_prometheus_context_sample, _head);
+        for (i = 0; i < sample->label_count; i++) {
+            cmt_sds_destroy(sample->label_values[i]);
         }
+        mk_list_del(&sample->_head);
+        free(sample);
     }
+
     for (i = 0; i < context->metric.label_count; i++) {
         cmt_sds_destroy(context->metric.labels[i]);
     }
+
     if (context->metric.ns) {
         free(context->metric.ns);
     }
-    cmt_sds_destroy(context->metric.name_orig);
-    cmt_sds_destroy(context->metric.docstring);
+
     cmt_sds_destroy(context->strbuf);
     context->strbuf = NULL;
+    cmt_sds_destroy(context->metric.name_orig);
+    cmt_sds_destroy(context->metric.docstring);
     memset(&context->metric,
             0,
             sizeof(struct cmt_decode_prometheus_context_metric));
+    mk_list_init(&context->metric.samples);
 }
 
 int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf,
@@ -73,6 +84,7 @@ int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf,
     context.cmt = cmt;
     context.errbuf = errbuf;
     context.errbuf_size = errbuf_size;
+    mk_list_init(&(context.metric.samples));
     cmt_decode_prometheus_lex_init(&scanner);
     buf = cmt_decode_prometheus__scan_string(in_buf, scanner);
     if (!buf) {
@@ -143,6 +155,9 @@ static int add_metric_counter(struct cmt_decode_prometheus_context *context)
     int i;
     size_t label_count;
     struct cmt_counter *c;
+    struct mk_list *head;
+    struct mk_list *tmp;
+    struct cmt_decode_prometheus_context_sample *sample;
 
     c = cmt_counter_create(context->cmt,
             context->metric.ns,
@@ -153,13 +168,14 @@ static int add_metric_counter(struct cmt_decode_prometheus_context *context)
             context->metric.labels);
 
 
-    for (i = 0; i < context->metric.sample_count; i++) {
-        label_count = context->metric.samples[i].label_count;
+    mk_list_foreach_safe(head, tmp, &context->metric.samples) {
+        sample = mk_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
+        label_count = sample->label_count;
         cmt_counter_set(c,
-                context->metric.samples[i].timestamp,
-                context->metric.samples[i].value,
+                sample->timestamp,
+                sample->value,
                 label_count,
-                label_count ? context->metric.samples[i].label_values : NULL);
+                label_count ? sample->label_values : NULL);
     }
 
     return 0;
@@ -170,6 +186,9 @@ static int add_metric_gauge(struct cmt_decode_prometheus_context *context)
     int i;
     size_t label_count;
     struct cmt_gauge *c;
+    struct mk_list *head;
+    struct mk_list *tmp;
+    struct cmt_decode_prometheus_context_sample *sample;
 
     c = cmt_gauge_create(context->cmt,
             context->metric.ns,
@@ -179,14 +198,14 @@ static int add_metric_gauge(struct cmt_decode_prometheus_context *context)
             context->metric.label_count,
             context->metric.labels);
 
-
-    for (i = 0; i < context->metric.sample_count; i++) {
-        label_count = context->metric.samples[i].label_count;
+    mk_list_foreach_safe(head, tmp, &context->metric.samples) {
+        sample = mk_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
+        label_count = sample->label_count;
         cmt_gauge_set(c,
-                context->metric.samples[i].timestamp,
-                context->metric.samples[i].value,
+                sample->timestamp,
+                sample->value,
                 label_count,
-                label_count ? context->metric.samples[i].label_values : NULL);
+                label_count ? sample->label_values : NULL);
     }
 
     return 0;
@@ -197,6 +216,9 @@ static int add_metric_untyped(struct cmt_decode_prometheus_context *context)
     int i;
     size_t label_count;
     struct cmt_untyped *c;
+    struct mk_list *head;
+    struct mk_list *tmp;
+    struct cmt_decode_prometheus_context_sample *sample;
 
     c = cmt_untyped_create(context->cmt,
             context->metric.ns,
@@ -206,14 +228,14 @@ static int add_metric_untyped(struct cmt_decode_prometheus_context *context)
             context->metric.label_count,
             context->metric.labels);
 
-
-    for (i = 0; i < context->metric.sample_count; i++) {
-        label_count = context->metric.samples[i].label_count;
+    mk_list_foreach_safe(head, tmp, &context->metric.samples) {
+        sample = mk_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
+        label_count = sample->label_count;
         cmt_untyped_set(c,
-                context->metric.samples[i].timestamp,
-                context->metric.samples[i].value,
+                sample->timestamp,
+                sample->value,
                 label_count,
-                label_count ? context->metric.samples[i].label_values : NULL);
+                label_count ? sample->label_values : NULL);
     }
 
     return 0;
@@ -281,13 +303,17 @@ static int parse_label(
         struct cmt_decode_prometheus_context *context,
         cmt_sds_t name, cmt_sds_t value)
 {
-    int sindex;
     int lindex;
     int i;
     cmt_sds_t label;
+    struct cmt_decode_prometheus_context_sample *sample;
 
     if (context->metric.label_count >= CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT) {
-        return -1;
+        if (context->errbuf && context->errbuf_size) {
+            strncpy(context->errbuf, "maximum number of labels exceeded",
+                    context->errbuf_size - 1);
+        }
+        return CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT_EXCEEDED;
     }
 
     // check if the label is already registered
@@ -305,14 +331,8 @@ static int parse_label(
         context->metric.label_count++;
     }
 
-    if (context->metric.sample_count == context->metric.sample_count_start) {
-        // we just started parsing labels on a new sample.
-        // increase sample_count_start so that `reset_context` can properly free
-        // allocated labels
-        context->metric.sample_count_start++;
-    }
-
-    sindex = context->metric.sample_count;
+    sample = mk_list_entry_last(&context->metric.samples,
+            struct cmt_decode_prometheus_context_sample, _head);
     // Uncomment the following two lines when cmetrics support the following usage:
     //
     //     struct cmt *cmt = cmt_create();
@@ -320,10 +340,24 @@ static int parse_label(
     //     cmt_counter_set(c, 0, 5, 4, (char *[]) { "0", "1", NULL, NULL });
     //     cmt_counter_set(c, 0, 7, 4, (char *[]) { NULL, NULL, "2", "3" });
     //
-    // context->metric.samples[sample_index].label_values[i] = value;
-    lindex = context->metric.samples[sindex].label_count;
-    context->metric.samples[sindex].label_values[lindex] = value;
-    context->metric.samples[sindex].label_count++;
+    // samples->label_values[i] = value;
+    lindex = sample->label_count;
+    sample->label_values[lindex] = value;
+    sample->label_count++;
+    return 0;
+}
+
+static int sample_start(struct cmt_decode_prometheus_context *context)
+{
+    struct cmt_decode_prometheus_context_sample *sample;
+
+    sample = malloc(sizeof(*sample));
+    if (!sample) {
+        return CMT_DECODE_PROMETHEUS_ALLOCATION_ERROR;
+    }
+
+    memset(sample, 0, sizeof(*sample));
+    mk_list_add(&sample->_head, &context->metric.samples);
     return 0;
 }
 
@@ -332,12 +366,13 @@ static void parse_sample(
         double value,
         uint64_t timestamp)
 {
-    size_t index = context->metric.sample_count;
-    context->metric.samples[index].value = value;
+    struct cmt_decode_prometheus_context_sample *sample;
+    sample = mk_list_entry_last(&context->metric.samples,
+            struct cmt_decode_prometheus_context_sample, _head);
+    sample->value = value;
     // prometheus text format metrics are in milliseconds, while cmetrics is in
     // nanoseconds, so multiply by 10e5
-    context->metric.samples[index].timestamp = timestamp * 10e5;
-    context->metric.sample_count++;
+    sample->timestamp = timestamp * 10e5;
 }
 
 // called automatically by the generated parser code on error

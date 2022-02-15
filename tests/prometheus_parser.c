@@ -42,6 +42,7 @@ struct fixture *init(int start_token, const char *test)
     memset(f, 0, sizeof(*f));
     f->context.cmt = cmt_create();
     f->context.start_token = start_token;
+    mk_list_init(&(f->context.metric.samples));
     cmt_decode_prometheus_lex_init(&f->scanner);
     f->buf = cmt_decode_prometheus__scan_string(test, f->scanner);
     return f;
@@ -140,35 +141,48 @@ void test_header_type_help()
     destroy(f);
 }
 
+struct cmt_decode_prometheus_context_sample *add_empty_sample(struct fixture *f)
+{
+    struct cmt_decode_prometheus_context_sample *sample;
+    sample = malloc(sizeof(*sample));
+    memset(sample, 0, sizeof(*sample));
+    mk_list_add(&sample->_head, &f->context.metric.samples);
+    return sample;
+}
+
 void test_labels()
 {
     struct fixture *f = init(START_LABELS, "dev=\"Calyptia\",lang=\"C\"");
+    struct cmt_decode_prometheus_context_sample *sample = add_empty_sample(f);
     TEST_CHECK(parse(f) == 0);
     TEST_CHECK(f->context.metric.label_count == 2);
     TEST_CHECK(strcmp(f->context.metric.labels[0], "dev") == 0);
-    TEST_CHECK(strcmp(f->context.metric.samples[0].label_values[0], "Calyptia") == 0);
+    TEST_CHECK(strcmp(sample->label_values[0], "Calyptia") == 0);
     TEST_CHECK(strcmp(f->context.metric.labels[1], "lang") == 0);
-    TEST_CHECK(strcmp(f->context.metric.samples[0].label_values[1], "C") == 0);
+    TEST_CHECK(strcmp(sample->label_values[1], "C") == 0);
     cmt_sds_destroy(f->context.metric.labels[0]);
-    cmt_sds_destroy(f->context.metric.samples[0].label_values[0]);
+    cmt_sds_destroy(sample->label_values[0]);
     cmt_sds_destroy(f->context.metric.labels[1]);
-    cmt_sds_destroy(f->context.metric.samples[0].label_values[1]);
+    cmt_sds_destroy(sample->label_values[1]);
+    free(sample);
     destroy(f);
 }
 
 void test_labels_trailing_comma()
 {
     struct fixture *f = init(START_LABELS, "dev=\"Calyptia\",lang=\"C\",");
+    struct cmt_decode_prometheus_context_sample *sample = add_empty_sample(f);
     TEST_CHECK(parse(f) == 0);
     TEST_CHECK(f->context.metric.label_count == 2);
     TEST_CHECK(strcmp(f->context.metric.labels[0], "dev") == 0);
-    TEST_CHECK(strcmp(f->context.metric.samples[0].label_values[0], "Calyptia") == 0);
+    TEST_CHECK(strcmp(sample->label_values[0], "Calyptia") == 0);
     TEST_CHECK(strcmp(f->context.metric.labels[1], "lang") == 0);
-    TEST_CHECK(strcmp(f->context.metric.samples[0].label_values[1], "C") == 0);
+    TEST_CHECK(strcmp(sample->label_values[1], "C") == 0);
     cmt_sds_destroy(f->context.metric.labels[0]);
-    cmt_sds_destroy(f->context.metric.samples[0].label_values[0]);
+    cmt_sds_destroy(sample->label_values[0]);
     cmt_sds_destroy(f->context.metric.labels[1]);
-    cmt_sds_destroy(f->context.metric.samples[0].label_values[1]);
+    cmt_sds_destroy(sample->label_values[1]);
+    free(sample);
     destroy(f);
 }
 
