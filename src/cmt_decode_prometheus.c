@@ -355,6 +355,8 @@ static int parse_label(
     struct cmt_decode_prometheus_context_sample *sample;
 
     if (context->metric.label_count >= CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT) {
+        cmt_sds_destroy(name);
+        cmt_sds_destroy(value);
         return report_error(context,
                 CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT_EXCEEDED,
                 "maximum number of labels exceeded");

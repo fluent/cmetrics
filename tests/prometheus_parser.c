@@ -18,8 +18,10 @@
  */
 
 #include <cmetrics/cmetrics.h>
+#include <cmetrics/cmt_map.h>
 #include <cmetrics/cmt_decode_prometheus.h>
 #include <cmetrics/cmt_encode_prometheus.h>
+#include <stdio.h>
 
 #include "cmetrics/cmt_counter.h"
 #include "cmetrics/cmt_sds.h"
@@ -378,6 +380,38 @@ void test_bison_parsing_error()
                 "FPOINT or INTEGER") == 0);
 }
 
+void test_label_limits()
+{
+    int i;
+    int status;
+    struct cmt_counter *counter;
+    char errbuf[256];
+    struct cmt *cmt;
+    char inbuf[65535];
+    int pos;
+
+    pos = snprintf(inbuf, sizeof(inbuf),
+            "# HELP many_labels_metric reaches maximum number labels\n"
+            "# TYPE many_labels_metric counter\n"
+            "many_labels_metric {");
+    for (i = 0; i < CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT && pos < sizeof(inbuf); i++) {
+        pos += snprintf(inbuf + pos, sizeof(inbuf) - pos, "l%d=\"%d\",", i, i);
+    }
+    snprintf(inbuf + pos, sizeof(inbuf) - pos, "} 55 0\n");
+
+    status = cmt_decode_prometheus_create(&cmt, inbuf, errbuf, sizeof(errbuf));
+    TEST_CHECK(status == 0);
+    counter = mk_list_entry_first(&cmt->counters, struct cmt_counter, _head);
+    TEST_CHECK(counter->map->label_count == CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT);
+    cmt_decode_prometheus_destroy(cmt);
+
+    // write one more label to exceed limit
+    snprintf(inbuf + pos, sizeof(inbuf) - pos, "last=\"val\"} 55 0\n");
+    status = cmt_decode_prometheus_create(&cmt, inbuf, errbuf, sizeof(errbuf));
+    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT_EXCEEDED);
+    TEST_CHECK(strcmp(errbuf, "maximum number of labels exceeded") == 0);
+}
+
 TEST_LIST = {
     {"header_help", test_header_help},
     {"header_type", test_header_type},
@@ -391,5 +425,6 @@ TEST_LIST = {
     {"metric_without_labels", test_metric_without_labels},
     {"complete", test_complete},
     {"bison_parsing_error", test_bison_parsing_error},
+    {"label_limits", test_label_limits},
     { 0 }
 };
