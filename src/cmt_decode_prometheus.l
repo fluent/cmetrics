@@ -2,6 +2,7 @@
 
 %option reentrant bison-bridge
 %option noyywrap nounput noinput
+%option nodefault
 
 %{
 
@@ -65,6 +66,10 @@
     // will prioritize the two rules above this one since they have longer
     // matches.
     BEGIN(COMMENT);
+}
+
+<COMMENT>[^\n]+ {
+    // ignore
 }
 
 <HELPTAG,TYPETAG>[^ \t]+ {
