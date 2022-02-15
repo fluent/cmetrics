@@ -92,8 +92,13 @@ samples:
 
 sample:
     IDENTIFIER { 
-        parse_metric_name(context, $1); $1 = NULL;
-        sample_start(context);
+        if (parse_metric_name(context, $1)) {
+            YYABORT;
+        }
+        $1 = NULL;
+        if (sample_start(context)) {
+            YYABORT;
+        }
     } sample_data
 ;
 
@@ -122,12 +127,6 @@ label:
 
 values:
     FPOINT INTEGER {
-        parse_sample(context, $1, $2);
-    }
-  | FPOINT FPOINT {
-        parse_sample(context, $1, $2);
-    }
-  | INTEGER FPOINT {
         parse_sample(context, $1, $2);
     }
   | INTEGER INTEGER {

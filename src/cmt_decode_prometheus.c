@@ -99,6 +99,9 @@ int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf,
     }
     else {
         cmt_destroy(cmt);
+        if (context.errcode) {
+            result = context.errcode;
+        }
         reset_context(&context);
     }
 
@@ -113,13 +116,27 @@ void cmt_decode_prometheus_destroy(struct cmt *cmt)
     cmt_destroy(cmt);
 }
 
-static int split_metric_name(cmt_sds_t metric_name, char **ns,
+static int report_error(struct cmt_decode_prometheus_context *context,
+                         int errcode,
+                         const char *msg)
+{
+    context->errcode = errcode;
+    if (context->errbuf && context->errbuf_size) {
+        strncpy(context->errbuf, msg, context->errbuf_size - 1);
+    }
+    return errcode;
+}
+
+static int split_metric_name(struct cmt_decode_prometheus_context *context,
+        cmt_sds_t metric_name, char **ns,
         char **subsystem, char **name)
 {
     // split the name
     *ns = strdup(metric_name);
     if (!*ns) {
-        return CMT_DECODE_PROMETHEUS_ALLOCATION_ERROR;
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_ALLOCATION_ERROR,
+                "memory allocation failed");
     }
     *subsystem = strchr(*ns, '_');
     if (!subsystem) {
@@ -167,15 +184,24 @@ static int add_metric_counter(struct cmt_decode_prometheus_context *context)
             context->metric.label_count,
             context->metric.labels);
 
+    if (!c) {
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                "cmt_counter_create failed");
+    }
 
     mk_list_foreach_safe(head, tmp, &context->metric.samples) {
         sample = mk_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
         label_count = sample->label_count;
-        cmt_counter_set(c,
-                sample->timestamp,
-                sample->value,
-                label_count,
-                label_count ? sample->label_values : NULL);
+        if (cmt_counter_set(c,
+                    sample->timestamp,
+                    sample->value,
+                    label_count,
+                    label_count ? sample->label_values : NULL)) {
+            return report_error(context,
+                    CMT_DECODE_PROMETHEUS_CMT_SET_ERROR,
+                    "cmt_counter_set failed");
+        }
     }
 
     return 0;
@@ -198,14 +224,24 @@ static int add_metric_gauge(struct cmt_decode_prometheus_context *context)
             context->metric.label_count,
             context->metric.labels);
 
+    if (!c) {
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                "cmt_gauge_create failed");
+    }
+
     mk_list_foreach_safe(head, tmp, &context->metric.samples) {
         sample = mk_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
         label_count = sample->label_count;
-        cmt_gauge_set(c,
-                sample->timestamp,
-                sample->value,
-                label_count,
-                label_count ? sample->label_values : NULL);
+        if (cmt_gauge_set(c,
+                    sample->timestamp,
+                    sample->value,
+                    label_count,
+                    label_count ? sample->label_values : NULL)) {
+            return report_error(context,
+                    CMT_DECODE_PROMETHEUS_CMT_SET_ERROR,
+                    "cmt_gauge_set failed");
+        }
     }
 
     return 0;
@@ -228,14 +264,24 @@ static int add_metric_untyped(struct cmt_decode_prometheus_context *context)
             context->metric.label_count,
             context->metric.labels);
 
+    if (!c) {
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                "cmt_untyped_create failed");
+    }
+
     mk_list_foreach_safe(head, tmp, &context->metric.samples) {
         sample = mk_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
         label_count = sample->label_count;
-        cmt_untyped_set(c,
-                sample->timestamp,
-                sample->value,
-                label_count,
-                label_count ? sample->label_values : NULL);
+        if (cmt_untyped_set(c,
+                    sample->timestamp,
+                    sample->value,
+                    label_count,
+                    label_count ? sample->label_values : NULL)) {
+            return report_error(context,
+                    CMT_DECODE_PROMETHEUS_CMT_SET_ERROR,
+                    "cmt_untyped_set failed");
+        }
     }
 
     return 0;
@@ -290,7 +336,7 @@ static int parse_metric_name(
 
     if (!ret) {
         context->metric.name_orig = metric_name;
-        ret = split_metric_name(metric_name,
+        ret = split_metric_name(context, metric_name,
                 &(context->metric.ns),
                 &(context->metric.subsystem),
                 &(context->metric.name));
@@ -309,11 +355,9 @@ static int parse_label(
     struct cmt_decode_prometheus_context_sample *sample;
 
     if (context->metric.label_count >= CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT) {
-        if (context->errbuf && context->errbuf_size) {
-            strncpy(context->errbuf, "maximum number of labels exceeded",
-                    context->errbuf_size - 1);
-        }
-        return CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT_EXCEEDED;
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT_EXCEEDED,
+                "maximum number of labels exceeded");
     }
 
     // check if the label is already registered
@@ -334,11 +378,13 @@ static int parse_label(
     sample = mk_list_entry_last(&context->metric.samples,
             struct cmt_decode_prometheus_context_sample, _head);
     // Uncomment the following two lines when cmetrics support the following usage:
-    //
     //     struct cmt *cmt = cmt_create();
     //     struct cmt_counter *c = cmt_counter_create(cmt, "metric", "name", "total", "Some metric description", 4, (char *[]) {"a", "b", "c", "d"});
     //     cmt_counter_set(c, 0, 5, 4, (char *[]) { "0", "1", NULL, NULL });
     //     cmt_counter_set(c, 0, 7, 4, (char *[]) { NULL, NULL, "2", "3" });
+    //
+    // In other words, when cmetrics allows samples of the same metric with
+    // different keys
     //
     // samples->label_values[i] = value;
     lindex = sample->label_count;
@@ -353,7 +399,9 @@ static int sample_start(struct cmt_decode_prometheus_context *context)
 
     sample = malloc(sizeof(*sample));
     if (!sample) {
-        return CMT_DECODE_PROMETHEUS_ALLOCATION_ERROR;
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_ALLOCATION_ERROR,
+                "memory allocation failed");
     }
 
     memset(sample, 0, sizeof(*sample));
@@ -380,8 +428,6 @@ static int cmt_decode_prometheus_error(void *yyscanner,
                                        struct cmt_decode_prometheus_context *context,
                                        const char *msg)
 {
-    if (context->errbuf && context->errbuf_size) {
-        strncpy(context->errbuf, msg, context->errbuf_size - 1);
-    }
+    report_error(context, CMT_DECODE_PROMETHEUS_SYNTAX_ERROR, msg);
     return 0;
 }

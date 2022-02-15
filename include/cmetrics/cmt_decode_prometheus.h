@@ -28,6 +28,8 @@
 #define CMT_DECODE_PROMETHEUS_ALLOCATION_ERROR           10
 #define CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE     20
 #define CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT_EXCEEDED   30
+#define CMT_DECODE_PROMETHEUS_CMT_SET_ERROR              40
+#define CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR           50
 
 // due to a bug in flex/bison code generation, this must be defined before
 // including the generated headers
@@ -63,6 +65,7 @@ struct cmt_decode_prometheus_context_metric {
 
 struct cmt_decode_prometheus_context {
     struct cmt *cmt;
+    int errcode;
     char *errbuf;
     size_t errbuf_size;
     int start_token;

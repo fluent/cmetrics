@@ -277,7 +277,6 @@ void test_metric_without_labels()
 
     TEST_CHECK(parse(f) == 0);
     result = cmt_encode_prometheus_create(f->context.cmt, CMT_TRUE);
-    printf("\n%s\n", result);
     TEST_CHECK(strcmp(result, expected) == 0);
     cmt_sds_destroy(result);
 
@@ -314,7 +313,6 @@ void test_complete()
     TEST_CHECK(status == 0);
     result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
     TEST_CHECK(strcmp(result, expected) == 0);
-    printf("\n%s\n", result);
     cmt_sds_destroy(result);
     cmt_decode_prometheus_destroy(cmt);
 }
