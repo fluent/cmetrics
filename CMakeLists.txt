@@ -105,11 +105,11 @@ check_c_source_compiles("
      return 0;
   }" CMT_HAVE_MSGPACK)
 
-find_package(FLEX)
-find_package(BISON)
+find_package(FLEX 2)
+find_package(BISON 3)
 
-if(NOT FLEX_FOUND AND BISON_FOUND)
-  message(FATAL_ERROR "Both flex and bison are required for building cmetrics")
+if(FLEX_FOUND AND BISON_FOUND)
+    set(CMT_BUILD_PROMETHEUS_DECODER 1)
 endif()
 
 configure_file(
