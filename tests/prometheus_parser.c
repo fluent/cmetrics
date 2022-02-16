@@ -285,7 +285,7 @@ void test_metric_without_labels()
     destroy(f);
 }
 
-void test_complete()
+void test_prometheus_spec_example()
 {
     char errbuf[256];
     int status;
@@ -359,7 +359,7 @@ void test_complete()
         "metric_without_timestamp_and_labels 12.470000000000001 0\n"
         "# HELP something_weird (no information)\n"
         "# TYPE something_weird untyped\n"
-        "something_weird{problem=\"division by zero\"} inf 3982045\n"
+        "something_weird{problem=\"division by zero\"} inf 0\n"
         "# HELP http_request_duration_seconds_sum (no information)\n"
         "# TYPE http_request_duration_seconds_sum untyped\n"
         "http_request_duration_seconds_sum 53423 0\n"
@@ -576,7 +576,7 @@ TEST_LIST = {
     {"samples", test_samples},
     {"escape_sequences", test_escape_sequences},
     {"metric_without_labels", test_metric_without_labels},
-    {"complete", test_complete},
+    {"prometheus_spec_example", test_prometheus_spec_example},
     {"bison_parsing_error", test_bison_parsing_error},
     {"label_limits", test_label_limits},
     {"invalid_types", test_invalid_types},
