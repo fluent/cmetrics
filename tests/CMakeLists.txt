@@ -9,6 +9,13 @@ set(UNIT_TESTS_FILES
   issues.c
   )
 
+if (CMT_BUILD_PROMETHEUS_DECODER)
+    set(UNIT_TESTS_FILES
+        ${UNIT_TESTS_FILES}
+        prometheus_lexer.c
+        prometheus_parser.c)
+endif()
+
 # Prepare list of unit tests
 foreach(source_file ${UNIT_TESTS_FILES})
   get_filename_component(source_file_we ${source_file} NAME_WE)

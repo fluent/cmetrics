@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project(cmetrics C)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Define macro to identify Windows system (without Cygwin)
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")
@@ -35,11 +36,14 @@ if(CMT_DEV)
   set(CMT_TESTS   Yes)
 endif()
 
+set(FLEX_BISON_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR})
 # Include headers and dependency headers
 include_directories(
+  src
   include
   lib/monkey/include
   lib/xxHash-0.8.0/
+  ${FLEX_BISON_GENERATED_DIR}
   )
 
 # timespec_get() support
@@ -100,6 +104,13 @@ check_c_source_compiles("
      msgpack_sbuffer sbuf;
      return 0;
   }" CMT_HAVE_MSGPACK)
+
+find_package(FLEX 2)
+find_package(BISON 3)
+
+if(FLEX_FOUND AND BISON_FOUND)
+    set(CMT_BUILD_PROMETHEUS_DECODER 1)
+endif()
 
 configure_file(
   "${PROJECT_SOURCE_DIR}/include/cmetrics/cmt_info.h.in"
