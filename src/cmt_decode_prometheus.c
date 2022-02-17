@@ -321,6 +321,12 @@ static int finish_metric(struct cmt_decode_prometheus_context *context)
                     CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE,
                     "unsupported metric type: %s",
                     context->metric.type == HISTOGRAM ? "histogram" : "summary");
+
+            /*
+             * If a 'known' metric type is not supported, just skip it. Yes, this
+             * is implemented on this way until we finish the metrics support.
+             */
+            rv = 0;
             break;
         default:
             rv = add_metric_untyped(context);
