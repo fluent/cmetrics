@@ -43,7 +43,7 @@ struct fixture *init(int start_token, const char *test)
     struct fixture *f = malloc(sizeof(*f));
     memset(f, 0, sizeof(*f));
     f->context.cmt = cmt_create();
-    f->context.start_token = start_token;
+    f->context.opts.start_token = start_token;
     mk_list_init(&(f->context.metric.samples));
     cmt_decode_prometheus_lex_init(&f->scanner);
     f->buf = cmt_decode_prometheus__scan_string(test, f->scanner);
@@ -292,6 +292,10 @@ void test_prometheus_spec_example()
     size_t offset;
     cmt_sds_t result;
     struct cmt *cmt;
+    struct cmt_decode_prometheus_parse_opts opts = {
+        .errbuf = errbuf,
+        .errbuf_size = sizeof(errbuf)
+    };
     const char in_buf[] =
         "# TYPE http_requests_total counter\n"
         "# HELP http_requests_total The total number of HTTP requests.\n"
@@ -376,7 +380,7 @@ void test_prometheus_spec_example()
         ;
 
     cmt_initialize();
-    status = cmt_decode_prometheus_create(&cmt, in_buf, errbuf, sizeof(errbuf));
+    status = cmt_decode_prometheus_create(&cmt, in_buf, &opts);
     TEST_CHECK(status == 0);
     result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
     TEST_CHECK(strcmp(result, expected) == 0);
@@ -392,14 +396,18 @@ void test_bison_parsing_error()
     int status;
     char errbuf[256];
     struct cmt *cmt;
+    struct cmt_decode_prometheus_parse_opts opts = {
+        .errbuf = errbuf,
+        .errbuf_size = sizeof(errbuf)
+    };
 
-    status = cmt_decode_prometheus_create(&cmt, "", errbuf, sizeof(errbuf));
+    status = cmt_decode_prometheus_create(&cmt, "", &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
     // TEST_CHECK(strcmp(errbuf,
     //             "syntax error, unexpected end of file") == 0);
 
     status = cmt_decode_prometheus_create(&cmt,
-            "# TYPE metric_name counter", errbuf, sizeof(errbuf));
+            "# TYPE metric_name counter", &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
     // TEST_CHECK(strcmp(errbuf,
     //             "syntax error, unexpected end of file, "
@@ -408,7 +416,7 @@ void test_bison_parsing_error()
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
             "# TYPE metric_name counter\n"
-            "metric_name", errbuf, sizeof(errbuf));
+            "metric_name", &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
     // TEST_CHECK(strcmp(errbuf,
     //             "syntax error, unexpected end of file, expecting '{' "
@@ -417,7 +425,7 @@ void test_bison_parsing_error()
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
             "# TYPE metric_name counter\n"
-            "metric_name {key", errbuf, sizeof(errbuf));
+            "metric_name {key", &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
     // TEST_CHECK(strcmp(errbuf,
     //             "syntax error, unexpected end of file, expecting '='") == 0);
@@ -425,7 +433,7 @@ void test_bison_parsing_error()
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
             "# TYPE metric_name counter\n"
-            "metric_name {key=", errbuf, sizeof(errbuf));
+            "metric_name {key=", &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
     // TEST_CHECK(strcmp(errbuf,
     //             "syntax error, unexpected end of file, expecting QUOTED") == 0);
@@ -433,7 +441,7 @@ void test_bison_parsing_error()
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
             "# TYPE metric_name counter\n"
-            "metric_name {key=\"abc\"", errbuf, sizeof(errbuf));
+            "metric_name {key=\"abc\"", &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
     // TEST_CHECK(strcmp(errbuf,
     //             "syntax error, unexpected end of file, expecting '}'") == 0);
@@ -441,7 +449,7 @@ void test_bison_parsing_error()
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
             "# TYPE metric_name counter\n"
-            "metric_name {key=\"abc\"}", errbuf, sizeof(errbuf));
+            "metric_name {key=\"abc\"}", &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
     // TEST_CHECK(strcmp(errbuf,
     //             "syntax error, unexpected end of file, expecting "
@@ -457,6 +465,10 @@ void test_label_limits()
     struct cmt *cmt;
     char inbuf[65535];
     int pos;
+    struct cmt_decode_prometheus_parse_opts opts = {
+        .errbuf = errbuf,
+        .errbuf_size = sizeof(errbuf)
+    };
 
     pos = snprintf(inbuf, sizeof(inbuf),
             "# HELP many_labels_metric reaches maximum number labels\n"
@@ -467,7 +479,7 @@ void test_label_limits()
     }
     snprintf(inbuf + pos, sizeof(inbuf) - pos, "} 55 0\n");
 
-    status = cmt_decode_prometheus_create(&cmt, inbuf, errbuf, sizeof(errbuf));
+    status = cmt_decode_prometheus_create(&cmt, inbuf, &opts);
     TEST_CHECK(status == 0);
     counter = mk_list_entry_first(&cmt->counters, struct cmt_counter, _head);
     TEST_CHECK(counter->map->label_count == CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT);
@@ -475,7 +487,7 @@ void test_label_limits()
 
     // write one more label to exceed limit
     snprintf(inbuf + pos, sizeof(inbuf) - pos, "last=\"val\"} 55 0\n");
-    status = cmt_decode_prometheus_create(&cmt, inbuf, errbuf, sizeof(errbuf));
+    status = cmt_decode_prometheus_create(&cmt, inbuf, &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT_EXCEEDED);
     TEST_CHECK(strcmp(errbuf, "maximum number of labels exceeded") == 0);
 }
@@ -485,18 +497,22 @@ void test_invalid_types()
     int status;
     char errbuf[256];
     struct cmt *cmt;
+    struct cmt_decode_prometheus_parse_opts opts = {
+        .errbuf = errbuf,
+        .errbuf_size = sizeof(errbuf)
+    };
 
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
             "# TYPE metric_name histogram\n"
-            "metric_name {key=\"abc\"} 32.4", errbuf, sizeof(errbuf));
+            "metric_name {key=\"abc\"} 32.4", &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE);
     TEST_CHECK(strcmp(errbuf, "unsupported metric type: histogram") == 0);
 
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
             "# TYPE metric_name summary\n"
-            "metric_name {key=\"abc\"} 32.4", errbuf, sizeof(errbuf));
+            "metric_name {key=\"abc\"} 32.4", &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE);
     TEST_CHECK(strcmp(errbuf, "unsupported metric type: summary") == 0);
 }
@@ -506,11 +522,15 @@ void test_invalid_value()
     int status;
     char errbuf[256];
     struct cmt *cmt;
+    struct cmt_decode_prometheus_parse_opts opts = {
+        .errbuf = errbuf,
+        .errbuf_size = sizeof(errbuf)
+    };
 
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
             "# TYPE metric_name histogram\n"
-            "metric_name {key=\"abc\"} 10e", errbuf, sizeof(errbuf));
+            "metric_name {key=\"abc\"} 10e", &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_PARSE_VALUE_FAILED);
     TEST_CHECK(strcmp(errbuf,
                 "failed to parse sample: \"10e\" is not a valid value") == 0);
@@ -521,11 +541,15 @@ void test_invalid_timestamp()
     int status;
     char errbuf[256];
     struct cmt *cmt;
+    struct cmt_decode_prometheus_parse_opts opts = {
+        .errbuf = errbuf,
+        .errbuf_size = sizeof(errbuf)
+    };
 
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
             "# TYPE metric_name histogram\n"
-            "metric_name {key=\"abc\"} 10 3e", errbuf, sizeof(errbuf));
+            "metric_name {key=\"abc\"} 10 3e", &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_PARSE_TIMESTAMP_FAILED);
     TEST_CHECK(strcmp(errbuf,
                 "failed to parse sample: \"3e\" is not a valid timestamp") == 0);
@@ -547,7 +571,7 @@ void test_values()
             "metric_name {key=\"Positive \\\"not a number\\\"\"} +NAN\n"
             "metric_name {key=\"Negative \\\"not a number\\\"\"} -NaN\n"
             "metric_name {key=\"Positive infinity\"} +INF\n"
-            "metric_name {key=\"Negative infinity\"} -iNf\n", NULL, 0);
+            "metric_name {key=\"Negative infinity\"} -iNf\n", NULL);
     TEST_CHECK(status == 0);
     result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
     TEST_CHECK(strcmp(result,

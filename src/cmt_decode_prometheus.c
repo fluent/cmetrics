@@ -78,7 +78,7 @@ static void reset_context(struct cmt_decode_prometheus_context *context)
 }
 
 int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf,
-        char *errbuf, size_t errbuf_size)
+         struct cmt_decode_prometheus_parse_opts *opts)
 {
     yyscan_t scanner;
     YY_BUFFER_STATE buf;
@@ -94,8 +94,9 @@ int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf,
 
     memset(&context, 0, sizeof(context));
     context.cmt = cmt;
-    context.errbuf = errbuf;
-    context.errbuf_size = errbuf_size;
+    if (opts) {
+        context.opts = *opts;
+    }
     mk_list_init(&(context.metric.samples));
     cmt_decode_prometheus_lex_init(&scanner);
     buf = cmt_decode_prometheus__scan_string(in_buf, scanner);
@@ -135,8 +136,8 @@ static int report_error(struct cmt_decode_prometheus_context *context,
     va_list args;
     va_start(args, format);
     context->errcode = errcode;
-    if (context->errbuf && context->errbuf_size) {
-        vsnprintf(context->errbuf, context->errbuf_size - 1, format, args);
+    if (context->opts.errbuf && context->opts.errbuf_size) {
+        vsnprintf(context->opts.errbuf, context->opts.errbuf_size - 1, format, args);
     }
     va_end(args);
     return errcode;
@@ -449,7 +450,7 @@ static int parse_timestamp(const char *in, int64_t *out)
     return 0;
 }
 
-static int parse_value(char *in, double *out)
+static int parse_value(const char *in, double *out)
 {
     char *end;
     double val;
