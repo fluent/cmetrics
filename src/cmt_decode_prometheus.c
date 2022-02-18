@@ -77,8 +77,12 @@ static void reset_context(struct cmt_decode_prometheus_context *context)
     mk_list_init(&context->metric.samples);
 }
 
-int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf,
-         struct cmt_decode_prometheus_parse_opts *opts)
+
+int cmt_decode_prometheus_create(
+        struct cmt **out_cmt,
+        const char *in_buf,
+        size_t in_size,
+        struct cmt_decode_prometheus_parse_opts *opts)
 {
     yyscan_t scanner;
     YY_BUFFER_STATE buf;
@@ -99,7 +103,10 @@ int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf,
     }
     mk_list_init(&(context.metric.samples));
     cmt_decode_prometheus_lex_init(&scanner);
-    buf = cmt_decode_prometheus__scan_string(in_buf, scanner);
+    if (!in_size) {
+        in_size = strlen(in_buf);
+    }
+    buf = cmt_decode_prometheus__scan_bytes((char *)in_buf, in_size, scanner);
     if (!buf) {
         cmt_destroy(cmt);
         return CMT_DECODE_PROMETHEUS_ALLOCATION_ERROR;

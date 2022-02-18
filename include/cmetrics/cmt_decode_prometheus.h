@@ -92,8 +92,11 @@ int cmt_decode_prometheus_lex(YYSTYPE *yylval_param,
 #include "cmt_decode_prometheus_lexer.h"
 #endif
 
-int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf,
-         struct cmt_decode_prometheus_parse_opts *opts);
+int cmt_decode_prometheus_create(
+        struct cmt **out_cmt,
+        const char *in_buf,
+        size_t in_size,
+        struct cmt_decode_prometheus_parse_opts *opts);
 void cmt_decode_prometheus_destroy(struct cmt *cmt);
 
 #endif
