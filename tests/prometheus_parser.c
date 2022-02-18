@@ -292,10 +292,10 @@ void test_prometheus_spec_example()
     size_t offset;
     cmt_sds_t result;
     struct cmt *cmt;
-    struct cmt_decode_prometheus_parse_opts opts = {
-        .errbuf = errbuf,
-        .errbuf_size = sizeof(errbuf)
-    };
+    struct cmt_decode_prometheus_parse_opts opts;
+    memset(&opts, 0, sizeof(opts));
+    opts.errbuf = errbuf;
+    opts.errbuf_size = sizeof(errbuf);
     const char in_buf[] =
         "# TYPE http_requests_total counter\n"
         "# HELP http_requests_total The total number of HTTP requests.\n"
@@ -396,10 +396,10 @@ void test_bison_parsing_error()
     int status;
     char errbuf[256];
     struct cmt *cmt;
-    struct cmt_decode_prometheus_parse_opts opts = {
-        .errbuf = errbuf,
-        .errbuf_size = sizeof(errbuf)
-    };
+    struct cmt_decode_prometheus_parse_opts opts;
+    memset(&opts, 0, sizeof(opts));
+    opts.errbuf = errbuf;
+    opts.errbuf_size = sizeof(errbuf);
 
     status = cmt_decode_prometheus_create(&cmt, "", 0, &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
@@ -465,10 +465,10 @@ void test_label_limits()
     struct cmt *cmt;
     char inbuf[65535];
     int pos;
-    struct cmt_decode_prometheus_parse_opts opts = {
-        .errbuf = errbuf,
-        .errbuf_size = sizeof(errbuf)
-    };
+    struct cmt_decode_prometheus_parse_opts opts;
+    memset(&opts, 0, sizeof(opts));
+    opts.errbuf = errbuf;
+    opts.errbuf_size = sizeof(errbuf);
 
     pos = snprintf(inbuf, sizeof(inbuf),
             "# HELP many_labels_metric reaches maximum number labels\n"
@@ -497,10 +497,10 @@ void test_invalid_types()
     int status;
     char errbuf[256];
     struct cmt *cmt;
-    struct cmt_decode_prometheus_parse_opts opts = {
-        .errbuf = errbuf,
-        .errbuf_size = sizeof(errbuf)
-    };
+    struct cmt_decode_prometheus_parse_opts opts;
+    memset(&opts, 0, sizeof(opts));
+    opts.errbuf = errbuf;
+    opts.errbuf_size = sizeof(errbuf);
 
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
@@ -517,15 +517,39 @@ void test_invalid_types()
     TEST_CHECK(strcmp(errbuf, "unsupported metric type: summary") == 0);
 }
 
+void test_skip_unsupported_types()
+{
+    int status;
+    struct cmt *cmt;
+    cmt_sds_t result;
+    struct cmt_decode_prometheus_parse_opts opts;
+    memset(&opts, 0, sizeof(opts));
+    opts.skip_unsupported_type = true;
+
+    status = cmt_decode_prometheus_create(&cmt,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name histogram\n"
+            "metric_name {key=\"abc\"} 32.4"
+            "another_metric {key=\"abc\"} 32.4", 0, &opts);
+    TEST_CHECK(status == 0);
+    result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
+    TEST_CHECK(strcmp(result,
+            "# HELP another_metric (no information)\n"
+            "# TYPE another_metric untyped\n"
+            "another_metric{key=\"abc\"} 32.399999999999999 0\n") == 0);
+    cmt_sds_destroy(result);
+    cmt_decode_prometheus_destroy(cmt);
+}
+
 void test_invalid_value()
 {
     int status;
     char errbuf[256];
     struct cmt *cmt;
-    struct cmt_decode_prometheus_parse_opts opts = {
-        .errbuf = errbuf,
-        .errbuf_size = sizeof(errbuf)
-    };
+    struct cmt_decode_prometheus_parse_opts opts;
+    memset(&opts, 0, sizeof(opts));
+    opts.errbuf = errbuf;
+    opts.errbuf_size = sizeof(errbuf);
 
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
@@ -541,10 +565,10 @@ void test_invalid_timestamp()
     int status;
     char errbuf[256];
     struct cmt *cmt;
-    struct cmt_decode_prometheus_parse_opts opts = {
-        .errbuf = errbuf,
-        .errbuf_size = sizeof(errbuf)
-    };
+    struct cmt_decode_prometheus_parse_opts opts;
+    memset(&opts, 0, sizeof(opts));
+    opts.errbuf = errbuf;
+    opts.errbuf_size = sizeof(errbuf);
 
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
@@ -560,11 +584,10 @@ void test_default_timestamp()
     int status;
     cmt_sds_t result;
     struct cmt *cmt;
-    struct cmt_decode_prometheus_parse_opts opts = {
-        .errbuf_size = 0,
-        .errbuf = NULL,
-        .default_timestamp = 557 * 10e5
-    };
+    struct cmt_decode_prometheus_parse_opts opts;
+    memset(&opts, 0, sizeof(opts));
+    opts.default_timestamp = 557 * 10e5;
+
 
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
@@ -653,6 +676,7 @@ TEST_LIST = {
     {"bison_parsing_error", test_bison_parsing_error},
     {"label_limits", test_label_limits},
     {"invalid_types", test_invalid_types},
+    {"skip_unsupported_types", test_skip_unsupported_types},
     {"invalid_value", test_invalid_value},
     {"invalid_timestamp", test_invalid_timestamp},
     {"default_timestamp", test_default_timestamp},

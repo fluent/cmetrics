@@ -20,6 +20,8 @@
 #ifndef CMT_DECODE_PROMETHEUS_H
 #define CMT_DECODE_PROMETHEUS_H
 
+#include <stdbool.h>
+
 #include "monkey/mk_core/mk_list.h"
 #include <cmetrics/cmetrics.h>
 
@@ -70,6 +72,7 @@ struct cmt_decode_prometheus_parse_opts {
     uint64_t default_timestamp;
     char *errbuf;
     size_t errbuf_size;
+    bool skip_unsupported_type;
 };
 
 struct cmt_decode_prometheus_context {
