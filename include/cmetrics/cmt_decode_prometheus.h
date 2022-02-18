@@ -46,7 +46,7 @@
 
 struct cmt_decode_prometheus_context_sample {
     double value;
-    int64_t timestamp;
+    uint64_t timestamp;
     size_t label_count;
     cmt_sds_t label_values[CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT];
 
@@ -67,6 +67,7 @@ struct cmt_decode_prometheus_context_metric {
 
 struct cmt_decode_prometheus_parse_opts {
     int start_token;
+    uint64_t default_timestamp;
     char *errbuf;
     size_t errbuf_size;
 };
