@@ -132,7 +132,7 @@ values:
         }
     }
   | value {
-        if (parse_sample(context, $1, "0")) {
+        if (parse_sample(context, $1, "")) {
             YYABORT;
         }
     }

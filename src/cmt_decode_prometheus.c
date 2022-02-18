@@ -428,10 +428,18 @@ static int sample_start(struct cmt_decode_prometheus_context *context)
     return 0;
 }
 
-static int parse_timestamp(const char *in, int64_t *out)
+static int parse_timestamp(
+        struct cmt_decode_prometheus_context *context,
+        const char *in, uint64_t *out)
 {
     char *end;
     int64_t val;
+
+    if (!strlen(in)) {
+        // No timestamp was specified, use default value
+        *out = context->opts.default_timestamp;
+        return 0;
+    }
 
     errno = 0;
     val = strtol(in, &end, 10);
@@ -480,7 +488,7 @@ static int parse_sample(
                 "value", value);
     }
 
-    if (parse_timestamp(timestamp, &sample->timestamp)) {
+    if (parse_timestamp(context, timestamp, &sample->timestamp)) {
         return report_error(context,
                 CMT_DECODE_PROMETHEUS_PARSE_TIMESTAMP_FAILED,
                 "failed to parse sample: \"%s\" is not a valid "

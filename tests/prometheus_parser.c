@@ -555,6 +555,31 @@ void test_invalid_timestamp()
                 "failed to parse sample: \"3e\" is not a valid timestamp") == 0);
 }
 
+void test_default_timestamp()
+{
+    int status;
+    cmt_sds_t result;
+    struct cmt *cmt;
+    struct cmt_decode_prometheus_parse_opts opts = {
+        .errbuf_size = 0,
+        .errbuf = NULL,
+        .default_timestamp = 557 * 10e5
+    };
+
+    status = cmt_decode_prometheus_create(&cmt,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name counter\n"
+            "metric_name {key=\"abc\"} 10", &opts);
+    TEST_CHECK(status == 0);
+    result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
+    TEST_CHECK(strcmp(result,
+            "# HELP metric_name some docstring\n"
+            "# TYPE metric_name counter\n"
+            "metric_name{key=\"abc\"} 10 557\n") == 0);
+    cmt_sds_destroy(result);
+    cmt_decode_prometheus_destroy(cmt);
+}
+
 void test_values()
 {
     int status;
@@ -606,6 +631,7 @@ TEST_LIST = {
     {"invalid_types", test_invalid_types},
     {"invalid_value", test_invalid_value},
     {"invalid_timestamp", test_invalid_timestamp},
+    {"default_timestamp", test_default_timestamp},
     {"values", test_values},
     { 0 }
 };
