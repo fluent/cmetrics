@@ -65,12 +65,16 @@ struct cmt_decode_prometheus_context_metric {
     struct mk_list samples;
 };
 
-struct cmt_decode_prometheus_context {
-    struct cmt *cmt;
-    int errcode;
+struct cmt_decode_prometheus_parse_opts {
+    int start_token;
     char *errbuf;
     size_t errbuf_size;
-    int start_token;
+};
+
+struct cmt_decode_prometheus_context {
+    struct cmt *cmt;
+    struct cmt_decode_prometheus_parse_opts opts;
+    int errcode;
     cmt_sds_t strbuf;
     struct cmt_decode_prometheus_context_metric metric;
 };
@@ -88,7 +92,7 @@ int cmt_decode_prometheus_lex(YYSTYPE *yylval_param,
 #endif
 
 int cmt_decode_prometheus_create(struct cmt **out_cmt, const char *in_buf,
-         char *errbuf, size_t errbuf_size);
+         struct cmt_decode_prometheus_parse_opts *opts);
 void cmt_decode_prometheus_destroy(struct cmt *cmt);
 
 #endif

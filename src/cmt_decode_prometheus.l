@@ -22,9 +22,9 @@
 %%
 
 %{
-    if (context->start_token) {
-        int t = context->start_token;
-        context->start_token = 0;
+    if (context->opts.start_token) {
+        int t = context->opts.start_token;
+        context->opts.start_token = 0;
         return t;
     }
 %}
