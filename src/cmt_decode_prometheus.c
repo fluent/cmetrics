@@ -325,10 +325,14 @@ static int finish_metric(struct cmt_decode_prometheus_context *context)
             break;
         case HISTOGRAM:
         case SUMMARY:
-            rv = report_error(context,
-                    CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE,
-                    "unsupported metric type: %s",
-                    context->metric.type == HISTOGRAM ? "histogram" : "summary");
+            if (context->opts.skip_unsupported_type) {
+                rv = 0;
+            } else {
+                rv = report_error(context,
+                        CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE,
+                        "unsupported metric type: %s",
+                        context->metric.type == HISTOGRAM ? "histogram" : "summary");
+            }
             break;
         default:
             rv = add_metric_untyped(context);
