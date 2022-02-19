@@ -1,3 +1,8 @@
+if(CMAKE_SYSTEM_NAME MATCHES "Windows")
+  CMT_DEFINITION(YY_NO_UNISTD_H)
+  message(STATUS "Specifying YY_NO_UNISTD_H")
+endif()
+
 if (CMT_BUILD_PROMETHEUS_DECODER)
     flex_target(cmt_decode_prometheus_lexer cmt_decode_prometheus.l
         "${FLEX_BISON_GENERATED_DIR}/cmt_decode_prometheus_lexer.c"
