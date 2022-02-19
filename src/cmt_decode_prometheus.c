@@ -369,6 +369,9 @@ static int parse_metric_name(
                 &(context->metric.subsystem),
                 &(context->metric.name));
     }
+    else {
+        cmt_sds_destroy(metric_name);
+    }
 
     return ret;
 }

@@ -16,6 +16,12 @@ if (CMT_BUILD_PROMETHEUS_DECODER)
         prometheus_parser.c)
 endif()
 
+set(CMT_TESTS_DATA_PATH "${CMAKE_CURRENT_SOURCE_DIR}/data")
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmt_tests_config.h.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/cmt_tests_config.h"
+  )
+
 # Prepare list of unit tests
 foreach(source_file ${UNIT_TESTS_FILES})
   get_filename_component(source_file_we ${source_file} NAME_WE)
@@ -24,6 +30,7 @@ foreach(source_file ${UNIT_TESTS_FILES})
   add_executable(
     ${source_file_we}
     ${source_file}
+    util.c
     )
 
   target_link_libraries(${source_file_we} cmetrics-static)
