@@ -28,6 +28,7 @@
 #include "cmt_decode_prometheus_parser.h"
 #include "cmt_tests.h"
 #include "lib/acutest/acutest.h"
+#include "tests/cmt_tests_config.h"
 
 struct fixture {
     yyscan_t scanner;
@@ -661,6 +662,21 @@ void test_in_size()
     cmt_decode_prometheus_destroy(cmt);
 }
 
+// reproduces https://github.com/calyptia/cmetrics/issues/71
+void test_issue_71()
+{
+    int status;
+    struct cmt *cmt;
+    cmt_sds_t in_buf = read_file(CMT_TESTS_DATA_PATH "/issue_71.txt");
+    size_t in_size = cmt_sds_len(in_buf);
+
+    status = cmt_decode_prometheus_create(&cmt, in_buf, in_size, NULL);
+    TEST_CHECK(status == 0);
+    cmt_sds_destroy(in_buf);
+    cmt_decode_prometheus_destroy(cmt);
+}
+
+
 TEST_LIST = {
     {"header_help", test_header_help},
     {"header_type", test_header_type},
@@ -682,5 +698,6 @@ TEST_LIST = {
     {"default_timestamp", test_default_timestamp},
     {"values", test_values},
     {"in_size", test_in_size},
+    {"issue_71", test_issue_71},
     { 0 }
 };
