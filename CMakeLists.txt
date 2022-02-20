@@ -3,10 +3,19 @@ project(cmetrics C)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Include helpers
+include(cmake/macros.cmake)
+include(CheckCSourceCompiles)
+include(GNUInstallDirs)
+
 # Define macro to identify Windows system (without Cygwin)
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")
   set(CMT_SYSTEM_WINDOWS On)
   add_definitions(-DCMT_SYSTEM_WINDOWS)
+
+  # Disable unistd.h for flex/bison
+  CMT_DEFINITION(YY_NO_UNISTD_H)
+  message(STATUS "Specifying YY_NO_UNISTD_H")
 endif()
 
 # CMetrics Version
@@ -21,11 +30,6 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__FILENAME__=__FILE__")
 endif()
-
-# Include helpers
-include(cmake/macros.cmake)
-include(CheckCSourceCompiles)
-include(GNUInstallDirs)
 
 # Configuration options
 option(CMT_DEV             "Enable development mode"                   No)
