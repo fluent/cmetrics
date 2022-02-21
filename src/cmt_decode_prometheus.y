@@ -1,5 +1,5 @@
 %define api.pure true
-%define api.prefix {cmt_decode_prometheus_}
+%name-prefix "cmt_decode_prometheus_"
 %define parse.error verbose
 
 %param {void *yyscanner}

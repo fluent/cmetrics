@@ -35,15 +35,6 @@
 #define CMT_DECODE_PROMETHEUS_PARSE_VALUE_FAILED         60
 #define CMT_DECODE_PROMETHEUS_PARSE_TIMESTAMP_FAILED     70
 
-// due to a bug in flex/bison code generation, this must be defined before
-// including the generated headers
-#define YYSTYPE CMT_DECODE_PROMETHEUS_STYPE
-
-#define YY_DECL int yylex \
-               (YYSTYPE * yylval_param, \
-               void* yyscanner, \
-               struct cmt_decode_prometheus_context *context)
-
 #define CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT 128
 
 struct cmt_decode_prometheus_context_sample {
@@ -83,11 +74,12 @@ struct cmt_decode_prometheus_context {
     struct cmt_decode_prometheus_context_metric metric;
 };
 
-#include "cmt_decode_prometheus_parser.h"
+#define YY_DECL int cmt_decode_prometheus_lex \
+               (YYSTYPE * yylval_param, \
+               void* yyscanner, \
+               struct cmt_decode_prometheus_context *context)
 
-int cmt_decode_prometheus_lex(YYSTYPE *yylval_param,
-                              void *yyscanner,
-                              struct cmt_decode_prometheus_context *context);
+#include "cmt_decode_prometheus_parser.h"
 
 #ifndef FLEX_SCANNER
 // lexer header should not be included in the generated lexer c file,
