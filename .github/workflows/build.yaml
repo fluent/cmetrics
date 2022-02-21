@@ -45,8 +45,7 @@ jobs:
 
       - name: Run compilation
         run: |
-          cd build
-          cmake3 -DCMT_TESTS=on -DCMT_DEV=on ../
+          cmake3 -DCMT_TESTS=on -DCMT_DEV=on .
           make
 
   build-unix:
