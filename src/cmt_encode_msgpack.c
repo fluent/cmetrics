@@ -203,7 +203,11 @@ static void pack_header(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map 
 
     /* opts['description'] */
     mpack_write_cstr(writer, "desc");
-    mpack_write_cstr(writer, opts->description);
+    if (opts->description) {
+        mpack_write_cstr(writer, opts->description);
+    } else {
+        mpack_write_nil(writer);
+    }
 
     mpack_finish_map(writer); /* 'opts' */
 

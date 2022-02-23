@@ -46,11 +46,6 @@ struct cmt_counter *cmt_counter_create(struct cmt *cmt,
         return NULL;
     }
 
-    if (!help || strlen(help) == 0) {
-        cmt_log_error(cmt, "undefined help");
-        return NULL;
-    }
-
     counter = calloc(1, sizeof(struct cmt_counter));
     if (!counter) {
         cmt_errno();

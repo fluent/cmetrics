@@ -69,13 +69,15 @@ static void metric_banner(cmt_sds_t *buf, struct cmt_map *map,
 
     opts = map->opts;
 
-    /* HELP */
-    cmt_sds_cat_safe(buf, "# HELP ", 7);
-    cmt_sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
+    if (opts->description) {
+        /* HELP */
+        cmt_sds_cat_safe(buf, "# HELP ", 7);
+        cmt_sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
 
-    cmt_sds_cat_safe(buf, " ", 1);
-    metric_escape(buf, opts->description, false);
-    cmt_sds_cat_safe(buf, "\n", 1);
+        cmt_sds_cat_safe(buf, " ", 1);
+        metric_escape(buf, opts->description, false);
+        cmt_sds_cat_safe(buf, "\n", 1);
+    }
 
     /* TYPE */
     cmt_sds_cat_safe(buf, "# TYPE ", 7);

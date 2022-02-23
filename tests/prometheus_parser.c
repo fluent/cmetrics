@@ -242,7 +242,6 @@ void test_escape_sequences()
 {
     cmt_sds_t result;
     const char expected[] = (
-        "# HELP msdos_file_access_time_seconds (no information)\n"
         "# TYPE msdos_file_access_time_seconds untyped\n"
         "msdos_file_access_time_seconds{path=\"C:\\\\DIR\\\\FILE.TXT\",error=\"Cannot find file:\\n\\\"FILE.TXT\\\"\"} 1458255915 0\n"
         );
@@ -265,7 +264,6 @@ void test_metric_without_labels()
     cmt_sds_t result;
 
     const char expected[] =
-        "# HELP metric_without_timestamp_and_labels (no information)\n"
         "# TYPE metric_without_timestamp_and_labels untyped\n"
         "metric_without_timestamp_and_labels 12.470000000000001 0\n"
         ;
@@ -352,25 +350,18 @@ void test_prometheus_spec_example()
         "rpc_duration_seconds{quantile=\"0.5\"} 4773 0\n"
         "rpc_duration_seconds{quantile=\"0.9\"} 9001 0\n"
         "rpc_duration_seconds{quantile=\"0.99\"} 76656 0\n"
-        "# HELP msdos_file_access_time_seconds (no information)\n"
         "# TYPE msdos_file_access_time_seconds untyped\n"
         "msdos_file_access_time_seconds{path=\"C:\\\\DIR\\\\FILE.TXT\",error=\"Cannot find file:\\n\\\"FILE.TXT\\\"\"} 1458255915 0\n"
-        "# HELP metric_without_timestamp_and_labels (no information)\n"
         "# TYPE metric_without_timestamp_and_labels untyped\n"
         "metric_without_timestamp_and_labels 12.470000000000001 0\n"
-        "# HELP something_weird (no information)\n"
         "# TYPE something_weird untyped\n"
         "something_weird{problem=\"division by zero\"} inf 0\n"
-        "# HELP http_request_duration_seconds_sum (no information)\n"
         "# TYPE http_request_duration_seconds_sum untyped\n"
         "http_request_duration_seconds_sum 53423 0\n"
-        "# HELP http_request_duration_seconds_count (no information)\n"
         "# TYPE http_request_duration_seconds_count untyped\n"
         "http_request_duration_seconds_count 144320 0\n"
-        "# HELP rpc_duration_seconds_sum (no information)\n"
         "# TYPE rpc_duration_seconds_sum untyped\n"
         "rpc_duration_seconds_sum 17560473 0\n"
-        "# HELP rpc_duration_seconds_count (no information)\n"
         "# TYPE rpc_duration_seconds_count untyped\n"
         "rpc_duration_seconds_count 2693 0\n"
         ;
@@ -530,7 +521,6 @@ void test_skip_unsupported_types()
     TEST_CHECK(status == 0);
     result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
     TEST_CHECK(strcmp(result,
-            "# HELP another_metric (no information)\n"
             "# TYPE another_metric untyped\n"
             "another_metric{key=\"abc\"} 32.399999999999999 0\n") == 0);
     cmt_sds_destroy(result);
@@ -649,7 +639,6 @@ void test_in_size()
     TEST_CHECK(status == 0);
     result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
     TEST_CHECK(strcmp(result,
-                "# HELP metric_name (no information)\n"
                 "# TYPE metric_name untyped\n"
                 "metric_name{key=\"1\"} 1 0\n") == 0);
     cmt_sds_destroy(result);

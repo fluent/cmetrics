@@ -41,18 +41,8 @@ struct cmt_untyped *cmt_untyped_create(struct cmt *cmt,
         return NULL;
     }
 
-    if (!help || strlen(help) == 0) {
-        cmt_log_error(cmt, "undefined help");
-        return NULL;
-    }
-
     if (!name || strlen(name) == 0) {
         cmt_log_error(cmt, "undefined name");
-        return NULL;
-    }
-
-    if (!help || strlen(help) == 0) {
-        cmt_log_error(cmt, "undefined help");
         return NULL;
     }
 

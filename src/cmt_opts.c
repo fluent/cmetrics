@@ -74,9 +74,14 @@ int cmt_opts_init(struct cmt_opts *opts,
     }
 
     opts->name = cmt_sds_create(name);
-    opts->description = cmt_sds_create(description);
 
-    if (!opts->name || !opts->description) {
+    if (description) {
+        opts->description = cmt_sds_create(description);
+    } else {
+        opts->description = NULL;
+    }
+
+    if (!opts->name) {
         return -1;
     }
 

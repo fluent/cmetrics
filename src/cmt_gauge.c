@@ -46,11 +46,6 @@ struct cmt_gauge *cmt_gauge_create(struct cmt *cmt,
         return NULL;
     }
 
-    if (!help || strlen(help) == 0) {
-        cmt_log_error(cmt, "undefined help");
-        return NULL;
-    }
-
     gauge = calloc(1, sizeof(struct cmt_gauge));
     if (!gauge) {
         cmt_errno();
