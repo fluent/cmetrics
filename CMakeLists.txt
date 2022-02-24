@@ -109,8 +109,15 @@ check_c_source_compiles("
      return 0;
   }" CMT_HAVE_MSGPACK)
 
-find_package(FLEX 2)
-find_package(BISON 3)
+# Flex and Bison: check if the variables has not been defined before by
+# a parent project to avoid conflicts.
+if(NOT FLEX_FOUND)
+  find_package(FLEX 2)
+endif()
+
+if(NOT BISON_FOUND)
+  find_package(BISON 3)
+endif()
 
 if(FLEX_FOUND AND BISON_FOUND)
     set(CMT_BUILD_PROMETHEUS_DECODER 1)
