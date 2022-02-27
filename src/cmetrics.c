@@ -21,6 +21,7 @@
 #include <cmetrics/cmt_log.h>
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
+#include <cmetrics/cmt_histogram.h>
 #include <cmetrics/cmt_untyped.h>
 #include <cmetrics/cmt_atomic.h>
 #include <cmetrics/cmt_compat.h>
@@ -64,8 +65,9 @@ void cmt_destroy(struct cmt *cmt)
 {
     struct mk_list *tmp;
     struct mk_list *head;
-    struct cmt_gauge *g;
     struct cmt_counter *c;
+    struct cmt_gauge *g;
+    struct cmt_histogram *h;
     struct cmt_untyped *u;
 
     mk_list_foreach_safe(head, tmp, &cmt->counters) {
@@ -76,6 +78,11 @@ void cmt_destroy(struct cmt *cmt)
     mk_list_foreach_safe(head, tmp, &cmt->gauges) {
         g = mk_list_entry(head, struct cmt_gauge, _head);
         cmt_gauge_destroy(g);
+    }
+
+    mk_list_foreach_safe(head, tmp, &cmt->histograms) {
+        h = mk_list_entry(head, struct cmt_histogram, _head);
+        cmt_histogram_destroy(h);
     }
 
     mk_list_foreach_safe(head, tmp, &cmt->untypeds) {

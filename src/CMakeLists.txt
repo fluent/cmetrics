@@ -13,6 +13,7 @@ set(src
   cmt_gauge.c
   cmt_counter.c
   cmt_untyped.c
+  cmt_histogram.c
   cmt_metric.c
   cmt_map.c
   cmt_log.c

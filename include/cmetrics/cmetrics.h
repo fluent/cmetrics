@@ -56,8 +56,8 @@ struct cmt {
     /* Metrics list */
     struct mk_list counters;
     struct mk_list gauges;
-    struct mk_list untypeds;
     struct mk_list histograms;
+    struct mk_list untypeds;
 };
 
 void cmt_initialize();
