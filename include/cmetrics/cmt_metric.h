@@ -23,7 +23,15 @@
 #include <cmetrics/cmetrics.h>
 
 struct cmt_metric {
+    /* counters and gauges */
     uint64_t val;
+
+    /* histogram */
+    uint64_t *hist_buckets;
+    uint64_t hist_count;
+    uint64_t hist_sum;
+
+    /* internal */
     uint64_t hash;
     uint64_t timestamp;
     struct mk_list labels;
@@ -37,5 +45,13 @@ void cmt_metric_add(struct cmt_metric *metric, uint64_t timestamp, double val);
 void cmt_metric_sub(struct cmt_metric *metric, uint64_t timestamp, double val);
 double cmt_metric_get_value(struct cmt_metric *metric);
 uint64_t cmt_metric_get_timestamp(struct cmt_metric *metric);
+
+void cmt_metric_hist_bucket_inc(struct cmt_metric *metric, uint64_t timestamp,
+                                int bucket_id);
+void cmt_metric_hist_bucket_set(struct cmt_metric *metric, uint64_t timestamp,
+                                int bucket_id, double val);
+
+uint64_t cmt_metric_hist_bucket_get_value(struct cmt_metric *metric,
+                                          int bucket_id);
 
 #endif
