@@ -46,12 +46,27 @@ void cmt_metric_sub(struct cmt_metric *metric, uint64_t timestamp, double val);
 double cmt_metric_get_value(struct cmt_metric *metric);
 uint64_t cmt_metric_get_timestamp(struct cmt_metric *metric);
 
-void cmt_metric_hist_bucket_inc(struct cmt_metric *metric, uint64_t timestamp,
-                                int bucket_id);
-void cmt_metric_hist_bucket_set(struct cmt_metric *metric, uint64_t timestamp,
-                                int bucket_id, double val);
+void cmt_metric_hist_inc(struct cmt_metric *metric, uint64_t timestamp,
+                         int bucket_id);
 
-uint64_t cmt_metric_hist_bucket_get_value(struct cmt_metric *metric,
-                                          int bucket_id);
+void cmt_metric_hist_count_inc(struct cmt_metric *metric, uint64_t timestamp);
+void cmt_metric_hist_count_set(struct cmt_metric *metric, uint64_t timestamp,
+                               uint64_t count);
+
+void cmt_metric_hist_sum_add(struct cmt_metric *metric, uint64_t timestamp,
+                             double val);
+void cmt_metric_hist_set(struct cmt_metric *metric, uint64_t timestamp,
+                         int bucket_id, double val);
+
+uint64_t cmt_metric_hist_get_value(struct cmt_metric *metric, int bucket_id);
+
+double cmt_metric_hist_get_sum_value(struct cmt_metric *metric);
+
+uint64_t cmt_metric_hist_get_count_value(struct cmt_metric *metric);
+
+void cmt_metric_hist_sum_add(struct cmt_metric *metric,
+                             uint64_t timestamp, double val);
+void cmt_metric_hist_sum_set(struct cmt_metric *metric, uint64_t timestamp,
+                             double val);
 
 #endif

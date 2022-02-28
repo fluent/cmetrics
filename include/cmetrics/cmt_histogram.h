@@ -57,10 +57,12 @@ struct cmt_histogram *cmt_histogram_create(struct cmt *cmt,
 int cmt_histogram_observe(struct cmt_histogram *histogram, uint64_t timestamp,
                           double val, int labels_count, char **label_vals);
 
-int cmt_histogram_set_buckets_default(struct cmt_histogram *histogram,
-                                      uint64_t timestamp,
-                                      uint64_t *bucket_defaults,
-                                      int labels_count, char **label_vals);
+int cmt_histogram_set_default(struct cmt_histogram *histogram,
+                              uint64_t timestamp,
+                              uint64_t *bucket_defaults,
+                              double sum,
+                              uint64_t count,
+                              int labels_count, char **label_vals);
 
 int cmt_histogram_destroy(struct cmt_histogram *h);
 
