@@ -27,7 +27,7 @@ static void prometheus_encode_test(struct cmt *cmt)
 {
     cmt_sds_t buf;
 
-    buf = cmt_encode_prometheus_create(cmt, CMT_TRUE);
+    buf = cmt_encode_prometheus_create(cmt, CMT_FALSE);
     printf("\n%s\n", buf);
     cmt_encode_prometheus_destroy(buf);
 }
@@ -89,6 +89,8 @@ void test_set_defaults()
 {
     int ret;
     double val;
+    double sum;
+    uint64_t count;
     uint64_t ts;
     uint64_t *bucket_defaults;
     struct cmt *cmt;
@@ -106,7 +108,7 @@ void test_set_defaults()
     TEST_CHECK(cmt != NULL);
 
     /* Create buckets */
-    buckets = cmt_histogram_buckets_create(3, 0.05, 5.0, 10.0);
+    buckets = cmt_histogram_buckets_default_create();
     TEST_CHECK(buckets != NULL);
 
     /* Create a gauge metric type */
@@ -117,22 +119,40 @@ void test_set_defaults()
     TEST_CHECK(h != NULL);
 
     /* set default buckets */
-    bucket_defaults = calloc(1, sizeof(uint64_t) * 4);
+    bucket_defaults = calloc(1, sizeof(uint64_t) * 12);
     TEST_CHECK(bucket_defaults != NULL);
 
-    /* set the number of "items" container on each bucket */
-    bucket_defaults[0] = 1;
-    bucket_defaults[1] = 2;
-    bucket_defaults[2] = 3;
-    bucket_defaults[3] = 4;
+    /*
+     * Considering the following observed values:
+     *
+     *   0, 1, 1, 1, 1, 1, 1.2, 1.2, 1.2, 1.2, 1.2
+     *
+     * the buckets, count and sum are set as follows:
+     */
+    bucket_defaults[0] = 1;     /* 0.005 */
+    bucket_defaults[1] = 1;     /* 0.01  */
+    bucket_defaults[2] = 1;     /* 0.025 */
+    bucket_defaults[3] = 1;     /* 0.05  */
+    bucket_defaults[4] = 1;     /* 0.1   */
+    bucket_defaults[5] = 1;     /* 0.25  */
+    bucket_defaults[6] = 1;     /* 0.5   */
+    bucket_defaults[7] = 6;     /* 1     */
+    bucket_defaults[8] = 11;    /* 2.5   */
+    bucket_defaults[9] = 11;    /* 5     */
+    bucket_defaults[10] = 11;   /* 10    */
+    bucket_defaults[11] = 11;   /* +Inf  */
+
+    count = 11;
+    sum   = 10.999999999999998;
 
     /* no labels */
-    cmt_histogram_set_buckets_default(h, ts, bucket_defaults, 0, NULL);
+    cmt_histogram_set_default(h, ts, bucket_defaults, sum, count, 0, NULL);
     prometheus_encode_test(cmt);
 
     /* defined labels: add a custom label value */
-    cmt_histogram_set_buckets_default(h, ts, bucket_defaults,
-                                      1, (char *[]) {"my_val"});
+    cmt_histogram_set_default(h, ts, bucket_defaults,
+                              sum, count,
+                              1, (char *[]) {"my_val"});
     prometheus_encode_test(cmt);
 
     /* static label: register static label for the context */
