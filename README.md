@@ -6,7 +6,7 @@ The [CMetrics](https://github.com/calyptia/cmetrics) project is a standalone C l
 
 - Counters
 - Gauges
-- Histogram (WIP)
+- Histograms
 
 This project is heavily based on Go Prometheus Client API design:
 
