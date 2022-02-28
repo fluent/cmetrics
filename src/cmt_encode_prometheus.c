@@ -30,6 +30,28 @@
 #include <cmetrics/cmt_untyped.h>
 #include <cmetrics/cmt_compat.h>
 
+#define PROM_FMT_VAL_FROM_VAL        0
+#define PROM_FMT_VAL_FROM_BUCKET_ID  1
+#define PROM_FMT_VAL_FROM_SUM        2
+#define PROM_FMT_VAL_FROM_COUNT      3
+
+struct prom_fmt {
+    int metric_name;   /* metric name already set ? */
+    int brace_open;    /* first brace open ? */
+    int labels_count;  /* number of labels aready added */
+    int value_from;
+    int bucket_id;
+};
+
+static void prom_fmt_init(struct prom_fmt *fmt)
+{
+    fmt->metric_name = CMT_FALSE;
+    fmt->brace_open = CMT_FALSE;
+    fmt->labels_count = 0;
+    fmt->value_from = PROM_FMT_VAL_FROM_VAL;
+    fmt->bucket_id = -1;
+}
+
 /*
  * Prometheus Exposition Format
  * ----------------------------
@@ -98,7 +120,7 @@ static void metric_banner(cmt_sds_t *buf, struct cmt_map *map,
 }
 
 static void append_metric_value(cmt_sds_t *buf, struct cmt_metric *metric,
-                                int bucket_id, int add_timestamp)
+                                struct prom_fmt *fmt, int add_timestamp)
 {
     int len;
     double val;
@@ -108,15 +130,23 @@ static void append_metric_value(cmt_sds_t *buf, struct cmt_metric *metric,
     /*
      * Retrieve metric value
      * ---------------------
-     * if 'bucket_id' == -1, means we need to get the direct value associated
-     * to the metric, otherwise look for the value from hist_buckets[bucket_id],
-     * typically used for histograms.
+     * the formatter 'fmt->value_from' specifies from 'where' the value must
+     * be retrieved from, note the 'metric' structure contains one generic
+     * value field plus others associated to histograms.
      */
-    if (bucket_id < 0) {
+    if (fmt->value_from == PROM_FMT_VAL_FROM_VAL) {
+        /* get 'normal' metric value */
         val = cmt_metric_get_value(metric);
     }
-    else {
-        val = cmt_metric_hist_bucket_get_value(metric, bucket_id);
+    else if (fmt->value_from == PROM_FMT_VAL_FROM_BUCKET_ID) {
+        /* retrieve the value from a bucket */
+        val = cmt_metric_hist_get_value(metric, fmt->bucket_id);
+    }
+    else if (fmt->value_from == PROM_FMT_VAL_FROM_SUM) {
+        val = cmt_metric_hist_get_sum_value(metric);
+    }
+    else if (fmt->value_from == PROM_FMT_VAL_FROM_COUNT) {
+        val = cmt_metric_hist_get_count_value(metric);
     }
 
     if (add_timestamp) {
@@ -161,21 +191,6 @@ static int add_static_labels(struct cmt *cmt, cmt_sds_t *buf)
     }
 
     return count;
-}
-
-struct prom_fmt {
-    int metric_name;   /* metric name already set ? */
-    int brace_open;    /* first brace open ? */
-    int labels_count;  /* number of labels aready added */
-    int bucket_id;
-};
-
-static void format_init(struct prom_fmt *fmt)
-{
-    fmt->metric_name = CMT_FALSE;
-    fmt->brace_open = CMT_FALSE;
-    fmt->labels_count = 0;
-    fmt->bucket_id = -1;
 }
 
 static void format_metric(struct cmt *cmt,
@@ -243,7 +258,7 @@ static void format_metric(struct cmt *cmt,
         cmt_sds_cat_safe(buf, "}", 1);
     }
 
-    append_metric_value(buf, metric, fmt->bucket_id, add_timestamp);
+    append_metric_value(buf, metric, fmt, add_timestamp);
 }
 
 static cmt_sds_t bucket_value_to_string(double val)
@@ -303,11 +318,28 @@ static void format_bucket(struct cmt *cmt,
         fmt.metric_name  = CMT_TRUE;
         fmt.brace_open   = CMT_TRUE;
         fmt.labels_count = 1;
+        fmt.value_from   = PROM_FMT_VAL_FROM_BUCKET_ID;
         fmt.bucket_id    = i;
 
         /* append metric labels, value and timestamp */
         format_metric(cmt, buf, map, metric, add_timestamp, &fmt);
     }
+
+    /* sum */
+    prom_fmt_init(&fmt);
+    fmt.metric_name = CMT_TRUE;
+    fmt.value_from = PROM_FMT_VAL_FROM_SUM;
+
+    cmt_sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
+    cmt_sds_cat_safe(buf, "_sum", 4);
+    format_metric(cmt, buf, map, metric, add_timestamp, &fmt);
+
+    /* count */
+    fmt.value_from = PROM_FMT_VAL_FROM_COUNT;
+
+    cmt_sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
+    cmt_sds_cat_safe(buf, "_count", 6);
+    format_metric(cmt, buf, map, metric, add_timestamp, &fmt);
 }
 
 static void format_metrics(struct cmt *cmt, cmt_sds_t *buf, struct cmt_map *map,
@@ -328,7 +360,7 @@ static void format_metrics(struct cmt *cmt, cmt_sds_t *buf, struct cmt_map *map,
             format_bucket(cmt, buf, map, &map->metric, add_timestamp);
         }
         else {
-            format_init(&fmt);
+            prom_fmt_init(&fmt);
             format_metric(cmt, buf, map, &map->metric, add_timestamp, &fmt);
         }
     }
@@ -349,7 +381,7 @@ static void format_metrics(struct cmt *cmt, cmt_sds_t *buf, struct cmt_map *map,
             format_bucket(cmt, buf, map, metric, add_timestamp);
         }
         else {
-            format_init(&fmt);
+            prom_fmt_init(&fmt);
             format_metric(cmt, buf, map, metric, add_timestamp, &fmt);
         }
     }
