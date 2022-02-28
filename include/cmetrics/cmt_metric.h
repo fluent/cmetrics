@@ -31,6 +31,12 @@ struct cmt_metric {
     uint64_t hist_count;
     uint64_t hist_sum;
 
+    /* summary */
+    int sum_quantiles_set;     /* specify if quantive values has been set */
+    uint64_t sum_quantiles[5]; /* 0, 0.25, 0.5, 0.75 and 1 */
+    uint64_t sum_count;
+    uint64_t sum_sum;
+
     /* internal */
     uint64_t hash;
     uint64_t timestamp;
