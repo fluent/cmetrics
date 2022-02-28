@@ -15,6 +15,7 @@ set(src
   cmt_untyped.c
   cmt_histogram.c
   cmt_metric.c
+  cmt_metric_histogram.c
   cmt_map.c
   cmt_log.c
   cmt_opts.c

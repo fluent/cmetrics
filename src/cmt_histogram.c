@@ -338,18 +338,26 @@ int cmt_histogram_observe(struct cmt_histogram *histogram, uint64_t timestamp,
         if (val > buckets->upper_bounds[i]) {
             break;
         }
-        cmt_metric_hist_bucket_inc(metric, timestamp, i);
+        cmt_metric_hist_inc(metric, timestamp, i);
     }
 
     /* increment bucket +Inf */
-    cmt_metric_hist_bucket_inc(metric, timestamp, buckets->count);
+    cmt_metric_hist_inc(metric, timestamp, buckets->count);
+
+    /* increment bucket _count */
+    cmt_metric_hist_count_inc(metric, timestamp);
+
+    /* add observed value to _sum */
+    cmt_metric_hist_sum_add(metric, timestamp, val);
     return 0;
 }
 
-int cmt_histogram_set_buckets_default(struct cmt_histogram *histogram,
-                                      uint64_t timestamp,
-                                      uint64_t *bucket_defaults,
-                                      int labels_count, char **label_vals)
+int cmt_histogram_set_default(struct cmt_histogram *histogram,
+                              uint64_t timestamp,
+                              uint64_t *bucket_defaults,
+                              double sum,
+                              uint64_t count,
+                              int labels_count, char **label_vals)
 {
     int i;
     struct cmt_metric *metric;
@@ -370,8 +378,11 @@ int cmt_histogram_set_buckets_default(struct cmt_histogram *histogram,
      */
     buckets = histogram->buckets;
     for (i = 0; i <= buckets->count; i++) {
-        cmt_metric_hist_bucket_set(metric, timestamp, i, bucket_defaults[i]);
+        cmt_metric_hist_set(metric, timestamp, i, bucket_defaults[i]);
     }
+
+    cmt_metric_hist_sum_set(metric, timestamp, sum);
+    cmt_metric_hist_count_set(metric, timestamp, count);
 
     return 0;
 }
