@@ -293,31 +293,29 @@ static int unpack_bucket(mpack_reader_t *reader,
 {
     int                                  result;
     struct cmt_msgpack_temporary_bucket *new_bucket;
-    uint64_t                             upper_bound;
 
     if (NULL == reader      ||
         NULL == bucket_list ) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
-    result = cmt_mpack_consume_uint_tag(reader, &upper_bound);
-
-    if (CMT_DECODE_MSGPACK_SUCCESS != result) {
-        return result;
-    }
-
     new_bucket = calloc(1, sizeof(struct cmt_msgpack_temporary_bucket));
 
     if (NULL == new_bucket) {
-        return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
+        result = CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
     }
     else {
-        new_bucket->upper_bound = cmt_math_uint64_to_d64(upper_bound);
+        result = cmt_mpack_consume_double_tag(reader, &new_bucket->upper_bound);
 
-        mk_list_add(&new_bucket->_head, bucket_list);
+        if (CMT_DECODE_MSGPACK_SUCCESS == result) {
+            mk_list_add(&new_bucket->_head, bucket_list);
+        }
+        else {
+            free(new_bucket);
+        }
     }
 
-    return CMT_DECODE_MSGPACK_SUCCESS;
+    return result;
 }
 
 static int unpack_label(mpack_reader_t *reader,
@@ -551,8 +549,6 @@ static int unpack_metric_count(mpack_reader_t *reader, size_t index, void *conte
 static int unpack_metric_bucket(mpack_reader_t *reader, size_t index, void *context)
 {
     struct cmt_msgpack_decode_context *decode_context;
-    int                                result;
-    double                             value;
 
     if (NULL == reader ||
         NULL == context) {
@@ -561,13 +557,7 @@ static int unpack_metric_bucket(mpack_reader_t *reader, size_t index, void *cont
 
     decode_context = (struct cmt_msgpack_decode_context *) context;
 
-    result = cmt_mpack_consume_double_tag(reader, &value);
-
-    if (result == CMT_DECODE_MSGPACK_SUCCESS) {
-        decode_context->metric->hist_buckets[index] = cmt_math_d64_to_uint64(value);
-    }
-
-    return result;
+    return cmt_mpack_consume_uint_tag(reader, &decode_context->metric->hist_buckets[index]);
 }
 
 static int unpack_metric_buckets(mpack_reader_t *reader, size_t index, void *context)
@@ -582,6 +572,20 @@ static int unpack_metric_buckets(mpack_reader_t *reader, size_t index, void *con
     decode_context = (struct cmt_msgpack_decode_context *) context;
 
     return cmt_mpack_unpack_array(reader, unpack_metric_bucket, context);
+}
+
+static int unpack_metric_hash(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_msgpack_decode_context *decode_context;
+
+    if (NULL == reader  ||
+        NULL == context ) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return cmt_mpack_consume_uint_tag(reader, &decode_context->metric->hash);
 }
 
 static int unpack_metric(mpack_reader_t *reader,
@@ -599,6 +603,7 @@ static int unpack_metric(mpack_reader_t *reader,
             {"sum",     unpack_metric_sum},
             {"count",   unpack_metric_count},
             {"buckets", unpack_metric_buckets},
+            {"hash",    unpack_metric_hash},
             {NULL,     NULL}
         };
 
@@ -661,8 +666,6 @@ static int unpack_metric_array_entry(mpack_reader_t *reader, size_t index, void 
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
-printf("DECODING METRIC\n");
-
     decode_context = (struct cmt_msgpack_decode_context *) context;
 
     metric = NULL;
@@ -691,13 +694,7 @@ printf("DECODING METRIC\n");
         else
         {
             mk_list_add(&metric->_head, &decode_context->map->metrics);
-            printf("ADDING TO METRICS\n");
         }
-    }
-    else
-    {
-        printf("FAILURE DECODING METRICS : %d\n", result);
-        exit(0);
     }
 
     return result;
