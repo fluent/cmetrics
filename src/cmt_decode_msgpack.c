@@ -616,6 +616,10 @@ static int unpack_metric(mpack_reader_t *reader,
     if (CMT_DECODE_MSGPACK_SUCCESS != result) {
         destroy_label_list(&metric->labels);
 
+        if (NULL != metric->hist_buckets) {
+            free(metric->hist_buckets);
+        }
+
         free(metric);
     }
     else {
@@ -907,6 +911,7 @@ static int unpack_basic_type_values(mpack_reader_t *reader, size_t index, void *
 static int unpack_basic_type(mpack_reader_t *reader, struct cmt *cmt, struct cmt_map **map)
 {
     int                                   result;
+    struct cmt_histogram                 *histogram;
     struct cmt_msgpack_decode_context     decode_context;
     struct cmt_mpack_map_entry_callback_t callbacks[] = \
         {
@@ -955,13 +960,26 @@ static int unpack_basic_type(mpack_reader_t *reader, struct cmt *cmt, struct cmt
         result = CMT_DECODE_MSGPACK_CORRUPT_INPUT_DATA_ERROR;
     }
 
-
     if (CMT_DECODE_MSGPACK_SUCCESS != result) {
         if ((*map)->opts != NULL) {
+            cmt_opts_exit((*map)->opts);
+
             free((*map)->opts);
         }
 
         if ((*map)->parent != NULL) {
+            if ((*map)->type == CMT_HISTOGRAM) {
+                histogram = ((struct cmt_histogram *) (*map)->parent);
+
+                if (NULL != histogram->buckets) {
+                    if (NULL != histogram->buckets->upper_bounds) {
+                        free(histogram->buckets->upper_bounds);
+                    }
+
+                    free(histogram->buckets);
+                }
+            }
+
             free((*map)->parent);
         }
 
@@ -1156,8 +1174,6 @@ int cmt_decode_msgpack_create(struct cmt **out_cmt, char *in_buf, size_t in_size
     int             result;
     size_t          remainder;
 
-printf("\nMSGPACK_DECODE_CREATE\n");
-
     if (NULL == out_cmt ||
         NULL == in_buf ||
         NULL == offset ||
@@ -1186,7 +1202,8 @@ printf("\nMSGPACK_DECODE_CREATE\n");
 
     *offset += in_size - remainder;
 
-    result = mpack_reader_destroy(&reader);
+    mpack_reader_destroy(&reader);
+
 
     if (CMT_DECODE_MSGPACK_SUCCESS != result) {
         cmt_destroy(cmt);
