@@ -287,37 +287,6 @@ static int unpack_label_dictionary_entry(mpack_reader_t *reader,
     return CMT_DECODE_MSGPACK_SUCCESS;
 }
 
-static int unpack_bucket(mpack_reader_t *reader,
-                         size_t index,
-                         struct mk_list *bucket_list)
-{
-    int                                  result;
-    struct cmt_msgpack_temporary_bucket *new_bucket;
-
-    if (NULL == reader      ||
-        NULL == bucket_list ) {
-        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
-    }
-
-    new_bucket = calloc(1, sizeof(struct cmt_msgpack_temporary_bucket));
-
-    if (NULL == new_bucket) {
-        result = CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
-    }
-    else {
-        result = cmt_mpack_consume_double_tag(reader, &new_bucket->upper_bound);
-
-        if (CMT_DECODE_MSGPACK_SUCCESS == result) {
-            mk_list_add(&new_bucket->_head, bucket_list);
-        }
-        else {
-            free(new_bucket);
-        }
-    }
-
-    return result;
-}
-
 static int unpack_label(mpack_reader_t *reader,
                         size_t index,
                         struct mk_list *unique_label_list,
@@ -366,7 +335,8 @@ static int unpack_label(mpack_reader_t *reader,
     return CMT_DECODE_MSGPACK_SUCCESS;
 }
 
-static int unpack_static_label(mpack_reader_t *reader, size_t index, void *context)
+static int unpack_static_label(mpack_reader_t *reader,
+                               size_t index, void *context)
 {
     struct mk_list                    *target_label_list;
     struct mk_list                    *unique_label_list;
@@ -831,27 +801,38 @@ static int unpack_meta_bucket(mpack_reader_t *reader, size_t index, void *contex
 
     decode_context = (struct cmt_msgpack_decode_context *) context;
 
-    return unpack_bucket(reader, index,
-                         &decode_context->buckets);
+    return cmt_mpack_consume_double_tag(reader, &decode_context->bucket_list[index]);
 }
 
 static int unpack_meta_buckets(mpack_reader_t *reader, size_t index, void *context)
 {
+    struct cmt_msgpack_decode_context *decode_context;
+
     if (NULL == reader ||
         NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    decode_context->bucket_count = cmt_mpack_peek_array_length(reader);
+
+    if (0 < decode_context->bucket_count) {
+        decode_context->bucket_list = calloc(decode_context->bucket_count,
+                                             sizeof(double));
+
+        if (NULL == decode_context->bucket_list) {
+            return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
+        }
     }
 
     return cmt_mpack_unpack_array(reader, unpack_meta_bucket, context);
 }
 
 static int initialize_histogram_bucket_list(struct cmt_histogram *histogram,
-                                            struct mk_list *bucket_list)
+                                            double *bucket_list,
+                                            size_t bucket_count)
 {
-    struct mk_list                      *iterator;
-    struct cmt_msgpack_temporary_bucket *bucket;
-    size_t                               index;
-
     histogram->buckets = calloc(1, sizeof(struct cmt_histogram_buckets));
 
     if (histogram->buckets == NULL) {
@@ -860,24 +841,8 @@ static int initialize_histogram_bucket_list(struct cmt_histogram *histogram,
         return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
     }
 
-    histogram->buckets->count = mk_list_size(bucket_list);
-    histogram->buckets->upper_bounds = calloc(histogram->buckets->count, sizeof(double));
-
-    if (histogram->buckets->upper_bounds == NULL) {
-        cmt_errno();
-
-        free(histogram->buckets);
-
-        return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
-    }
-
-    index = 0;
-
-    mk_list_foreach(iterator, bucket_list) {
-        bucket = mk_list_entry(iterator, struct cmt_msgpack_temporary_bucket, _head);
-
-        histogram->buckets->upper_bounds[index++] = bucket->upper_bound;
-    }
+    histogram->buckets->count = bucket_count;
+    histogram->buckets->upper_bounds = bucket_list;
 
     return CMT_DECODE_MSGPACK_SUCCESS;
 }
@@ -885,6 +850,7 @@ static int initialize_histogram_bucket_list(struct cmt_histogram *histogram,
 static int unpack_basic_type_meta(mpack_reader_t *reader, size_t index, void *context)
 {
     int                                   result;
+    struct cmt_histogram                 *histogram;
     struct cmt_msgpack_decode_context    *decode_context;
     struct cmt_mpack_map_entry_callback_t callbacks[] = \
         {
@@ -910,10 +876,17 @@ static int unpack_basic_type_meta(mpack_reader_t *reader, size_t index, void *co
     if (CMT_DECODE_MSGPACK_SUCCESS == result) {
         decode_context->map->label_count = mk_list_size(&decode_context->map->label_keys);
 
-
         if (decode_context->map->type == CMT_HISTOGRAM) {
-            initialize_histogram_bucket_list((struct cmt_histogram *) decode_context->map->parent,
-                                             &decode_context->buckets);
+            histogram = (struct cmt_histogram *) decode_context->map->parent;
+
+            result = initialize_histogram_bucket_list(histogram,
+                                                      decode_context->bucket_list,
+                                                      decode_context->bucket_count);
+
+            if (CMT_DECODE_MSGPACK_SUCCESS == result) {
+                decode_context->bucket_list = NULL;
+                decode_context->bucket_count = 0;
+            }
         }
     }
 
@@ -948,6 +921,8 @@ static int unpack_basic_type(mpack_reader_t *reader, struct cmt *cmt, struct cmt
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
+    memset(&decode_context, 0, sizeof(struct cmt_msgpack_decode_context));
+
     *map = cmt_map_create(0, NULL, 0, NULL, NULL);
 
     if (NULL == *map) {
@@ -974,7 +949,6 @@ static int unpack_basic_type(mpack_reader_t *reader, struct cmt *cmt, struct cmt
     }
 
     mk_list_init(&decode_context.unique_label_list);
-    mk_list_init(&decode_context.buckets);
 
     result = cmt_mpack_unpack_map(reader, callbacks, (void *) &decode_context);
 
@@ -998,7 +972,10 @@ static int unpack_basic_type(mpack_reader_t *reader, struct cmt *cmt, struct cmt
     }
 
     destroy_label_list(&decode_context.unique_label_list);
-    destroy_temporary_bucket_list(&decode_context.buckets);
+
+    if (decode_context.bucket_list != NULL) {
+        free(decode_context.bucket_list);
+    }
 
     return result;
 }

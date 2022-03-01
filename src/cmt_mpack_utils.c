@@ -248,3 +248,21 @@ int cmt_mpack_unpack_array(mpack_reader_t *reader,
 
     return 0;
 }
+
+int cmt_mpack_peek_array_length(mpack_reader_t *reader)
+{
+    mpack_tag_t tag;
+
+    tag = mpack_peek_tag(reader);
+
+    if (mpack_ok != mpack_reader_error(reader))
+    {
+        return 0;
+    }
+
+    if (mpack_type_array != mpack_tag_type(&tag)) {
+        return 0;
+    }
+
+    return mpack_tag_array_count(&tag);
+}
