@@ -879,13 +879,12 @@ static int unpack_basic_type_meta(mpack_reader_t *reader, size_t index, void *co
         if (decode_context->map->type == CMT_HISTOGRAM) {
             histogram = (struct cmt_histogram *) decode_context->map->parent;
 
-            result = initialize_histogram_bucket_list(histogram,
-                                                      decode_context->bucket_list,
-                                                      decode_context->bucket_count);
+            histogram->buckets =
+                cmt_histogram_buckets_create_size(decode_context->bucket_list,
+                                                  decode_context->bucket_count);
 
-            if (CMT_DECODE_MSGPACK_SUCCESS == result) {
-                decode_context->bucket_list = NULL;
-                decode_context->bucket_count = 0;
+            if (histogram->buckets == NULL) {
+                result = CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
             }
         }
     }
