@@ -48,7 +48,8 @@ struct cmt_msgpack_decode_context {
     struct cmt        *cmt;
     struct cmt_map    *map;
     struct cmt_metric *metric;
-    struct mk_list     buckets;
+    double            *bucket_list;
+    size_t             bucket_count;
     struct mk_list     unique_label_list;
     int                static_labels_unpacked;
 };

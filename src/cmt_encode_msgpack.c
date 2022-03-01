@@ -260,6 +260,7 @@ static void pack_header(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map 
     if (map->type == CMT_HISTOGRAM) {
         /* 'buckets' (histogram buckets) */
         mpack_write_cstr(writer, "buckets");
+
         mpack_start_array(writer, histogram->buckets->count);
 
         for (bucket_index = 0 ;
@@ -452,9 +453,14 @@ int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size)
      *      }
      *  , ...]
      *
+     *
+     * The following fields are metric type specific and are only
+     * included for histograms :
+     *      meta->buckets
+     *      values[n]->buckets
+     *      values[n]->count
+     *      values[n]->sum
      */
-
-
 
     mpack_writer_init_growable(&writer, &data, &size);
 
