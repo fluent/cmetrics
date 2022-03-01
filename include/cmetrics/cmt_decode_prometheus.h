@@ -38,10 +38,18 @@
 
 #define CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT 128
 
+enum cmt_decode_prometheus_context_sample_type {
+    CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_NORMAL = 0,
+    CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_BUCKET = 1,
+    CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_SUM = 2,
+    CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_COUNT = 3
+};
+
 struct cmt_decode_prometheus_context_sample {
     char value1[64];
     char value2[64];
     size_t label_count;
+    int type;
     cmt_sds_t label_values[CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT];
 
     struct mk_list _head;
@@ -53,6 +61,7 @@ struct cmt_decode_prometheus_context_metric {
     char *subsystem;
     char *name;
     int type;
+    int current_sample_type;
     cmt_sds_t docstring;
     size_t label_count;
     cmt_sds_t labels[CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT];
