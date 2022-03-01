@@ -37,7 +37,8 @@ struct cmt_histogram {
 };
 
 /* Buckets */
-struct cmt_histogram_buckets *cmt_histogram_buckets_create(size_t count, double bucket, ...);
+struct cmt_histogram_buckets *cmt_histogram_buckets_create_size(double *bkts, size_t count);
+struct cmt_histogram_buckets *cmt_histogram_buckets_create(size_t count, ...);
 void cmt_histogram_buckets_destroy(struct cmt_histogram_buckets *buckets);
 
 struct cmt_histogram_buckets *cmt_histogram_buckets_default_create();

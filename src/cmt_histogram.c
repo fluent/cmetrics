@@ -25,11 +25,10 @@
 
 #include <stdarg.h>
 
-struct cmt_histogram_buckets *cmt_histogram_buckets_create(size_t count, double bucket, ...)
+struct cmt_histogram_buckets *cmt_histogram_buckets_create_size(double *bkts, size_t count)
 {
     int i;
     double *upper_bounds;
-    va_list va;
     struct cmt_histogram_buckets *buckets;
 
     if (count < 1) {
@@ -53,18 +52,33 @@ struct cmt_histogram_buckets *cmt_histogram_buckets_create(size_t count, double 
     buckets->count = count;
     buckets->upper_bounds = upper_bounds;
 
-    /* initialize first bucket */
-    upper_bounds[0] = bucket;
-
-    if (count == 1) {
-        return buckets;
+    for (i = 0; i < count; i++) {
+        upper_bounds[i] = bkts[i];
     }
 
-    va_start(va, bucket);
-    for (i = 1; i < count; i++) {
-        upper_bounds[i] = va_arg(va, double);
+    return buckets;
+}
+
+struct cmt_histogram_buckets *cmt_histogram_buckets_create(size_t count, ...)
+{
+    int i;
+    double *bucket_array;
+    struct cmt_histogram_buckets *buckets;
+    va_list va;
+
+    bucket_array = calloc(count, sizeof(double));
+    if (!bucket_array) {
+        return NULL;
+    }
+
+    va_start(va, count);
+    for (i = 0; i < count; i++) {
+        bucket_array[i] = va_arg(va, double);
     }
     va_end(va);
+
+    buckets = cmt_histogram_buckets_create_size(bucket_array, count);
+    free(bucket_array);
 
     return buckets;
 }
@@ -72,10 +86,10 @@ struct cmt_histogram_buckets *cmt_histogram_buckets_create(size_t count, double 
 /* Create default buckets */
 struct cmt_histogram_buckets *cmt_histogram_buckets_default_create()
 {
-    return cmt_histogram_buckets_create(11,
+    return cmt_histogram_buckets_create_size((double[]) {
                                         0.005, 0.01, 0.025, 0.05,
                                         0.1, 0.25, 0.5, 1.0, 2.5,
-                                        5.0, 10.0);
+                                        5.0, 10.0 }, 11);
 }
 
 /* Linear bucket creation */
