@@ -265,8 +265,7 @@ static void pack_header(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map 
         for (bucket_index = 0 ;
              bucket_index < histogram->buckets->count ;
              bucket_index++) {
-            mpack_write_uint(writer,
-                cmt_math_d64_to_uint64(histogram->buckets->upper_bounds[bucket_index]));
+            mpack_write_double(writer, histogram->buckets->upper_bounds[bucket_index]);
         }
         mpack_finish_array(writer);
     }
@@ -285,13 +284,14 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
     struct cmt_histogram *histogram;
     ptrdiff_t label_index;
 
-    /* FYI: ONLY SUPPORTS COUNTER & GAUGE FOR NOW */
+    /* FYI: ONLY SUPPORTS COUNTER, GAUGE & HISTOGRAM FOR NOW */
+
     c_labels = mk_list_size(&metric->labels);
 
-    s = 2;
+    s = 3;
 
     if (map->type == CMT_HISTOGRAM) {
-        s = 4;
+        s = 5;
     }
 
     if (c_labels > 0) {
@@ -312,8 +312,7 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
         for (index = 0 ;
              index < histogram->buckets->count ;
              index++) {
-            val = cmt_metric_hist_get_value(metric, index);
-            mpack_write_double(writer, val);
+            mpack_write_uint(writer, cmt_metric_hist_get_value(metric, index));
         }
 
         mpack_finish_array(writer);
@@ -346,6 +345,9 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
     }
     mpack_finish_map(writer);
 
+    mpack_write_cstr(writer, "hash");
+    mpack_write_uint(writer, metric->hash);
+
     return 0;
 }
 
@@ -377,12 +379,9 @@ static int pack_basic_type(mpack_writer_t *writer, struct cmt *cmt, struct cmt_m
     pack_header(writer, cmt, map, &unique_label_list);
 
     if (map->metric_static_set) {
-        printf("YEAH STATIC BABY\n");
         values_size++;
     }
     values_size += mk_list_size(&map->metrics);
-
-    printf("VALUES_SIZE : %d\n", values_size);
 
     mpack_write_cstr(writer, "values");
     mpack_start_array(writer, values_size);
@@ -418,38 +417,44 @@ int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size)
     struct cmt_histogram *histogram;
     size_t metric_count;
 
-printf("\nMSGPACK_ENCODE_CREATE\n");
     /*
      * CMetrics data schema
-[
-     * {
-     *   'meta' => {
-     *                 'ver' => INTEGER
-     *                 'type' => INTEGER
-     *                           '0' = counter
-     *                           '1' = gauge
-     *                           '2' = histogram (WIP)
-     *                 'opts' => {
-     *                            'ns'   => ns
-     *                            'subsystem'   => subsystem
-     *                            'name'        => name
-     *                            'description' => description
-     *                           },
-     *                 'label_dictionary' => ['', ...],
-     *                 'static_labels' => [n, ...],
-     *                 'label_keys' => [n, ...],
-     *                 'buckets' => [n, ...] // OPTIONAL
-     *               },
-     *   'values' => [
-     *                 {
-     *                  'ts'   : nanosec timestamp,
-     *                  'value': float64 value
-     *                  'label_values': [n, ...]
-     *                 }
-     *               ]
-     * }
-]
+     *  [
+     *      {
+     *        'meta' => {
+     *                      'ver' => INTEGER
+     *                      'type' => INTEGER
+     *                                '0' = counter
+     *                                '1' = gauge
+     *                                '2' = histogram (WIP)
+     *                      'opts' => {
+     *                                 'ns'   => ns
+     *                                 'subsystem'   => subsystem
+     *                                 'name'        => name
+     *                                 'description' => description
+     *                                },
+     *                      'label_dictionary' => ['', ...],
+     *                      'static_labels' => [n, ...],
+     *                      'label_keys' => [n, ...],
+     *                      'buckets' => [n, ...]
+     *                    },
+     *        'values' => [
+     *                      {
+     *                       'ts'   : nanosec timestamp,
+     *                       'value': float64 value,
+     *                       'label_values': [n, ...],
+     *                       'buckets': [n, ...],
+     *                       'sum': float64 value,
+     *                       'count': uint64 value,
+     *                       'hash': uint64 value
+     *                      }
+     *                    ]
+     *      }
+     *  , ...]
+     *
      */
+
+
 
     mpack_writer_init_growable(&writer, &data, &size);
 
