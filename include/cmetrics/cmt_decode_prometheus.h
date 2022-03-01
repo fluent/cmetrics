@@ -24,6 +24,7 @@
 
 #include "monkey/mk_core/mk_list.h"
 #include <cmetrics/cmetrics.h>
+#include <stdint.h>
 
 #define CMT_DECODE_PROMETHEUS_SUCCESS                     0
 #define CMT_DECODE_PROMETHEUS_SYNTAX_ERROR                1
@@ -38,8 +39,8 @@
 #define CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT 128
 
 struct cmt_decode_prometheus_context_sample {
-    double value;
-    uint64_t timestamp;
+    char value1[64];
+    char value2[64];
     size_t label_count;
     cmt_sds_t label_values[CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT];
 

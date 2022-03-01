@@ -549,7 +549,7 @@ void test_invalid_value()
 
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
-            "# TYPE metric_name histogram\n"
+            "# TYPE metric_name counter\n"
             "metric_name {key=\"abc\"} 10e", 0, &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_PARSE_VALUE_FAILED);
     TEST_CHECK(strcmp(errbuf,
@@ -568,7 +568,7 @@ void test_invalid_timestamp()
 
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
-            "# TYPE metric_name histogram\n"
+            "# TYPE metric_name counter\n"
             "metric_name {key=\"abc\"} 10 3e", 0, &opts);
     TEST_CHECK(status == CMT_DECODE_PROMETHEUS_PARSE_TIMESTAMP_FAILED);
     TEST_CHECK(strcmp(errbuf,

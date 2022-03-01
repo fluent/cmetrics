@@ -190,14 +190,83 @@ static const char *get_docstring(struct cmt_decode_prometheus_context *context)
     return context->metric.docstring ? context->metric.docstring : "(no information)";
 }
 
+static int parse_uint64(const char *in, uint64_t *out)
+{
+    char *end;
+    int64_t val;
+
+    errno = 0;
+    val = strtol(in, &end, 10);
+    if (end == in || *end != 0 || errno)  {
+        return -1;
+    }
+
+    // Even though prometheus text format supports negative numbers, cmetrics
+    // doesn't, so we truncate to 0
+    if (val < 0) {
+        val = 0;
+    }
+    *out = val;
+    return 0;
+}
+
+static int parse_double(const char *in, double *out)
+{
+    char *end;
+    double val;
+    errno = 0;
+    val = strtod(in, &end);
+    if (end == in || *end != 0 || errno) {
+        return -1;
+    }
+    *out = val;
+    return 0;
+}
+
+static int parse_value_timestamp(
+        struct cmt_decode_prometheus_context *context,
+        struct cmt_decode_prometheus_context_sample *sample,
+        double *value,
+        uint64_t *timestamp)
+{
+
+    if (parse_double(sample->value1, value)) {
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_PARSE_VALUE_FAILED,
+                "failed to parse sample: \"%s\" is not a valid "
+                "value", sample->value1);
+    }
+
+    if (!strlen(sample->value2)) {
+        // No timestamp was specified, use default value
+        *timestamp = context->opts.default_timestamp;
+        return 0;
+    }
+    else if (parse_uint64(sample->value2, timestamp)) {
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_PARSE_TIMESTAMP_FAILED,
+                "failed to parse sample: \"%s\" is not a valid "
+                "timestamp", sample->value2);
+    }
+
+    // prometheus text format timestamps are in milliseconds, while cmetrics is in
+    // nanoseconds, so multiply by 10e5
+    *timestamp = *timestamp * 10e5;
+
+    return 0;
+}
+
 static int add_metric_counter(struct cmt_decode_prometheus_context *context)
 {
     int i;
+    int ret;
     size_t label_count;
     struct cmt_counter *c;
     struct mk_list *head;
     struct mk_list *tmp;
     struct cmt_decode_prometheus_context_sample *sample;
+    double value;
+    uint64_t timestamp;
 
     c = cmt_counter_create(context->cmt,
             context->metric.ns,
@@ -216,9 +285,13 @@ static int add_metric_counter(struct cmt_decode_prometheus_context *context)
     mk_list_foreach_safe(head, tmp, &context->metric.samples) {
         sample = mk_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
         label_count = sample->label_count;
+        ret = parse_value_timestamp(context, sample, &value, &timestamp);
+        if (ret) {
+            return ret;
+        }
         if (cmt_counter_set(c,
-                    sample->timestamp,
-                    sample->value,
+                    timestamp,
+                    value,
                     label_count,
                     label_count ? sample->label_values : NULL)) {
             return report_error(context,
@@ -233,11 +306,14 @@ static int add_metric_counter(struct cmt_decode_prometheus_context *context)
 static int add_metric_gauge(struct cmt_decode_prometheus_context *context)
 {
     int i;
+    int ret;
     size_t label_count;
     struct cmt_gauge *c;
     struct mk_list *head;
     struct mk_list *tmp;
     struct cmt_decode_prometheus_context_sample *sample;
+    double value;
+    uint64_t timestamp;
 
     c = cmt_gauge_create(context->cmt,
             context->metric.ns,
@@ -256,9 +332,13 @@ static int add_metric_gauge(struct cmt_decode_prometheus_context *context)
     mk_list_foreach_safe(head, tmp, &context->metric.samples) {
         sample = mk_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
         label_count = sample->label_count;
+        ret = parse_value_timestamp(context, sample, &value, &timestamp);
+        if (ret) {
+            return ret;
+        }
         if (cmt_gauge_set(c,
-                    sample->timestamp,
-                    sample->value,
+                    timestamp,
+                    value,
                     label_count,
                     label_count ? sample->label_values : NULL)) {
             return report_error(context,
@@ -273,11 +353,14 @@ static int add_metric_gauge(struct cmt_decode_prometheus_context *context)
 static int add_metric_untyped(struct cmt_decode_prometheus_context *context)
 {
     int i;
+    int ret;
     size_t label_count;
     struct cmt_untyped *c;
     struct mk_list *head;
     struct mk_list *tmp;
     struct cmt_decode_prometheus_context_sample *sample;
+    double value;
+    uint64_t timestamp;
 
     c = cmt_untyped_create(context->cmt,
             context->metric.ns,
@@ -296,9 +379,13 @@ static int add_metric_untyped(struct cmt_decode_prometheus_context *context)
     mk_list_foreach_safe(head, tmp, &context->metric.samples) {
         sample = mk_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
         label_count = sample->label_count;
+        ret = parse_value_timestamp(context, sample, &value, &timestamp);
+        if (ret) {
+            return ret;
+        }
         if (cmt_untyped_set(c,
-                    sample->timestamp,
-                    sample->value,
+                    timestamp,
+                    value,
                     label_count,
                     label_count ? sample->label_values : NULL)) {
             return report_error(context,
@@ -442,73 +529,17 @@ static int sample_start(struct cmt_decode_prometheus_context *context)
     return 0;
 }
 
-static int parse_timestamp(
-        struct cmt_decode_prometheus_context *context,
-        const char *in, uint64_t *out)
-{
-    char *end;
-    int64_t val;
-
-    if (!strlen(in)) {
-        // No timestamp was specified, use default value
-        *out = context->opts.default_timestamp;
-        return 0;
-    }
-
-    errno = 0;
-    val = strtol(in, &end, 10);
-    if (end == in || *end != 0 || errno)  {
-        return -1;
-    }
-
-    // Even though prometheus text format supports negative numbers, cmetrics
-    // doesn't, so we truncate to 0
-    if (val < 0) {
-        val = 0;
-    }
-    // prometheus text format metrics are in milliseconds, while cmetrics is in
-    // nanoseconds, so multiply by 10e5
-    *out = val * 10e5;
-    return 0;
-}
-
-static int parse_value(const char *in, double *out)
-{
-    char *end;
-    double val;
-    errno = 0;
-    val = strtod(in, &end);
-    if (end == in || *end != 0 || errno) {
-        return -1;
-    }
-    *out = val;
-    return 0;
-}
-
 static int parse_sample(
         struct cmt_decode_prometheus_context *context,
-        const char *value,
-        const char *timestamp)
+        const char *value1,
+        const char *value2)
 {
     struct cmt_decode_prometheus_context_sample *sample;
     sample = mk_list_entry_last(&context->metric.samples,
             struct cmt_decode_prometheus_context_sample, _head);
-    sample->value = atof(value);
 
-    if (parse_value(value, &sample->value)) {
-        return report_error(context,
-                CMT_DECODE_PROMETHEUS_PARSE_VALUE_FAILED,
-                "failed to parse sample: \"%s\" is not a valid "
-                "value", value);
-    }
-
-    if (parse_timestamp(context, timestamp, &sample->timestamp)) {
-        return report_error(context,
-                CMT_DECODE_PROMETHEUS_PARSE_TIMESTAMP_FAILED,
-                "failed to parse sample: \"%s\" is not a valid "
-                "timestamp", timestamp);
-    }
-
+    strcpy(sample->value1, value1);
+    strcpy(sample->value2, value2);
     return 0;
 }
 
