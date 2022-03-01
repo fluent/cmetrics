@@ -20,8 +20,85 @@
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_histogram.h>
 #include <cmetrics/cmt_encode_prometheus.h>
-
+#include <cmetrics/cmt_map.h>
 #include "cmt_tests.h"
+
+#include <math.h>
+#include <float.h>
+#include <stdbool.h>
+
+/* values to observe in a histogram */
+double hist_observe_values[10] = {
+                                  0.0 , 1.02, 2.04, 3.06,
+                                  4.08, 5.10, 6.12, 7.14,
+                                  8.16, 9.18
+                                 };
+
+/*
+ * histogram bucket values: the values computed in the buckets,
+ * all of them are uint64_t.
+ *
+ * Note that on all examples we use the default buckets values, created manually
+ * and through the API:
+ *
+ * - 11 bucket values
+ * -  1 +Inf bucket value
+ */
+uint64_t hist_buckets_values[12] = {1, 1, 1, 1, 1, 1, 1, 1,
+                                    3, 5, 10, 10};
+
+/* histogram _count value */
+uint64_t hist_count = 10;
+
+/* histogram _sum value */
+double hist_sum = 45.9;
+
+bool fequal(double a, double b)
+{
+    return (fabs(a - b) < (DBL_EPSILON * fabs(a + b)));
+}
+
+static void histogram_check(struct cmt_histogram *h,
+                            int labels_count, char **labels_vals)
+{
+    int i;
+    int ret;
+    uint64_t val;
+    struct cmt_metric *metric;
+
+    /* retrieve the metric context */
+    metric = cmt_map_metric_get(&h->opts, h->map,
+                                labels_count, labels_vals, CMT_TRUE);
+    TEST_CHECK(metric != NULL);
+
+    /* check bucket values */
+    for (i = 0; i < (sizeof(hist_buckets_values)/sizeof(uint64_t)); i++) {
+        val = cmt_metric_hist_get_value(metric, i);
+        TEST_CHECK(val == hist_buckets_values[i]);
+    }
+
+    /* check _count */
+    TEST_CHECK(hist_count == cmt_metric_hist_get_count_value(metric));
+
+    /* check _sum */
+    ret = fequal(hist_sum, cmt_metric_hist_get_sum_value(metric));
+    TEST_CHECK(ret != 0);
+}
+
+static int histogram_observe_all(struct cmt_histogram *h,
+                                 uint64_t timestamp,
+                                 int labels_count, char **labels_vals)
+{
+    int i;
+    double val;
+
+    for (i = 0; i < sizeof(hist_observe_values)/(sizeof(double)); i++) {
+        val = hist_observe_values[i];
+        cmt_histogram_observe(h, timestamp, val, labels_count, labels_vals);
+    }
+
+    return i;
+}
 
 static void prometheus_encode_test(struct cmt *cmt)
 {
@@ -31,6 +108,7 @@ static void prometheus_encode_test(struct cmt *cmt)
     printf("\n%s\n", buf);
     cmt_encode_prometheus_destroy(buf);
 }
+
 
 void test_histogram()
 {
@@ -52,7 +130,10 @@ void test_histogram()
     TEST_CHECK(cmt != NULL);
 
     /* Create buckets */
-    buckets = cmt_histogram_buckets_create(3, 0.05, 5.0, 10.0);
+    buckets = cmt_histogram_buckets_create(11,
+                                           0.005, 0.01, 0.025, 0.05,
+                                           0.1, 0.25, 0.5, 1.0, 2.5,
+                                           5.0, 10.0);
     TEST_CHECK(buckets != NULL);
 
     /* Create a gauge metric type */
@@ -63,23 +144,18 @@ void test_histogram()
     TEST_CHECK(h != NULL);
 
     /* no labels */
-    cmt_histogram_observe(h, ts, 0.001, 0, NULL);
-    cmt_histogram_observe(h, ts, 0.020, 0, NULL);
-    cmt_histogram_observe(h, ts, 5.0, 0, NULL);
-    cmt_histogram_observe(h, ts, 8.0, 0, NULL);
-    cmt_histogram_observe(h, ts, 1000, 0, NULL);
-    prometheus_encode_test(cmt);
-
-    /* defined labels: add a custom label value */
-    cmt_histogram_observe(h, ts, 0.001, 1, (char *[]) {"my_val"});
-    cmt_histogram_observe(h, ts, 0.020, 1, (char *[]) {"my_val"});
-    cmt_histogram_observe(h, ts, 5.0, 1, (char *[]) {"my_val"});
-    cmt_histogram_observe(h, ts, 8.0, 1, (char *[]) {"my_val"});
-    cmt_histogram_observe(h, ts, 1000, 1, (char *[]) {"my_val"});;
+    histogram_observe_all(h, ts, 0, NULL);
+    histogram_check(h, 0, NULL);
     prometheus_encode_test(cmt);
 
     /* static label: register static label for the context */
     cmt_label_add(cmt, "static", "test");
+    histogram_check(h, 0, NULL);
+    prometheus_encode_test(cmt);
+
+    /* defined labels: add a custom label value */
+    histogram_observe_all(h, ts, 1, (char *[]) {"val"});
+    histogram_check(h, 1, (char *[]) {"val"});
     prometheus_encode_test(cmt);
 
     cmt_destroy(cmt);
@@ -89,10 +165,7 @@ void test_set_defaults()
 {
     int ret;
     double val;
-    double sum;
-    uint64_t count;
     uint64_t ts;
-    uint64_t *bucket_defaults;
     struct cmt *cmt;
     struct cmt_gauge *g;
     struct cmt_histogram *h;
@@ -118,50 +191,24 @@ void test_set_defaults()
                              1, (char *[]) {"my_label"});
     TEST_CHECK(h != NULL);
 
-    /* set default buckets */
-    bucket_defaults = calloc(1, sizeof(uint64_t) * 12);
-    TEST_CHECK(bucket_defaults != NULL);
-
-    /*
-     * Considering the following observed values:
-     *
-     *   0, 1, 1, 1, 1, 1, 1.2, 1.2, 1.2, 1.2, 1.2
-     *
-     * the buckets, count and sum are set as follows:
-     */
-    bucket_defaults[0] = 1;     /* 0.005 */
-    bucket_defaults[1] = 1;     /* 0.01  */
-    bucket_defaults[2] = 1;     /* 0.025 */
-    bucket_defaults[3] = 1;     /* 0.05  */
-    bucket_defaults[4] = 1;     /* 0.1   */
-    bucket_defaults[5] = 1;     /* 0.25  */
-    bucket_defaults[6] = 1;     /* 0.5   */
-    bucket_defaults[7] = 6;     /* 1     */
-    bucket_defaults[8] = 11;    /* 2.5   */
-    bucket_defaults[9] = 11;    /* 5     */
-    bucket_defaults[10] = 11;   /* 10    */
-    bucket_defaults[11] = 11;   /* +Inf  */
-
-    count = 11;
-    sum   = 10.999999999999998;
-
-    /* no labels */
-    cmt_histogram_set_default(h, ts, bucket_defaults, sum, count, 0, NULL);
-    prometheus_encode_test(cmt);
-
-    /* defined labels: add a custom label value */
-    cmt_histogram_set_default(h, ts, bucket_defaults,
-                              sum, count,
-                              1, (char *[]) {"my_val"});
+    /* set default buckets values / no labels */
+    cmt_histogram_set_default(h, ts,
+                              hist_buckets_values,
+                              hist_sum, hist_count, 0, NULL);
+    histogram_check(h, 0, NULL);
     prometheus_encode_test(cmt);
 
     /* static label: register static label for the context */
     cmt_label_add(cmt, "static", "test");
+    histogram_check(h, 0, NULL);
+    prometheus_encode_test(cmt);
+
+    /* perform observation with labels */
+    histogram_observe_all(h, ts, 1, (char *[]) {"val"});
+    histogram_check(h, 1, (char *[]) {"val"});
     prometheus_encode_test(cmt);
 
     cmt_destroy(cmt);
-
-    free(bucket_defaults);
 }
 
 TEST_LIST = {
