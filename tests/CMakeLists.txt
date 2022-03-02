@@ -9,6 +9,7 @@ set(UNIT_TESTS_FILES
   encoding.c
   cat.c
   issues.c
+  null_label.c
   )
 
 if (CMT_BUILD_PROMETHEUS_DECODER)
