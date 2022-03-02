@@ -51,6 +51,7 @@ struct cmt_msgpack_decode_context {
     double            *bucket_list;
     size_t             bucket_count;
     struct mk_list     unique_label_list;
+    uint64_t           summary_quantiles[5];
     int                static_labels_unpacked;
 };
 
