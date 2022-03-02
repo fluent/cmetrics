@@ -508,70 +508,6 @@ static int unpack_metric_labels(mpack_reader_t *reader, size_t index, void *cont
                                   context);
 }
 
-static int unpack_metric_sum(mpack_reader_t *reader, size_t index, void *context)
-{
-    struct cmt_msgpack_decode_context *decode_context;
-    int                                result;
-    double                             value;
-
-    if (NULL == reader  ||
-        NULL == context ) {
-        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
-    }
-
-    decode_context = (struct cmt_msgpack_decode_context *) context;
-
-    result = cmt_mpack_consume_double_tag(reader, &value);
-
-    if (result == CMT_DECODE_MSGPACK_SUCCESS) {
-        decode_context->metric->hist_sum = cmt_math_d64_to_uint64(value);
-    }
-
-    return result;
-}
-
-static int unpack_metric_count(mpack_reader_t *reader, size_t index, void *context)
-{
-    struct cmt_msgpack_decode_context *decode_context;
-
-    if (NULL == reader  ||
-        NULL == context ) {
-        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
-    }
-
-    decode_context = (struct cmt_msgpack_decode_context *) context;
-
-    return cmt_mpack_consume_uint_tag(reader, &decode_context->metric->hist_count);
-}
-
-static int unpack_metric_bucket(mpack_reader_t *reader, size_t index, void *context)
-{
-    struct cmt_msgpack_decode_context *decode_context;
-
-    if (NULL == reader ||
-        NULL == context) {
-        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
-    }
-
-    decode_context = (struct cmt_msgpack_decode_context *) context;
-
-    return cmt_mpack_consume_uint_tag(reader, &decode_context->metric->hist_buckets[index]);
-}
-
-static int unpack_metric_buckets(mpack_reader_t *reader, size_t index, void *context)
-{
-    struct cmt_msgpack_decode_context *decode_context;
-
-    if (NULL == reader  ||
-        NULL == context ) {
-        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
-    }
-
-    decode_context = (struct cmt_msgpack_decode_context *) context;
-
-    return cmt_mpack_unpack_array(reader, unpack_metric_bucket, context);
-}
-
 static int unpack_summary_quantiles_set(mpack_reader_t *reader, size_t index, void *context)
 {
     struct cmt_msgpack_decode_context *decode_context;
@@ -679,6 +615,95 @@ static int unpack_metric_summary(mpack_reader_t *reader, size_t index, void *con
     return result;
 }
 
+
+static int unpack_histogram_sum(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_msgpack_decode_context *decode_context;
+    int                                result;
+    double                             value;
+
+    if (NULL == reader  ||
+        NULL == context ) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    result = cmt_mpack_consume_double_tag(reader, &value);
+
+    if (result == CMT_DECODE_MSGPACK_SUCCESS) {
+        decode_context->metric->hist_sum = cmt_math_d64_to_uint64(value);
+    }
+
+    return result;
+}
+
+static int unpack_histogram_count(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_msgpack_decode_context *decode_context;
+
+    if (NULL == reader  ||
+        NULL == context ) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return cmt_mpack_consume_uint_tag(reader, &decode_context->metric->hist_count);
+}
+
+static int unpack_histogram_bucket(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_msgpack_decode_context *decode_context;
+
+    if (NULL == reader ||
+        NULL == context) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return cmt_mpack_consume_uint_tag(reader, &decode_context->metric->hist_buckets[index]);
+}
+
+static int unpack_histogram_buckets(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_msgpack_decode_context *decode_context;
+
+    if (NULL == reader  ||
+        NULL == context ) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return cmt_mpack_unpack_array(reader, unpack_histogram_bucket, context);
+}
+
+static int unpack_metric_histogram(mpack_reader_t *reader, size_t index, void *context)
+{
+    int                                   result;
+    struct cmt_msgpack_decode_context    *decode_context;
+    struct cmt_mpack_map_entry_callback_t callbacks[] = \
+        {
+            {"buckets", unpack_histogram_buckets},
+            {"count",   unpack_histogram_count},
+            {"sum",     unpack_histogram_sum},
+            {NULL,      NULL}
+        };
+
+    if (NULL == reader  ||
+        NULL == context ) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    result = cmt_mpack_unpack_map(reader, callbacks, (void *) decode_context);
+
+    return result;
+}
+
 static int unpack_metric_hash(mpack_reader_t *reader, size_t index, void *context)
 {
     struct cmt_msgpack_decode_context *decode_context;
@@ -702,15 +727,13 @@ static int unpack_metric(mpack_reader_t *reader,
     struct cmt_histogram                 *histogram;
     struct cmt_mpack_map_entry_callback_t callbacks[] = \
         {
-            {"ts",      unpack_metric_ts},
-            {"value",   unpack_metric_value},
-            {"labels",  unpack_metric_labels},
-            {"sum",     unpack_metric_sum},
-            {"count",   unpack_metric_count},
-            {"buckets", unpack_metric_buckets},
-            {"summary", unpack_metric_summary},
-            {"hash",    unpack_metric_hash},
-            {NULL,     NULL}
+            {"ts",        unpack_metric_ts},
+            {"value",     unpack_metric_value},
+            {"labels",    unpack_metric_labels},
+            {"summary",   unpack_metric_summary},
+            {"histogram", unpack_metric_histogram},
+            {"hash",      unpack_metric_hash},
+            {NULL,        NULL}
         };
 
     if (NULL == reader         ||
