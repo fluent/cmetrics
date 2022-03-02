@@ -21,6 +21,7 @@
 #include <cmetrics/cmt_metric.h>
 #include <cmetrics/cmt_map.h>
 #include <cmetrics/cmt_sds.h>
+#include <cmetrics/cmt_summary.h>
 #include <cmetrics/cmt_histogram.h>
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
@@ -29,6 +30,10 @@
 #include <cmetrics/cmt_encode_msgpack.h>
 #include <cmetrics/cmt_decode_msgpack.h>
 #include <cmetrics/cmt_mpack_utils.h>
+
+#ifndef CMT_SUMMARY_QUANTILE_ELEMENT_LIMIT
+#define CMT_SUMMARY_QUANTILE_ELEMENT_LIMIT 5
+#endif
 
 static void destroy_temporary_bucket_list(struct mk_list *bucket_list)
 {
@@ -108,6 +113,27 @@ static int create_untyped_instance(struct cmt_map *map)
     return CMT_DECODE_MSGPACK_SUCCESS;
 }
 
+static int create_summary_instance(struct cmt_map *map)
+{
+    struct cmt_summary *summary;
+
+    if (NULL == map) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    summary = calloc(1, sizeof(struct cmt_summary));
+
+    if (NULL == summary) {
+        return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
+    }
+
+    summary->map = map;
+
+    map->parent = (void *) summary;
+
+    return CMT_DECODE_MSGPACK_SUCCESS;
+}
+
 static int create_histogram_instance(struct cmt_map *map)
 {
     struct cmt_histogram *histogram;
@@ -136,6 +162,8 @@ static int create_metric_instance(struct cmt_map *map)
             return create_counter_instance(map);
         case CMT_GAUGE:
             return create_gauge_instance(map);
+        case CMT_SUMMARY:
+            return create_summary_instance(map);
         case CMT_HISTOGRAM:
             return create_histogram_instance(map);
         case CMT_UNTYPED:
@@ -544,6 +572,113 @@ static int unpack_metric_buckets(mpack_reader_t *reader, size_t index, void *con
     return cmt_mpack_unpack_array(reader, unpack_metric_bucket, context);
 }
 
+static int unpack_summary_quantiles_set(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_msgpack_decode_context *decode_context;
+    int                                result;
+    uint64_t                           value;
+
+    if (NULL == reader  ||
+        NULL == context ) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    result = cmt_mpack_consume_uint_tag(reader, &value);
+
+    if (result == CMT_DECODE_MSGPACK_SUCCESS) {
+        decode_context->metric->sum_quantiles_set = value;
+    }
+
+    return result;
+}
+
+static int unpack_summary_quantile(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_msgpack_decode_context *decode_context;
+
+    if (NULL == reader  ||
+        NULL == context ) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    if (index >= CMT_SUMMARY_QUANTILE_ELEMENT_LIMIT) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    return cmt_mpack_consume_uint_tag(reader, &decode_context->metric->sum_quantiles[index]);
+}
+
+static int unpack_summary_quantiles(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_msgpack_decode_context *decode_context;
+
+    if (NULL == reader  ||
+        NULL == context ) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return cmt_mpack_unpack_array(reader, unpack_summary_quantile, context);
+}
+
+static int unpack_summary_count(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_msgpack_decode_context *decode_context;
+
+    if (NULL == reader  ||
+        NULL == context ) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return cmt_mpack_consume_uint_tag(reader, &decode_context->metric->sum_count);
+}
+
+static int unpack_summary_sum(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_msgpack_decode_context *decode_context;
+
+    if (NULL == reader  ||
+        NULL == context ) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    return cmt_mpack_consume_uint_tag(reader, &decode_context->metric->sum_sum);
+}
+
+static int unpack_metric_summary(mpack_reader_t *reader, size_t index, void *context)
+{
+    int                                   result;
+    struct cmt_msgpack_decode_context    *decode_context;
+    struct cmt_mpack_map_entry_callback_t callbacks[] = \
+        {
+            {"quantiles_set", unpack_summary_quantiles_set},
+            {"quantiles",     unpack_summary_quantiles},
+            {"count",         unpack_summary_count},
+            {"sum",           unpack_summary_sum},
+            {NULL,     NULL}
+        };
+
+    if (NULL == reader  ||
+        NULL == context ) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    result = cmt_mpack_unpack_map(reader, callbacks, (void *) decode_context);
+
+    return result;
+}
+
 static int unpack_metric_hash(mpack_reader_t *reader, size_t index, void *context)
 {
     struct cmt_msgpack_decode_context *decode_context;
@@ -573,6 +708,7 @@ static int unpack_metric(mpack_reader_t *reader,
             {"sum",     unpack_metric_sum},
             {"count",   unpack_metric_count},
             {"buckets", unpack_metric_buckets},
+            {"summary", unpack_metric_summary},
             {"hash",    unpack_metric_hash},
             {NULL,     NULL}
         };
@@ -657,11 +793,21 @@ static int unpack_metric_array_entry(mpack_reader_t *reader, size_t index, void 
                 decode_context->map->metric.hist_count = metric->hist_count;
                 decode_context->map->metric.hist_sum = metric->hist_sum;
             }
-            else {
-                decode_context->map->metric.val = metric->val;
-                decode_context->map->metric.hash = metric->hash;
-                decode_context->map->metric.timestamp = metric->timestamp;
+            if (decode_context->map->type == CMT_SUMMARY) {
+                decode_context->map->metric.sum_quantiles_set = metric->sum_quantiles_set;
+
+                memcpy(decode_context->map->metric.sum_quantiles,
+                       metric->sum_quantiles,
+                       sizeof(double) * 5);
+
+                decode_context->map->metric.sum_count = metric->sum_count;
+                decode_context->map->metric.sum_sum = metric->sum_sum;
+
             }
+
+            decode_context->map->metric.val = metric->val;
+            decode_context->map->metric.hash = metric->hash;
+            decode_context->map->metric.timestamp = metric->timestamp;
 
             free(metric);
         }
@@ -1089,6 +1235,36 @@ static int append_unpacked_untyped_to_metrics_context(struct cmt *context,
     return CMT_DECODE_MSGPACK_SUCCESS;
 }
 
+static int append_unpacked_summary_to_metrics_context(struct cmt *context,
+                                                      struct cmt_map *map)
+{
+    struct cmt_summary *summary;
+
+    if (NULL == context ||
+        NULL == map     ) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    summary = map->parent;
+    if (NULL == summary) {
+        return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
+    }
+
+    summary->cmt = context;
+    summary->map = map;
+    map->parent = (void *) summary;
+
+    memcpy(&summary->opts, map->opts, sizeof(struct cmt_opts));
+
+    free(map->opts);
+
+    map->opts = &summary->opts;
+
+    mk_list_add(&summary->_head, &context->summaries);
+
+    return CMT_DECODE_MSGPACK_SUCCESS;
+}
+
 static int append_unpacked_histogram_to_metrics_context(
     struct cmt *context,
     struct cmt_map *map)
@@ -1141,6 +1317,9 @@ static int unpack_basic_type_entry(mpack_reader_t *reader, size_t index, void *c
         }
         else if (CMT_GAUGE == map->type) {
             result = append_unpacked_gauge_to_metrics_context(cmt, map);
+        }
+        else if (CMT_SUMMARY == map->type) {
+            result = append_unpacked_summary_to_metrics_context(cmt, map);
         }
         else if (CMT_HISTOGRAM == map->type) {
             result = append_unpacked_histogram_to_metrics_context(cmt, map);

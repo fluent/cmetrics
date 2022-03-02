@@ -22,6 +22,7 @@
 #include <cmetrics/cmt_map.h>
 #include <cmetrics/cmt_sds.h>
 #include <cmetrics/cmt_histogram.h>
+#include <cmetrics/cmt_summary.h>
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_untyped.h>
@@ -289,10 +290,14 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
 
     c_labels = mk_list_size(&metric->labels);
 
-    s = 3;
-
     if (map->type == CMT_HISTOGRAM) {
         s = 5;
+    }
+    else if (map->type == CMT_SUMMARY) {
+        s = 3;
+    }
+    else {
+        s = 3;
     }
 
     if (c_labels > 0) {
@@ -324,12 +329,36 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
         mpack_write_cstr(writer, "count");
         mpack_write_uint(writer, cmt_metric_hist_get_count_value(metric));
     }
+    else if (map->type == CMT_SUMMARY) {
+        /* 'summary' */
+        mpack_write_cstr(writer, "summary");
+        mpack_start_map(writer, 4);
+
+        mpack_write_cstr(writer, "quantiles_set");
+        mpack_write_uint(writer, metric->sum_quantiles_set);
+
+        mpack_write_cstr(writer, "quantiles");
+        mpack_start_array(writer, 5);
+
+        for (index = 0 ; index < 5 ; index++) {
+            mpack_write_uint(writer, metric->sum_quantiles[index]);
+        }
+
+        mpack_finish_array(writer);
+
+        mpack_write_cstr(writer, "count");
+        mpack_write_uint(writer, cmt_summary_get_count_value(metric));
+
+        mpack_write_cstr(writer, "sum");
+        mpack_write_uint(writer, metric->sum_sum);
+
+        mpack_finish_map(writer); /* 'summary' */
+    }
     else {
         mpack_write_cstr(writer, "value");
         val = cmt_metric_get_value(metric);
         mpack_write_double(writer, val);
     }
-
 
     s = mk_list_size(&metric->labels);
     if (s > 0) {
@@ -415,6 +444,7 @@ int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size)
     struct cmt_counter *counter;
     struct cmt_gauge *gauge;
     struct cmt_untyped *untyped;
+    struct cmt_summary *summary;
     struct cmt_histogram *histogram;
     size_t metric_count;
 
@@ -447,6 +477,15 @@ int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size)
      *                       'buckets': [n, ...],
      *                       'sum': float64 value,
      *                       'count': uint64 value,
+     *                       'summary': [
+     *                                      {
+     *                                          'sum': float64,
+     *                                          'count': uint64,
+     *                                          'quantiles': [n, ...],
+     *                                          'quantiles_set': uint64
+     *                                      },
+     *                                      ...
+     *                                  ],
      *                       'hash': uint64 value
      *                      }
      *                    ]
@@ -462,12 +501,17 @@ int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size)
      *      values[n]->sum
      */
 
+    if (cmt == NULL) {
+        return -1;
+    }
+
     mpack_writer_init_growable(&writer, &data, &size);
 
     metric_count  = 0;
     metric_count += mk_list_size(&cmt->counters);
     metric_count += mk_list_size(&cmt->gauges);
     metric_count += mk_list_size(&cmt->untypeds);
+    metric_count += mk_list_size(&cmt->summaries);
     metric_count += mk_list_size(&cmt->histograms);
 
     /* We want an array to group all these metrics in a context */
@@ -489,6 +533,12 @@ int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size)
     mk_list_foreach(head, &cmt->untypeds) {
         untyped = mk_list_entry(head, struct cmt_untyped, _head);
         pack_basic_type(&writer, cmt, untyped->map);
+    }
+
+    /* Summary */
+    mk_list_foreach(head, &cmt->summaries) {
+        summary = mk_list_entry(head, struct cmt_summary, _head);
+        pack_basic_type(&writer, cmt, summary->map);
     }
 
     /* Histogram */

@@ -23,6 +23,7 @@
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_counter.h>
+#include <cmetrics/cmt_summary.h>
 #include <cmetrics/cmt_histogram.h>
 #include <cmetrics/cmt_encode_msgpack.h>
 #include <cmetrics/cmt_decode_msgpack.h>
@@ -72,8 +73,10 @@ static struct cmt *generate_encoder_test_data()
     struct cmt_counter *c1;
     struct cmt_counter *c2;
     struct cmt_counter *c3;
+    struct cmt_summary *s1;
     struct cmt_histogram *h1;
     struct cmt_histogram_buckets *buckets;
+    double                        quantiles[5];
 
     cmt = cmt_create();
 
@@ -143,6 +146,22 @@ static struct cmt *generate_encoder_test_data()
     cmt_histogram_observe(h1, ts, 5.0, 1, (char *[]) {"my_val"});
     cmt_histogram_observe(h1, ts, 8.0, 1, (char *[]) {"my_val"});
     cmt_histogram_observe(h1, ts, 1000, 1, (char *[]) {"my_val"});;
+
+    s1 = cmt_summary_create(cmt,
+                            "k8s", "disk", "load", "Disk load",
+                            1, (char *[]) {"my_label"});
+
+    ts = 0;
+    cmt_summary_set_default(s1, ts, NULL, 10, 51.612894511314444, 0, NULL);
+
+    /* set quantiles, no labels */
+    quantiles[0] = 0.1;
+    quantiles[1] = 0.2;
+    quantiles[2] = 0.3;
+    quantiles[3] = 0.4;
+    quantiles[4] = 0.5;
+
+    cmt_summary_set_default(s1, ts, quantiles, 10, 51.612894511314444, 0, NULL);
 
     return cmt;
 }
