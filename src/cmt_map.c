@@ -203,10 +203,12 @@ struct cmt_metric *cmt_map_metric_get(struct cmt_opts *opts, struct cmt_map *map
     for (i = 0; i < labels_count; i++) {
         ptr = labels_val[i];
         if (!ptr) {
-            return NULL;
+            XXH3_64bits_update(&state, "_NULL_", 6);
         }
-        len = strlen(ptr);
-        XXH3_64bits_update(&state, ptr, len);
+        else {
+            len = strlen(ptr);
+            XXH3_64bits_update(&state, ptr, len);
+        }
     }
 
     hash = XXH3_64bits_digest(&state);
