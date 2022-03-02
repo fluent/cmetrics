@@ -286,19 +286,9 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
     struct cmt_histogram *histogram;
     ptrdiff_t label_index;
 
-    /* FYI: ONLY SUPPORTS COUNTER, GAUGE & HISTOGRAM FOR NOW */
-
     c_labels = mk_list_size(&metric->labels);
 
-    if (map->type == CMT_HISTOGRAM) {
-        s = 5;
-    }
-    else if (map->type == CMT_SUMMARY) {
-        s = 3;
-    }
-    else {
-        s = 3;
-    }
+    s = 3;
 
     if (c_labels > 0) {
         s++;
@@ -311,6 +301,9 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
 
     if (map->type == CMT_HISTOGRAM) {
         histogram = (struct cmt_histogram *) map->parent;
+
+        mpack_write_cstr(writer, "histogram");
+        mpack_start_map(writer, 3);
 
         mpack_write_cstr(writer, "buckets");
         mpack_start_array(writer, histogram->buckets->count);
@@ -328,9 +321,10 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
 
         mpack_write_cstr(writer, "count");
         mpack_write_uint(writer, cmt_metric_hist_get_count_value(metric));
+
+        mpack_finish_map(writer); /* 'histogram' */
     }
     else if (map->type == CMT_SUMMARY) {
-        /* 'summary' */
         mpack_write_cstr(writer, "summary");
         mpack_start_map(writer, 4);
 
@@ -364,6 +358,7 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
     if (s > 0) {
         mpack_write_cstr(writer, "labels");
         mpack_start_array(writer, c_labels);
+
         mk_list_foreach(head, &metric->labels) {
             label = mk_list_entry(head, struct cmt_map_label, _head);
 
@@ -371,12 +366,14 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
 
             mpack_write_uint(writer, (uint16_t) label_index);
         }
+
         mpack_finish_array(writer);
     }
-    mpack_finish_map(writer);
 
     mpack_write_cstr(writer, "hash");
     mpack_write_uint(writer, metric->hash);
+
+    mpack_finish_map(writer);
 
     return 0;
 }
@@ -474,18 +471,17 @@ int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size)
      *                       'ts'   : nanosec timestamp,
      *                       'value': float64 value,
      *                       'label_values': [n, ...],
-     *                       'buckets': [n, ...],
-     *                       'sum': float64 value,
-     *                       'count': uint64 value,
-     *                       'summary': [
-     *                                      {
-     *                                          'sum': float64,
-     *                                          'count': uint64,
-     *                                          'quantiles': [n, ...],
-     *                                          'quantiles_set': uint64
-     *                                      },
-     *                                      ...
-     *                                  ],
+     *                       'histogram': {
+     *                                         'sum': float64,
+     *                                         'count': uint64,
+     *                                         'buckets': [n, ...]
+     *                                     },
+     *                       'summary': {
+     *                                      'sum': float64,
+     *                                      'count': uint64,
+     *                                      'quantiles': [n, ...],
+     *                                      'quantiles_set': uint64
+     *                                  },
      *                       'hash': uint64 value
      *                      }
      *                    ]
