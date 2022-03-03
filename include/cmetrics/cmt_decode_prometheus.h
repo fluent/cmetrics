@@ -47,7 +47,6 @@ enum cmt_decode_prometheus_context_sample_type {
 struct cmt_decode_prometheus_context_sample {
     char value1[64];
     char value2[64];
-    size_t label_count;
     int type;
     cmt_sds_t label_values[CMT_DECODE_PROMETHEUS_MAX_LABEL_COUNT];
 
