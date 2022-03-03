@@ -247,7 +247,12 @@ static void format_metric(struct cmt *cmt,
 
     /* Static labels */
     static_labels = cmt_labels_count(cmt->static_labels);
-    defined_labels = mk_list_size(&metric->labels);
+    mk_list_foreach(head, &metric->labels) {
+        label_v = mk_list_entry(head, struct cmt_map_label, _head);
+        if (strlen(label_v->name)) {
+            defined_labels++;
+        }
+    }
 
     if (!fmt->brace_open && (static_labels + defined_labels > 0)) {
         cmt_sds_cat_safe(buf, "{", 1);
@@ -272,12 +277,15 @@ static void format_metric(struct cmt *cmt,
         mk_list_foreach(head, &metric->labels) {
             label_v = mk_list_entry(head, struct cmt_map_label, _head);
 
-            fmt->labels_count += add_label(buf, label_k->name, label_v->name);
+            if (strlen(label_v->name)) {
+                fmt->labels_count += add_label(buf, label_k->name, label_v->name);
+                if (i < defined_labels) {
+                    cmt_sds_cat_safe(buf, ",", 1);
+                }
 
-            if (i < defined_labels) {
-                cmt_sds_cat_safe(buf, ",", 1);
+                i++;
             }
-            i++;
+
             label_k = mk_list_entry_next(&label_k->_head, struct cmt_map_label,
                                          _head, &map->label_keys);
         }
