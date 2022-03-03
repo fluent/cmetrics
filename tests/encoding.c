@@ -575,29 +575,7 @@ void test_opentelemetry()
 
     cmt_initialize();
 
-    cmt = cmt_create();
-    TEST_CHECK(cmt != NULL);
-
-    c = cmt_counter_create(cmt, "cmt", "labels", "test", "Static labels test",
-                           2, (char *[]) {"host", "app"});
-
-    ts = 0;
-    cmt_counter_inc(c, ts, 0, NULL);
-    cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
-    cmt_counter_inc(c, ts, 2, (char *[]) {"calyptia.com", "cmetrics2"});
-
-    g = cmt_gauge_create(cmt, "cmt", "labels", "test 2", "Static labels test",
-                           2, (char *[]) {"host", "app2"});
-
-    ts = 0;
-    cmt_gauge_set(g, ts, 11.0f, 0, NULL);
-    cmt_gauge_inc(g, ts, 0, NULL);
-    cmt_gauge_inc(g, ts, 2, (char *[]) {"calyptia.com.ar", "cmetrics"});
-    cmt_gauge_inc(g, ts, 2, (char *[]) {"calyptia.com.ar", "cmetrics2"});
-
-    /* append static labels */
-    cmt_label_add(cmt, "dev", "Calyptia");
-    cmt_label_add(cmt, "lang", "C");
+    cmt = generate_encoder_test_data();
 
     payload = cmt_encode_opentelemetry_create(cmt);
     TEST_CHECK(NULL != payload);
@@ -608,15 +586,13 @@ void test_opentelemetry()
         return;
     }
 
-    printf("\n\nDumping remote write payload to payload.bin, in order to test it \
-we need to compress it using snappys scmd :\n\
-scmd -c payload.bin payload.snp\n\n\
-and then send it using curl :\n\
-curl -v 'http://localhost:9090/receive' -H 'Content-Type: application/x-protobuf' \
--H 'X-Prometheus-Remote-Write-Version: 0.1.0' -H 'User-Agent: metrics-worker' \
---data-binary '@payload.snp'\n\n");
+    printf("\n\nDumping remote write payload to opentelemetry_payload.bin, in order to test it \
+we need to send it to our opentelemetry http endpoint using curl :\n\
+curl -v 'http://localhost:9090/v1/metrics' -H 'Content-Type: application/x-protobuf' \
+-H 'User-Agent: metrics-worker' \
+--data-binary '@opentelemetry_payload.bin'\n\n");
 
-    sample_file = fopen("payload.bin", "wb+");
+    sample_file = fopen("opentelemetry_payload.bin", "wb+");
 
     fwrite(payload, 1, cmt_sds_len(payload), sample_file);
 
