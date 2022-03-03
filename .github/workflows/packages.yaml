@@ -38,7 +38,7 @@ jobs:
       - name: Store the master package artifacts
         uses: actions/upload-artifact@v2
         with:
-          name: ${{ matrix.format }}
+          name: ${{ matrix.format }}-arm64
           path: |
             ./*.${{matrix.format}}
 
@@ -60,7 +60,7 @@ jobs:
       - name: Store the master package artifacts
         uses: actions/upload-artifact@v2
         with:
-          name: ${{ matrix.format }}
+          name: ${{ matrix.format }}-amd64
           path: |
             ./*.${{matrix.format}}
 
