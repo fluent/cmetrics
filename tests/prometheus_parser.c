@@ -488,48 +488,6 @@ void test_label_limits()
     TEST_CHECK(strcmp(errbuf, "maximum number of labels exceeded") == 0);
 }
 
-void test_invalid_types()
-{
-    int status;
-    char errbuf[256];
-    struct cmt *cmt;
-    struct cmt_decode_prometheus_parse_opts opts;
-    memset(&opts, 0, sizeof(opts));
-    opts.errbuf = errbuf;
-    opts.errbuf_size = sizeof(errbuf);
-
-    status = cmt_decode_prometheus_create(&cmt,
-            "# HELP metric_name some docstring\n"
-            "# TYPE metric_name summary\n"
-            "metric_name {key=\"abc\"} 32.4", 0, &opts);
-    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE);
-    TEST_CHECK(strcmp(errbuf, "unsupported metric type: summary") == 0);
-}
-
-void test_skip_unsupported_types()
-{
-    int status;
-    struct cmt *cmt;
-    cmt_sds_t result;
-    struct cmt_decode_prometheus_parse_opts opts;
-    memset(&opts, 0, sizeof(opts));
-    opts.skip_unsupported_type = true;
-
-    status = cmt_decode_prometheus_create(&cmt,
-            "# HELP metric_name some docstring\n"
-            "# TYPE metric_name summary\n"
-            "metric_name {key=\"abc\"} 32.4"
-            "another_metric {key=\"abc\"} 32.4", 0, &opts);
-    TEST_CHECK(status == 0);
-    result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
-    TEST_CHECK(strcmp(result,
-            "# HELP another_metric (no information)\n"
-            "# TYPE another_metric untyped\n"
-            "another_metric{key=\"abc\"} 32.399999999999999 0\n") == 0);
-    cmt_sds_destroy(result);
-    cmt_decode_prometheus_destroy(cmt);
-}
-
 void test_invalid_value()
 {
     int status;
@@ -790,6 +748,39 @@ void test_histogram_broken_labels()
     TEST_CHECK(strcmp(errbuf, "inconsistent labels on histogram count") == 0);
 }
 
+void test_summary()
+{
+    int status;
+    struct cmt *cmt;
+    struct cmt_decode_prometheus_parse_opts opts;
+    cmt_sds_t result;
+    memset(&opts, 0, sizeof(opts));
+
+    status = cmt_decode_prometheus_create(&cmt,
+        "# HELP rpc_duration_seconds A summary of the RPC duration in seconds.\n"
+        "# TYPE rpc_duration_seconds summary\n"
+        "rpc_duration_seconds{quantile=\"0.01\"} 3102\n"
+        "rpc_duration_seconds{quantile=\"0.05\"} 3272\n"
+        "rpc_duration_seconds{quantile=\"0.5\"} 4773\n"
+        "rpc_duration_seconds{quantile=\"0.9\"} 9001\n"
+        "rpc_duration_seconds{quantile=\"0.99\"} 76656\n"
+        "rpc_duration_seconds_sum 1.7560473e+07\n"
+        "rpc_duration_seconds_count 2693\n", 0, &opts);
+    TEST_CHECK(status == 0);
+    result = cmt_encode_prometheus_create(cmt, CMT_FALSE);
+    TEST_CHECK(strcmp(result,
+        "# HELP rpc_duration_seconds A summary of the RPC duration in seconds.\n"
+        "# TYPE rpc_duration_seconds summary\n"
+        "rpc_duration_seconds{quantile=\"0\"} 3102\n"
+        "rpc_duration_seconds{quantile=\"0.25\"} 3272\n"
+        "rpc_duration_seconds{quantile=\"0.5\"} 4773\n"
+        "rpc_duration_seconds{quantile=\"0.75\"} 9001\n"
+        "rpc_duration_seconds{quantile=\"1\"} 76656\n"
+        "rpc_duration_seconds_sum 17560473\n"
+        "rpc_duration_seconds_count 2693\n") == 0);
+    cmt_sds_destroy(result);
+    cmt_decode_prometheus_destroy(cmt);
+}
 
 TEST_LIST = {
     {"header_help", test_header_help},
@@ -805,8 +796,6 @@ TEST_LIST = {
     {"prometheus_spec_example", test_prometheus_spec_example},
     {"bison_parsing_error", test_bison_parsing_error},
     {"label_limits", test_label_limits},
-    {"invalid_types", test_invalid_types},
-    {"skip_unsupported_types", test_skip_unsupported_types},
     {"invalid_value", test_invalid_value},
     {"invalid_timestamp", test_invalid_timestamp},
     {"default_timestamp", test_default_timestamp},
@@ -816,5 +805,6 @@ TEST_LIST = {
     {"histogram", test_histogram},
     {"histogram_labels", test_histogram_labels},
     {"histogram_broken_labels", test_histogram_broken_labels},
+    {"summary", test_summary},
     { 0 }
 };

@@ -18,6 +18,7 @@
  */
 
 #include "cmetrics/cmt_histogram.h"
+#include "cmetrics/cmt_summary.h"
 #include <ctype.h>
 #include <errno.h>
 #include <math.h>
@@ -566,6 +567,122 @@ end:
     return ret;
 }
 
+static int add_metric_summary(struct cmt_decode_prometheus_context *context)
+{
+    int ret = 0;
+    int i;
+    size_t quantile_count;
+    size_t quantile_index;
+    double *quantile_defaults = NULL;
+    double sum;
+    uint64_t count;
+    struct mk_list *head;
+    struct mk_list *tmp;
+    struct cmt_decode_prometheus_context_sample *sample;
+    size_t quantile_label_index = 0;
+    struct cmt_summary *s;
+
+    // quantile_count = sample count - 2:
+    // - sum
+    // - count
+    quantile_count = mk_list_size(&context->metric.samples) - 2;
+
+    quantile_defaults = calloc(quantile_count, sizeof(*quantile_defaults));
+    if (!quantile_defaults) {
+        ret = report_error(context,
+                CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                "failed to allocate bucket defaults");
+        goto end;
+    }
+
+
+    for (i = 0; i < context->metric.label_count; i++) {
+        if (!strcmp(context->metric.labels[i], "quantile")) {
+            quantile_label_index = i;
+            break;
+        }
+    }
+
+    quantile_index = 0;
+    mk_list_foreach_safe(head, tmp, &context->metric.samples) {
+        sample = mk_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
+        switch (sample->type) {
+            case CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_NORMAL:
+                if (context->metric.label_count != sample->label_count) {
+                    ret = report_error(context,
+                            CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                            "inconsistent labels on summary quantile");
+                    goto end;
+                }
+                if (parse_double(sample->value1,
+                            quantile_defaults + quantile_index)) {
+                    ret = report_error(context,
+                            CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                            "failed to parse quantile value");
+                    goto end;
+                }
+                quantile_index++;
+                break;
+            case CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_SUM:
+                if (context->metric.label_count - 1 != sample->label_count) {
+                    ret = report_error(context,
+                            CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                            "inconsistent labels on summary sum");
+                    goto end;
+                }
+                if (parse_double(sample->value1, &sum)) {
+                    ret = report_error(context,
+                            CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                            "failed to parse summary sum");
+                    goto end;
+                }
+                break;
+            case CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_COUNT:
+                if (context->metric.label_count - 1 != sample->label_count) {
+                    ret = report_error(context,
+                            CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                            "inconsistent labels on summary count");
+                    goto end;
+                }
+                if (parse_uint64(sample->value1, &count)) {
+                    ret = report_error(context,
+                            CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                            "failed to parse summary count");
+                    goto end;
+                }
+                break;
+        }
+    }
+
+    s = cmt_summary_create(context->cmt,
+            context->metric.ns,
+            context->metric.subsystem,
+            context->metric.name,
+            get_docstring(context),
+            0, NULL);
+
+    if (!s) {
+        ret = report_error(context,
+                CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                "cmt_summary_create failed");
+        goto end;
+    }
+
+    if (cmt_summary_set_default(s, 0, quantile_defaults, sum, count, 0, NULL)) {
+        ret = report_error(context,
+                CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                "cmt_summary_set_default failed");
+    }
+
+
+end:
+    if (quantile_defaults) {
+        free(quantile_defaults);
+    }
+
+    return ret;
+}
+
 static int finish_metric(struct cmt_decode_prometheus_context *context)
 {
     int i;
@@ -583,14 +700,7 @@ static int finish_metric(struct cmt_decode_prometheus_context *context)
             rv = add_metric_histogram(context);
             break;
         case SUMMARY:
-            if (context->opts.skip_unsupported_type) {
-                rv = 0;
-            } else {
-                rv = report_error(context,
-                        CMT_DECODE_PROMETHEUS_PARSE_UNSUPPORTED_TYPE,
-                        "unsupported metric type: %s",
-                        context->metric.type == HISTOGRAM ? "histogram" : "summary");
-            }
+            rv = add_metric_summary(context);
             break;
         default:
             rv = add_metric_untyped(context);
@@ -652,7 +762,8 @@ static int parse_metric_name(
 
     if (context->metric.name_orig) {
         if (strcmp(context->metric.name_orig, metric_name)) {
-            if (context->metric.type == HISTOGRAM) {
+            if (context->metric.type == HISTOGRAM ||
+                    context->metric.type == SUMMARY) {
                 ret = parse_histogram_summary_name(context, metric_name);
                 if (!ret) {
                     // bucket/sum/count parsed
