@@ -52,9 +52,17 @@ void test_set_defaults()
     cmt = cmt_create();
     TEST_CHECK(cmt != NULL);
 
+    /* set quantiles, no labels */
+    q[0] = 0.1;
+    q[1] = 0.2;
+    q[2] = 0.3;
+    q[3] = 0.4;
+    q[4] = 0.5;
+
     /* Create a gauge metric type */
     s = cmt_summary_create(cmt,
                            "k8s", "network", "load", "Network load",
+                           5, q,
                            1, (char *[]) {"my_label"});
     TEST_CHECK(s != NULL);
 
@@ -64,13 +72,6 @@ void test_set_defaults()
     /* no quantiles, no labels */
     cmt_summary_set_default(s, ts, NULL, sum, count, 0, NULL);
     prometheus_encode_test(cmt);
-
-    /* set quantiles, no labels */
-    q[0] = 0.1;
-    q[1] = 0.2;
-    q[2] = 0.3;
-    q[3] = 0.4;
-    q[4] = 0.5;
 
     cmt_summary_set_default(s, ts, q, sum, count, 0, NULL);
     prometheus_encode_test(cmt);
