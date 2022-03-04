@@ -154,6 +154,10 @@ static void map_metric_destroy(struct cmt_metric *metric)
     if (metric->hist_buckets) {
         free(metric->hist_buckets);
     }
+    if (metric->sum_quantiles) {
+        free(metric->sum_quantiles);
+    }
+
     mk_list_del(&metric->_head);
     free(metric);
 }
