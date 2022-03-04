@@ -149,6 +149,7 @@ static struct cmt *generate_encoder_test_data()
 
     s1 = cmt_summary_create(cmt,
                             "k8s", "disk", "load", "Disk load",
+                            /* FIXME */ 0, 0,
                             1, (char *[]) {"my_label"});
 
     ts = 0;
