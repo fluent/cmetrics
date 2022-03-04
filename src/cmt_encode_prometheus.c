@@ -399,26 +399,12 @@ static void format_summary_quantiles(struct cmt *cmt,
             /* metric name */
             cmt_sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
 
-            /* upper bound */
+            /* quantiles */
             cmt_sds_cat_safe(buf, "{quantile=\"", 11);
-
-            switch (i) {
-                case 0:
-                    cmt_sds_cat_safe(buf, "0\"", 2);
-                    break;
-                case 1:
-                    cmt_sds_cat_safe(buf, "0.25\"", 5);
-                    break;
-                case 2:
-                    cmt_sds_cat_safe(buf, "0.5\"", 4);
-                    break;
-                case 3:
-                    cmt_sds_cat_safe(buf, "0.75\"", 5);
-                    break;
-                case 4:
-                    cmt_sds_cat_safe(buf, "1\"", 2);
-                    break;
-            };
+            val = bucket_value_to_string(summary->quantiles[i]);
+            cmt_sds_cat_safe(buf, val, cmt_sds_len(val));
+            cmt_sds_destroy(val);
+            cmt_sds_cat_safe(buf, "\"", 1);
 
             /* configure formatter */
             fmt.metric_name  = CMT_TRUE;

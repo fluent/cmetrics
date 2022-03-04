@@ -568,6 +568,7 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
     int i;
     size_t quantile_count;
     size_t quantile_index;
+    double *quantiles = NULL;
     double *quantile_defaults = NULL;
     double sum;
     uint64_t count;
@@ -576,6 +577,9 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
     struct cmt_decode_prometheus_context_sample *sample;
     size_t quantile_label_index = 0;
     struct cmt_summary *s;
+    cmt_sds_t *labels_without_quantile = NULL;
+    cmt_sds_t *values_without_quantile = NULL;
+    int label_i;
 
     // quantile_count = sample count - 2:
     // - sum
@@ -586,15 +590,43 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
     if (!quantile_defaults) {
         ret = report_error(context,
                 CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
-                "failed to allocate bucket defaults");
+                "failed to allocate quantile defaults");
+        goto end;
+    }
+    quantiles = calloc(quantile_count, sizeof(*quantiles));
+    if (!quantiles) {
+        ret = report_error(context,
+                CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                "failed to allocate quantiles");
         goto end;
     }
 
+    labels_without_quantile = calloc(context->metric.label_count - 1, sizeof(*labels_without_quantile));
+    if (!labels_without_quantile) {
+        ret = report_error(context,
+                CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                "failed to allocate labels_without_quantile");
+        goto end;
+    }
+    values_without_quantile = calloc(context->metric.label_count - 1, sizeof(*labels_without_quantile));
+    if (!values_without_quantile) {
+        ret = report_error(context,
+                CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                "failed to allocate values_without_quantile");
+        goto end;
+    }
 
+    label_i = 0;
+    sample = mk_list_entry_first(&context->metric.samples,
+            struct cmt_decode_prometheus_context_sample, _head);
     for (i = 0; i < context->metric.label_count; i++) {
         if (!strcmp(context->metric.labels[i], "quantile")) {
             quantile_label_index = i;
             break;
+        } else {
+            labels_without_quantile[label_i] = context->metric.labels[i];
+            values_without_quantile[label_i] = sample->label_values[i];
+            label_i++;
         }
     }
 
@@ -603,6 +635,13 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
         sample = mk_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
         switch (sample->type) {
             case CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_NORMAL:
+                if (parse_double(sample->label_values[quantile_label_index],
+                            quantiles + quantile_index)) {
+                    ret = report_error(context,
+                            CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                            "failed to parse bucket");
+                    goto end;
+                }
                 if (parse_double(sample->value1,
                             quantile_defaults + quantile_index)) {
                     ret = report_error(context,
@@ -637,8 +676,9 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
             context->metric.name,
             get_docstring(context),
             quantile_count,
-            /* FIXME */ (double *) NULL,
-            0, NULL);
+            quantiles,
+            label_i,
+            label_i ? labels_without_quantile : NULL);
 
     if (!s) {
         ret = report_error(context,
@@ -647,7 +687,9 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
         goto end;
     }
 
-    if (cmt_summary_set_default(s, 0, quantile_defaults, sum, count, 0, NULL)) {
+    if (cmt_summary_set_default(s, 0, quantile_defaults, sum, count,
+                label_i,
+                label_i ? values_without_quantile : NULL)) {
         ret = report_error(context,
                 CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
                 "cmt_summary_set_default failed");
@@ -657,6 +699,15 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
 end:
     if (quantile_defaults) {
         free(quantile_defaults);
+    }
+    if (quantiles) {
+        free(quantiles);
+    }
+    if (labels_without_quantile) {
+        free(labels_without_quantile);
+    }
+    if (values_without_quantile) {
+        free(values_without_quantile);
     }
 
     return ret;

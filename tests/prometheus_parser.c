@@ -717,11 +717,11 @@ void test_summary()
     TEST_CHECK(strcmp(result,
         "# HELP rpc_duration_seconds A summary of the RPC duration in seconds.\n"
         "# TYPE rpc_duration_seconds summary\n"
-        "rpc_duration_seconds{quantile=\"0\"} 3102\n"
-        "rpc_duration_seconds{quantile=\"0.25\"} 3272\n"
+        "rpc_duration_seconds{quantile=\"0.01\"} 3102\n"
+        "rpc_duration_seconds{quantile=\"0.05\"} 3272\n"
         "rpc_duration_seconds{quantile=\"0.5\"} 4773\n"
-        "rpc_duration_seconds{quantile=\"0.75\"} 9001\n"
-        "rpc_duration_seconds{quantile=\"1\"} 76656\n"
+        "rpc_duration_seconds{quantile=\"0.9\"} 9001\n"
+        "rpc_duration_seconds{quantile=\"0.99\"} 76656\n"
         "rpc_duration_seconds_sum 17560473\n"
         "rpc_duration_seconds_count 2693\n") == 0);
     cmt_sds_destroy(result);
