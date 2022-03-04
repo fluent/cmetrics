@@ -187,7 +187,7 @@ static int split_metric_name(struct cmt_decode_prometheus_context *context,
 // Use this helper function to return a stub value for docstring when it is not
 // available. This is necessary for now because the metric constructors require
 // a docstring, even though it is not required by prometheus spec.
-static const char *get_docstring(struct cmt_decode_prometheus_context *context)
+static char *get_docstring(struct cmt_decode_prometheus_context *context)
 {
     return context->metric.docstring ? context->metric.docstring : "(no information)";
 }
@@ -636,6 +636,8 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
             context->metric.subsystem,
             context->metric.name,
             get_docstring(context),
+            quantile_count,
+            /* FIXME */ (double *) NULL,
             0, NULL);
 
     if (!s) {
