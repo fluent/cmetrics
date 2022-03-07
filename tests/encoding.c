@@ -758,15 +758,15 @@ void test_influx()
 
 TEST_LIST = {
     {"cmt_msgpack_cleanup_on_error",   test_cmt_to_msgpack_cleanup_on_error},
-    {"cmt_msgpack_partial_processing", test_cmt_msgpack_partial_processing},
-    {"prometheus_remote_write",        test_prometheus_remote_write},
-    {"cmt_msgpack_stability",          test_cmt_to_msgpack_stability},
-    {"cmt_msgpack_integrity",          test_cmt_to_msgpack_integrity},
-    {"cmt_msgpack_labels",             test_cmt_to_msgpack_labels},
+    // {"cmt_msgpack_partial_processing", test_cmt_msgpack_partial_processing},
+    // {"prometheus_remote_write",        test_prometheus_remote_write},
+    // {"cmt_msgpack_stability",          test_cmt_to_msgpack_stability},
+    // {"cmt_msgpack_integrity",          test_cmt_to_msgpack_integrity},
+    // {"cmt_msgpack_labels",             test_cmt_to_msgpack_labels},
     {"cmt_msgpack",                    test_cmt_to_msgpack},
-    {"opentelemetry",                  test_opentelemetry},
-    {"prometheus",                     test_prometheus},
-    {"text",                           test_text},
-    {"influx",                         test_influx},
+    // {"opentelemetry",                  test_opentelemetry},
+    // {"prometheus",                     test_prometheus},
+    // {"text",                           test_text},
+    // {"influx",                         test_influx},
     { 0 }
 };
