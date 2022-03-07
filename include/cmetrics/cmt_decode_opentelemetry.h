@@ -29,8 +29,8 @@ struct cmt_opentelemetry_decode_context {
     struct cmt        *cmt;
     struct cmt_map    *map;
     struct cmt_metric *metric;
-    struct mk_list     unique_label_list;
-    int                static_labels_unpacked;
+    char             **namespace_identifiers;
+    char             **subsystem_identifiers;
 };
 
 int cmt_decode_opentelemetry_create(struct cmt **out_cmt, char *in_buf, size_t in_size,
