@@ -1673,7 +1673,6 @@ int append_sample_to_metric(struct cmt_opentelemetry_context *context,
                             struct cmt_metric *sample,
                             size_t sample_index)
 {
-    double                                              dummy_sum_quantile_list[5];
     size_t                                              attribute_index;
     size_t                                              attribute_count;
     Opentelemetry__Proto__Common__V1__KeyValue        **attribute_list;
@@ -1708,19 +1707,13 @@ int append_sample_to_metric(struct cmt_opentelemetry_context *context,
     else if (map->type == CMT_SUMMARY) {
         summary = (struct cmt_summary *) map->parent;
 
-        dummy_sum_quantile_list[0] = 0.1;
-        dummy_sum_quantile_list[1] = 0.2;
-        dummy_sum_quantile_list[2] = 0.3;
-        dummy_sum_quantile_list[3] = 0.4;
-        dummy_sum_quantile_list[4] = 0.5;
-
         data_point = initialize_summary_data_point(0,
                                                    cmt_metric_get_timestamp(sample),
                                                    cmt_summary_get_count_value(sample),
                                                    cmt_summary_get_sum_value(sample),
-                                                   5,
-                                                   dummy_sum_quantile_list,
-                                                   5,
+                                                   summary->quantiles_count,
+                                                   summary->quantiles,
+                                                   summary->quantiles_count,
                                                    sample->sum_quantiles,
                                                    attribute_list,
                                                    attribute_count);
