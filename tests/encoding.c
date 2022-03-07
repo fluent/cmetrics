@@ -147,6 +147,7 @@ static struct cmt *generate_encoder_test_data()
     cmt_histogram_observe(h1, ts, 8.0, 1, (char *[]) {"my_val"});
     cmt_histogram_observe(h1, ts, 1000, 1, (char *[]) {"my_val"});;
 
+    /* set quantiles, no labels */
     quantiles[0] = 0.1;
     quantiles[1] = 0.2;
     quantiles[2] = 0.3;
@@ -203,7 +204,9 @@ void test_cmt_to_msgpack()
 
     /* Compare msgpacks */
     TEST_CHECK(mp1_size == mp2_size);
-    TEST_CHECK(memcmp(mp1_buf, mp2_buf, mp1_size) == 0);
+    if (mp1_size == mp2_size) {
+        TEST_CHECK(memcmp(mp1_buf, mp2_buf, mp1_size) == 0);
+    }
 
     cmt_destroy(cmt1);
     cmt_decode_msgpack_destroy(cmt2);
@@ -403,6 +406,9 @@ void test_cmt_msgpack_partial_processing()
                                         serialized_data_buffer_length, &offset);
 
         if (CMT_DECODE_MSGPACK_INSUFFICIENT_DATA == ret) {
+            break;
+        }
+        else if (CMT_DECODE_MSGPACK_SUCCESS != ret) {
             break;
         }
 

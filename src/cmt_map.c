@@ -275,14 +275,22 @@ void cmt_map_destroy(struct cmt_map *map)
         map_metric_destroy(metric);
     }
 
-    /* histogram allocation for static metric */
-    if (map->metric_static_set && map->type == CMT_HISTOGRAM) {
+    /* histogram and quantile allocation for static metric */
+    if (map->metric_static_set) {
         metric = &map->metric;
-        if (metric->hist_buckets) {
-            free(metric->hist_buckets);
-        }
 
+        if (map->type == CMT_HISTOGRAM) {
+            if (metric->hist_buckets) {
+                free(metric->hist_buckets);
+            }
+        }
+        else if (map->type == CMT_SUMMARY) {
+            if (metric->sum_quantiles) {
+                free(metric->sum_quantiles);
+            }
+        }
     }
+
     free(map);
 }
 
