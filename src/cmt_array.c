@@ -42,6 +42,7 @@ struct cmt_array *cmt_array_create(size_t slot_count)
         return NULL;
     }
 
+    array->entry_count = 0;
     array->slot_count = slot_count;
 
     return array;

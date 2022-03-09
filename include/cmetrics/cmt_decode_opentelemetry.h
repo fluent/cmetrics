@@ -25,6 +25,12 @@
 #include <opentelemetry/metrics.pb-c.h>
 #include <opentelemetry/metrics_service.pb-c.h>
 
+#define CMT_DECODE_OPENTELEMETRY_SUCCESS                0
+#define CMT_DECODE_OPENTELEMETRY_ALLOCATION_ERROR       1
+#define CMT_DECODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR 2
+#define CMT_DECODE_OPENTELEMETRY_KVLIST_ACCESS_ERROR    3
+#define CMT_DECODE_OPENTELEMETRY_ARRAY_ACCESS_ERROR     4
+
 struct cmt_opentelemetry_decode_context {
     struct cmt        *cmt;
     struct cmt_map    *map;
