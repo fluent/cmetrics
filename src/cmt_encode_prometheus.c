@@ -395,7 +395,7 @@ static void format_summary_quantiles(struct cmt *cmt,
     opts = map->opts;
 
     if (metric->sum_quantiles_set) {
-        for (i = 0; i < 5; i++) {
+        for (i = 0; i < summary->quantiles_count; i++) {
             /* metric name */
             cmt_sds_cat_safe(buf, opts->fqname, cmt_sds_len(opts->fqname));
 
