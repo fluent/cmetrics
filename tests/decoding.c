@@ -28,35 +28,6 @@
 
 #include "cmt_tests.h"
 
-static struct cmt *generate_simple_encoder_test_data()
-{
-    double val;
-    uint64_t ts;
-    struct cmt *cmt;
-    struct cmt_counter *c;
-
-    cmt = cmt_create();
-
-    c = cmt_counter_create(cmt, "kubernetes", "network", "load", "Network load",
-                           2, (char *[]) {"hostname", "app"});
-
-    ts = 0;
-
-    cmt_counter_get_val(c, 0, NULL, &val);
-    cmt_counter_inc(c, ts, 0, NULL);
-    cmt_counter_add(c, ts, 2, 0, NULL);
-    cmt_counter_get_val(c, 0, NULL, &val);
-
-    cmt_counter_inc(c, ts, 2, (char *[]) {"localhost", "cmetrics"});
-    cmt_counter_get_val(c, 2, (char *[]) {"localhost", "cmetrics"}, &val);
-    cmt_counter_add(c, ts, 10.55, 2, (char *[]) {"localhost", "test"});
-    cmt_counter_get_val(c, 2, (char *[]) {"localhost", "test"}, &val);
-    cmt_counter_set(c, ts, 12.15, 2, (char *[]) {"localhost", "test"});
-    cmt_counter_set(c, ts, 1, 2, (char *[]) {"localhost", "test"});
-
-    return cmt;
-}
-
 static struct cmt *generate_encoder_test_data()
 {
     double                        quantiles[5];
@@ -66,8 +37,6 @@ static struct cmt *generate_encoder_test_data()
     uint64_t                      ts;
     struct cmt_gauge             *g1;
     struct cmt_counter           *c1;
-    struct cmt_counter           *c2;
-    struct cmt_counter           *c3;
     struct cmt_summary           *s1;
     struct cmt_histogram         *h1;
 

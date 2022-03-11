@@ -73,8 +73,6 @@ static struct cmt *generate_encoder_test_data()
     uint64_t                      ts;
     struct cmt_gauge             *g1;
     struct cmt_counter           *c1;
-    struct cmt_counter           *c2;
-    struct cmt_counter           *c3;
     struct cmt_summary           *s1;
     struct cmt_histogram         *h1;
 
@@ -224,8 +222,6 @@ void test_cmt_to_msgpack_cleanup_on_error()
     size_t offset = 0;
     char *mp1_buf = NULL;
     size_t mp1_size = 0;
-    char *mp2_buf = NULL;
-    size_t mp2_size = 0;
     struct cmt *cmt1 = NULL;
     struct cmt *cmt2 = NULL;
     char *key_buffer = NULL;
@@ -548,11 +544,8 @@ curl -v 'http://localhost:9090/receive' -H 'Content-Type: application/x-protobuf
 
 void test_opentelemetry()
 {
-    uint64_t ts;
     cmt_sds_t payload;
     struct cmt *cmt;
-    struct cmt_counter *c;
-    struct cmt_gauge *g;
     FILE *sample_file;
 
     cmt_initialize();
