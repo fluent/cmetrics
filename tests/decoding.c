@@ -188,7 +188,6 @@ void test_opentelemetry()
                 TEST_CHECK(prometheus_context != NULL);
 
                 if (prometheus_context != NULL) {
-                    printf("THIS IS A T$EST\n");
                     TEST_CHECK(strcmp(prometheus_context,
                                       reference_prometheus_context) == 0);
 
