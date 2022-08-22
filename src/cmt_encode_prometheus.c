@@ -474,7 +474,7 @@ static void format_metrics(struct cmt *cmt, cmt_sds_t *buf, struct cmt_map *map,
             /* Histogram needs to format the buckets, one line per bucket */
             format_histogram_bucket(cmt, buf, map, metric, add_timestamp);
         }
-        else if (map->type == CMT_HISTOGRAM) {
+        else if (map->type == CMT_SUMMARY) {
             format_summary_quantiles(cmt, buf, map, metric, add_timestamp);
         }
         else {
