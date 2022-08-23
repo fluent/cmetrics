@@ -26,11 +26,3 @@ jobs:
           ./actionlint -color -shellcheck=
         shell: bash
 
-  docslint:
-    runs-on: ubuntu-latest
-    name: Markdownlint
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actionshub/markdownlint@2.0.2
