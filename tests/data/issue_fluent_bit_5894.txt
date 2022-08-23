@@ -1,0 +1,13 @@
+# HELP process_start_time_seconds Start time of the process since unix epoch.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.660594096832E9
+# HELP spring_kafka_listener_seconds_max Kafka Listener Timer
+# TYPE spring_kafka_listener_seconds_max gauge
+spring_kafka_listener_seconds_max{exception="ListenerExecutionFailedException",name="org.springframework.kafka.KafkaListenerEndpointContainer#0-0",result="failure",} 0.0
+spring_kafka_listener_seconds_max{exception="none",name="org.springframework.kafka.KafkaListenerEndpointContainer#0-0",result="success",} 0.0
+# HELP spring_kafka_listener_seconds Kafka Listener Timer
+# TYPE spring_kafka_listener_seconds summary
+spring_kafka_listener_seconds_count{exception="ListenerExecutionFailedException",name="org.springframework.kafka.KafkaListenerEndpointContainer#0-0",result="failure",} 0.0
+spring_kafka_listener_seconds_sum{exception="ListenerExecutionFailedException",name="org.springframework.kafka.KafkaListenerEndpointContainer#0-0",result="failure",} 0.0
+spring_kafka_listener_seconds_count{exception="none",name="org.springframework.kafka.KafkaListenerEndpointContainer#0-0",result="success",} 0.0
+spring_kafka_listener_seconds_sum{exception="none",name="org.springframework.kafka.KafkaListenerEndpointContainer#0-0",result="success",} 0.0
