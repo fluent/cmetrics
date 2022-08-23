@@ -35,7 +35,6 @@
 
 int cmt_test_encode_all(struct cmt *cmt)
 {
-    int ret;
     char *out_buf;
     size_t out_size;
     cmt_sds_t sds_buf;
