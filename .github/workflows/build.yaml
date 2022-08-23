@@ -1,5 +1,6 @@
 name: Build PR(s) and master branch.
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
@@ -103,14 +104,15 @@ jobs:
   build-analysis-tests:
     name: Build with various code analysis tools
     strategy:
-        matrix:
-          preset:
-            - clang-sanitize-address
-            - clang-sanitize-memory
-            - clang-sanitize-undefined
-            - clang-sanitize-dataflow
-            - clang-sanitize-safe-stack
-            - valgrind
+      fail-fast: false
+      matrix:
+        preset:
+          - clang-sanitize-address
+          - clang-sanitize-memory
+          - clang-sanitize-undefined
+          - clang-sanitize-dataflow
+          - clang-sanitize-safe-stack
+          - valgrind
     permissions:
       contents: read
     runs-on: ubuntu-latest
