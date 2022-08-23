@@ -59,9 +59,9 @@ int cmt_test_encode_all(struct cmt *cmt)
     sds_buf = cmt_encode_influx_create(cmt);
     cmt_encode_influx_destroy(sds_buf);
 
-    /* opentelemetry FIXME: the encoding is crashing */
-    //sds_buf = cmt_encode_opentelemetry_create(cmt);
-    //cmt_encode_opentelemetry_destroy(sds_buf);
+    /* opentelemetry */
+    sds_buf = cmt_encode_opentelemetry_create(cmt);
+    cmt_encode_opentelemetry_destroy(sds_buf);
 
     return 0;
 }
