@@ -25,6 +25,7 @@
 
 #include "cmetrics/cmt_counter.h"
 #include "cmetrics/cmt_sds.h"
+#include "cmetrics/cmt_summary.h"
 #include "cmt_decode_prometheus_parser.h"
 #include "cmt_tests.h"
 #include "lib/acutest/acutest.h"
@@ -791,6 +792,45 @@ void test_issue_fluent_bit_5541()
     cmt_decode_prometheus_destroy(cmt);
 }
 
+// reproduces https://github.com/fluent/fluent-bit/issues/5894
+void test_issue_fluent_bit_5894()
+{
+    int status;
+    char *result;
+    struct cmt *cmt;
+    cmt_sds_t in_buf = read_file(CMT_TESTS_DATA_PATH "/issue_fluent_bit_5894.txt");
+    size_t in_size = cmt_sds_len(in_buf);
+
+    const char expected[] =
+        "# HELP process_start_time_seconds Start time of the process since unix epoch.\n"
+        "# TYPE process_start_time_seconds gauge\n"
+        "process_start_time_seconds 1660594096.832 0\n"
+        "# HELP spring_kafka_listener_seconds_max Kafka Listener Timer\n"
+        "# TYPE spring_kafka_listener_seconds_max gauge\n"
+        "spring_kafka_listener_seconds_max{exception=\"ListenerExecutionFailedException\",name=\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\",result=\"failure\"} 0 0\n"
+        "spring_kafka_listener_seconds_max{exception=\"none\",name=\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\",result=\"success\"} 0 0\n"
+        "# HELP spring_kafka_listener_seconds Kafka Listener Timer\n"
+        "# TYPE spring_kafka_listener_seconds summary\n"
+        "spring_kafka_listener_seconds_sum{exception=\"ListenerExecutionFailedException\",name=\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\",result=\"failure\"} 0 0\n"
+        "spring_kafka_listener_seconds_count{exception=\"ListenerExecutionFailedException\",name=\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\",result=\"failure\"} 0 0\n"
+        "# HELP spring_kafka_listener_seconds Kafka Listener Timer\n"
+        "# TYPE spring_kafka_listener_seconds summary\n"
+        "spring_kafka_listener_seconds_sum{exception=\"none\",name=\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\",result=\"success\"} 0 0\n"
+        "spring_kafka_listener_seconds_count{exception=\"none\",name=\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\",result=\"success\"} 0 0\n"
+        ;
+
+    status = cmt_decode_prometheus_create(&cmt, in_buf, in_size, NULL);
+    TEST_CHECK(status == 0);
+
+    result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
+    TEST_CHECK(strcmp(result, expected) == 0);
+    // fprintf(stderr, "EXPECTED:\n======\n%s\n======\nRESULT:\n======\n%s\n======\n", expected, result);
+
+    cmt_sds_destroy(in_buf);
+    cmt_sds_destroy(result);
+    cmt_decode_prometheus_destroy(cmt);
+}
+
 void test_empty_metrics()
 {
     int status;
@@ -863,6 +903,7 @@ TEST_LIST = {
     {"summary", test_summary},
     {"null_labels", test_null_labels},
     {"issue_fluent_bit_5541", test_issue_fluent_bit_5541},
+    {"issue_fluent_bit_5894", test_issue_fluent_bit_5894},
     {"empty_metrics", test_empty_metrics},
     { 0 }
 };
