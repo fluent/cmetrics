@@ -75,6 +75,8 @@ void test_labels()
     /* check real value */
     cmt_counter_get_val(c, 6, (char *[]) {"1", NULL, "98", NULL, NULL, NULL}, &val);
     TEST_CHECK((uint64_t) val == 1);
+
+    cmt_destroy(cmt);
 }
 
 void test_encoding()
