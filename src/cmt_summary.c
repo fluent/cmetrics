@@ -279,7 +279,7 @@ int cmt_summary_set_default(struct cmt_summary *summary,
     }
 
 
-    if (!metric->sum_quantiles && quantile_values) {
+    if (!metric->sum_quantiles && summary->quantiles_count) {
         metric->sum_quantiles = calloc(1, sizeof(uint64_t) * summary->quantiles_count);
         if (!metric->sum_quantiles) {
             cmt_errno();
