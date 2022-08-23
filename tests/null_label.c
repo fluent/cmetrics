@@ -26,7 +26,8 @@
 
 void test_labels()
 {
-    double val;
+    int ret;
+    double val = 1;
     uint64_t ts;
     struct cmt *cmt;
     struct cmt_counter *c;
@@ -37,8 +38,9 @@ void test_labels()
 
     ts = cmt_time_now();
 
-    cmt_counter_get_val(c, 0, NULL, &val);
-    TEST_CHECK((uint64_t) val == 0);
+    ret = cmt_counter_get_val(c, 0, NULL, &val);
+    TEST_CHECK(ret == -1);
+    TEST_CHECK((uint64_t) val == 1);
 
     cmt_counter_inc(c, ts, 0, NULL);
     cmt_counter_add(c, ts, 2, 0, NULL);
