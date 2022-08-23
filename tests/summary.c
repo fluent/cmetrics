@@ -20,6 +20,7 @@
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_summary.h>
 #include <cmetrics/cmt_encode_prometheus.h>
+#include <cmetrics/cmt_encode_text.h>
 
 #include "cmt_tests.h"
 
@@ -30,6 +31,9 @@ static void prometheus_encode_test(struct cmt *cmt)
     buf = cmt_encode_prometheus_create(cmt, CMT_FALSE);
     printf("\n%s\n", buf);
     cmt_encode_prometheus_destroy(buf);
+
+    /* encode to all possible formats */
+    cmt_test_encode_all(cmt);
 }
 
 void test_set_defaults()
@@ -154,8 +158,8 @@ void fluentbit_bug_5894()
     count = 3;
     cmt_summary_set_default(s, ts, r, sum, count,
                             3, (char *[]) {"extra test",
-                                          "org.springframework.kafka.KafkaListenerEndpointContainer#0-0",
-                                          "success"});
+                                           "org.springframework.kafka.KafkaListenerEndpointContainer#0-0",
+                                           "success"});
 
     prometheus_encode_test(cmt);
     cmt_destroy(cmt);
