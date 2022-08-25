@@ -187,7 +187,8 @@ static int split_metric_name(struct cmt_decode_prometheus_context *context,
 // a docstring, even though it is not required by prometheus spec.
 static char *get_docstring(struct cmt_decode_prometheus_context *context)
 {
-    return context->metric.docstring ? context->metric.docstring : "(no information)";
+    return context->metric.docstring && strlen(context->metric.docstring) ?
+        context->metric.docstring : " ";
 }
 
 static int parse_uint64(const char *in, uint64_t *out)
