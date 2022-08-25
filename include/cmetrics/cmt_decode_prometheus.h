@@ -22,7 +22,6 @@
 
 #include <stdbool.h>
 
-#include "monkey/mk_core/mk_list.h"
 #include <cmetrics/cmetrics.h>
 #include <stdint.h>
 
@@ -76,6 +75,10 @@ struct cmt_decode_prometheus_parse_opts {
 };
 
 struct cmt_decode_prometheus_context {
+    union {
+        struct cmt_summary *summary;
+        struct cmt_histogram *histogram;
+    } current;
     struct cmt *cmt;
     struct cmt_decode_prometheus_parse_opts opts;
     int errcode;

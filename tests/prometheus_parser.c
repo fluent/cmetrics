@@ -936,8 +936,6 @@ void test_issue_fluent_bit_5894()
         "# TYPE spring_kafka_listener_seconds summary\n"
         "spring_kafka_listener_seconds_sum{exception=\"ListenerExecutionFailedException\",name=\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\",result=\"failure\"} 0 0\n"
         "spring_kafka_listener_seconds_count{exception=\"ListenerExecutionFailedException\",name=\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\",result=\"failure\"} 0 0\n"
-        "# HELP spring_kafka_listener_seconds Kafka Listener Timer\n"
-        "# TYPE spring_kafka_listener_seconds summary\n"
         "spring_kafka_listener_seconds_sum{exception=\"none\",name=\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\",result=\"success\"} 0 0\n"
         "spring_kafka_listener_seconds_count{exception=\"none\",name=\"org.springframework.kafka.KafkaListenerEndpointContainer#0-0\",result=\"success\"} 0 0\n"
         "# HELP hikaricp_connections_usage_seconds Connection usage time\n"
