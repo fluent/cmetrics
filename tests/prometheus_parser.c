@@ -946,8 +946,6 @@ void test_issue_fluent_bit_5894()
         "# TYPE jvm_gc_pause_seconds summary\n"
         "jvm_gc_pause_seconds_sum{action=\"end of minor GC\",cause=\"Metadata GC Threshold\"} 0.031 0\n"
         "jvm_gc_pause_seconds_count{action=\"end of minor GC\",cause=\"Metadata GC Threshold\"} 2 0\n"
-        "# HELP jvm_gc_pause_seconds Time spent in GC pause\n"
-        "# TYPE jvm_gc_pause_seconds summary\n"
         "jvm_gc_pause_seconds_sum{action=\"end of minor GC\",cause=\"G1 Evacuation Pause\"} 0.016 0\n"
         "jvm_gc_pause_seconds_count{action=\"end of minor GC\",cause=\"G1 Evacuation Pause\"} 1 0\n"
         ;
