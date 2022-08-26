@@ -542,7 +542,7 @@ static int decode_numerical_data_point(struct cmt *cmt,
             value = data_point->as_double;
         }
 
-        cmt_metric_set(sample, data_point->time_unix_nano, data_point->as_double);
+        cmt_metric_set(sample, data_point->time_unix_nano, value);
     }
 
     return result;
@@ -1099,7 +1099,8 @@ int cmt_decode_opentelemetry_create(struct cmt **out_cmt, char *in_buf, size_t i
         return result;
     }
 
-    service_request = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__unpack(NULL, in_size - *offset, &in_buf[*offset]);
+    service_request = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__unpack(NULL, in_size - *offset, 
+                                                                                                           (unsigned char *) &in_buf[*offset]);
 
     if (service_request != NULL) {
         result = decode_service_request(cmt, service_request);
