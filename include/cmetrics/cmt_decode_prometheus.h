@@ -68,6 +68,7 @@ struct cmt_decode_prometheus_context_metric {
 struct cmt_decode_prometheus_parse_opts {
     int start_token;
     uint64_t default_timestamp;
+    uint64_t override_timestamp;
     char *errbuf;
     size_t errbuf_size;
 };

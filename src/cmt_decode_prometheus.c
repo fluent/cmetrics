@@ -270,7 +270,10 @@ static int parse_value_timestamp(
                 "value", sample->value1);
     }
 
-    if (!strlen(sample->value2)) {
+    if (context->opts.override_timestamp) {
+        *timestamp = context->opts.override_timestamp;
+    }
+    else if (!strlen(sample->value2)) {
         /* No timestamp was specified, use default value */
         *timestamp = context->opts.default_timestamp;
         return 0;
@@ -454,7 +457,7 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
      * - sum
      * - count */
     bucket_count = mk_list_size(&context->metric.samples) - 3;
-    timestamp = 0;
+    timestamp = context->opts.override_timestamp;
 
     bucket_defaults = calloc(bucket_count + 1, sizeof(*bucket_defaults));
     if (!bucket_defaults) {
@@ -670,7 +673,7 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
      * - sum
      * - count */
     quantile_count = mk_list_size(&context->metric.samples) - 2;
-    timestamp = 0;
+    timestamp = context->opts.override_timestamp;
 
     quantile_defaults = calloc(quantile_count, sizeof(*quantile_defaults));
     if (!quantile_defaults) {
