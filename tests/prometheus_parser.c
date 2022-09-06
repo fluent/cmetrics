@@ -1271,6 +1271,90 @@ void test_issue_fluent_bit_6021()
     cmt_decode_prometheus_destroy(cmt);
 }
 
+void test_override_timestamp()
+{
+    int status;
+    cmt_sds_t result;
+    struct cmt *cmt;
+    struct cmt_decode_prometheus_parse_opts opts;
+    memset(&opts, 0, sizeof(opts));
+    opts.override_timestamp = 123;
+    const char in_buf[] =
+        "# HELP hikaricp_connections_timeout_total Connection timeout total count\n"
+        "# TYPE hikaricp_connections_timeout_total counter\n"
+        "hikaricp_connections_timeout_total{pool=\"mcadb\"} 0 0\n"
+        "# HELP rabbitmq_consumed_total\n"
+        "# TYPE rabbitmq_consumed_total counter\n"
+        "rabbitmq_consumed_total{name=\"rabbit\"} 0 0\n"
+        "# HELP rabbitmq_failed_to_publish_total\n"
+        "# TYPE rabbitmq_failed_to_publish_total counter\n"
+        "rabbitmq_failed_to_publish_total{name=\"rabbit\"} 0 0\n"
+        "# HELP rabbitmq_acknowledged_published_total\n"
+        "# TYPE rabbitmq_acknowledged_published_total counter\n"
+        "rabbitmq_acknowledged_published_total{name=\"rabbit\"} 0 0\n"
+        "# HELP tomcat_sessions_rejected_sessions_total\n"
+        "# TYPE tomcat_sessions_rejected_sessions_total counter\n"
+        "tomcat_sessions_rejected_sessions_total 0 0\n"
+        "# A histogram, which has a pretty complex representation in the text format:\n"
+        "# HELP http_request_duration_seconds_bucket A histogram of the request duration.\n"
+        "# TYPE http_request_duration_seconds_bucket counter\n"
+        "http_request_duration_seconds_bucket{le=\"0.05\"} 24054\n"
+        "http_request_duration_seconds_bucket{le=\"0.1\"} 33444\n"
+        "http_request_duration_seconds_bucket{le=\"0.2\"} 100392\n"
+        "http_request_duration_seconds_bucket{le=\"0.5\"} 129389\n"
+        "http_request_duration_seconds_bucket{le=\"1\"} 133988\n"
+        "http_request_duration_seconds_bucket{le=\"+Inf\"} 144320\n"
+        "http_request_duration_seconds_sum 53423\n"
+        "http_request_duration_seconds_count 144320\n"
+        ;
+
+    const char expected[] =
+        "# HELP hikaricp_connections_timeout_total Connection timeout total count\n"
+        "# TYPE hikaricp_connections_timeout_total counter\n"
+        "hikaricp_connections_timeout_total{pool=\"mcadb\"} 0 123\n"
+        "# HELP http_request_duration_seconds_bucket A histogram of the request duration.\n"
+        "# TYPE http_request_duration_seconds_bucket counter\n"
+        "http_request_duration_seconds_bucket{le=\"0.05\"} 24054 123\n"
+        "http_request_duration_seconds_bucket{le=\"0.1\"} 33444 123\n"
+        "http_request_duration_seconds_bucket{le=\"0.2\"} 100392 123\n"
+        "http_request_duration_seconds_bucket{le=\"0.5\"} 129389 123\n"
+        "http_request_duration_seconds_bucket{le=\"1\"} 133988 123\n"
+        "http_request_duration_seconds_bucket{le=\"+Inf\"} 144320 123\n"
+        "# HELP rabbitmq_consumed_total\n"
+        "# TYPE rabbitmq_consumed_total untyped\n"
+        "rabbitmq_consumed_total{name=\"rabbit\"} 0 123\n"
+        "# HELP rabbitmq_failed_to_publish_total\n"
+        "# TYPE rabbitmq_failed_to_publish_total untyped\n"
+        "rabbitmq_failed_to_publish_total{name=\"rabbit\"} 0 123\n"
+        "# HELP rabbitmq_acknowledged_published_total\n"
+        "# TYPE rabbitmq_acknowledged_published_total untyped\n"
+        "rabbitmq_acknowledged_published_total{name=\"rabbit\"} 0 123\n"
+        "# HELP tomcat_sessions_rejected_sessions_total\n"
+        "# TYPE tomcat_sessions_rejected_sessions_total untyped\n"
+        "tomcat_sessions_rejected_sessions_total 0 123\n"
+        "# HELP http_request_duration_seconds_sum\n"
+        "# TYPE http_request_duration_seconds_sum untyped\n"
+        "http_request_duration_seconds_sum 53423 123\n"
+        "# HELP http_request_duration_seconds_count\n"
+        "# TYPE http_request_duration_seconds_count untyped\n"
+        "http_request_duration_seconds_count 144320 123\n"
+        ;
+
+    cmt_initialize();
+    status = cmt_decode_prometheus_create(&cmt, in_buf, 0, &opts);
+    TEST_CHECK(status == 0);
+    if (!status) {
+        result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
+        status = strcmp(result, expected);
+        TEST_CHECK(status == 0);
+        if (status) {
+            fprintf(stderr, "EXPECTED:\n======\n%s\n======\nRESULT:\n======\n%s\n======\n", expected, result);
+        }
+    }
+    cmt_sds_destroy(result);
+    cmt_decode_prometheus_destroy(cmt);
+}
+
 TEST_LIST = {
     {"header_help", test_header_help},
     {"header_type", test_header_type},
@@ -1299,5 +1383,6 @@ TEST_LIST = {
     {"issue_fluent_bit_5894", test_issue_fluent_bit_5894},
     {"empty_metrics", test_empty_metrics},
     {"issue_fluent_bit_6021", test_issue_fluent_bit_6021},
+    {"override_timestamp", test_override_timestamp},
     { 0 }
 };
