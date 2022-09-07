@@ -797,7 +797,7 @@ void test_issue_fluent_bit_5894()
 {
     char errbuf[256];
     int status;
-    cmt_sds_t result;
+    cmt_sds_t result = NULL;
     struct cmt *cmt;
     struct cmt_decode_prometheus_parse_opts opts;
     memset(&opts, 0, sizeof(opts));
@@ -954,7 +954,8 @@ void test_issue_fluent_bit_5894()
     TEST_CHECK(status == 0);
     if (status) {
         fprintf(stderr, "PARSE ERROR:\n======\n%s\n======\n", errbuf);
-    } else {
+    }
+    else {
         result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
         status = strcmp(result, expected);
         TEST_CHECK(status == 0);
@@ -1020,7 +1021,7 @@ void test_issue_fluent_bit_6021()
 {
     char errbuf[256];
     int status;
-    cmt_sds_t result;
+    cmt_sds_t result = NULL;
     struct cmt *cmt;
     struct cmt_decode_prometheus_parse_opts opts;
     memset(&opts, 0, sizeof(opts));
@@ -1257,7 +1258,8 @@ void test_issue_fluent_bit_6021()
     TEST_CHECK(status == 0);
     if (status) {
         fprintf(stderr, "PARSE ERROR:\n======\n%s\n======\n", errbuf);
-    } else {
+    }
+    else {
         result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
         status = strcmp(result, expected);
         TEST_CHECK(status == 0);
@@ -1274,7 +1276,7 @@ void test_issue_fluent_bit_6021()
 void test_override_timestamp()
 {
     int status;
-    cmt_sds_t result;
+    cmt_sds_t result = NULL;
     struct cmt *cmt;
     struct cmt_decode_prometheus_parse_opts opts;
     memset(&opts, 0, sizeof(opts));
