@@ -143,7 +143,14 @@ static struct cmt *generate_encoder_test_data()
     quantiles[3] = 4.4;
     quantiles[4] = 5.5;
 
-    cmt_summary_set_default(s1, ts, quantiles, 10, 51.612894511314444, 0, NULL);
+int cmt_summary_set_default(struct cmt_summary *summary,
+                            uint64_t timestamp,
+                            double *quantile_values,
+                            double sum,
+                            uint64_t count,
+                            int labels_count, char **label_vars);
+
+    cmt_summary_set_default(s1, ts, quantiles, 51.612894511314444, 10, 0, NULL);
 
     quantiles[0] = 11.11;
     quantiles[1] = 0;
@@ -151,7 +158,7 @@ static struct cmt *generate_encoder_test_data()
     quantiles[3] = 44.44;
     quantiles[4] = 55.55;
 
-    cmt_summary_set_default(s1, ts, quantiles, 10, 51.612894511314444, 1, (char *[]) {"my_val"});
+    cmt_summary_set_default(s1, ts, quantiles, 51.612894511314444, 10, 1, (char *[]) {"my_val"});
 
     return cmt;
 }
