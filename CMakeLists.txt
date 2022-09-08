@@ -34,11 +34,11 @@ set(CMT_VERSION_MINOR  3)
 set(CMT_VERSION_PATCH  7)
 set(CMT_VERSION_STR "${CMT_VERSION_MAJOR}.${CMT_VERSION_MINOR}.${CMT_VERSION_PATCH}")
 
-# Define __FILENAME__ consistently across Operating Systems
+# Define __CMT_FILENAME__ consistently across Operating Systems
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__FILENAME__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__CMT_FILENAME__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
 else()
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__FILENAME__=__FILE__")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__CMT_FILENAME__=__FILE__")
 endif()
 
 # Configuration options
