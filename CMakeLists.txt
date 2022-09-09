@@ -136,6 +136,19 @@ if(CMT_ENABLE_PROMETHEUS_DECODER)
     endif()
 endif()
 
+# Check if 'C Floppy' library is available in the environment, if not,
+# we will try to build a local copy at a later stage
+check_c_source_compiles("
+  #include <cfl/cfl.h>
+  int main() {
+     cfl_init();
+     return 0;
+  }" CMT_HAVE_CFL)
+if(CMT_HAVE_CFL)
+  CMT_DEFINITION(CMT_HAVE_CFL)
+endif()
+
+# Configure header files
 configure_file(
   "${PROJECT_SOURCE_DIR}/include/cmetrics/cmt_info.h.in"
   "${PROJECT_SOURCE_DIR}/include/cmetrics/cmt_info.h"
@@ -190,6 +203,14 @@ if(NOT TARGET mpack-static)
       COMPONENT headers
       PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
   endif()
+endif()
+
+# C Floppy
+if (NOT CMT_HAVE_CFL)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/${CMT_PATH_LIB_CFL}/include)
+  add_subdirectory(lib/cfl)
+  CMT_DEFINITION(CMT_HAVE_CFL)
+  CMT_DEFINITION(CMT_HAVE_CFL_INTERNAL)
 endif()
 
 # Source code

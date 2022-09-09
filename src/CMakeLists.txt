@@ -72,7 +72,7 @@ endif()
 
 # Static Library
 add_library(cmetrics-static STATIC ${src})
-target_link_libraries(cmetrics-static xxhash mpack-static)
+target_link_libraries(cmetrics-static xxhash mpack-static cfl-static)
 
 # Install Library
 if(MSVC)
