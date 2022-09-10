@@ -55,6 +55,8 @@ jobs:
         run: |
           cmake3 -DCMT_TESTS=on -DCMT_DEV=on .
           make
+        shell: bash
+        working-directory: cmetrics
 
   build-unix-arm64:
     name: Build sources on arm64 for ${{ matrix.os }} - ${{ matrix.compiler }}
