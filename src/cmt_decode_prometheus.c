@@ -437,7 +437,7 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
     double *buckets = NULL;
     uint64_t *bucket_defaults = NULL;
     double sum;
-    uint64_t count;
+    uint64_t count = 0;
     double count_dbl;
     struct cfl_list *head;
     struct cfl_list *tmp;
