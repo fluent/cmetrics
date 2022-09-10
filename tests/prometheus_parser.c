@@ -544,8 +544,8 @@ void test_default_timestamp()
 
 void test_values()
 {
-    int status;
-    cfl_sds_t result;
+    int status = 0;
+    cfl_sds_t result = NULL;
     struct cmt *cmt;
 
     const char expected[] = "# HELP metric_name some docstring\n"
