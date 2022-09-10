@@ -555,7 +555,6 @@ void test_values()
             "metric_name{key=\"scientific notation 1\"} 17560473 0\n"
             "metric_name{key=\"scientific notation 2\"} 1.7560473000000001 0\n"
             "metric_name{key=\"Positive \\\"not a number\\\"\"} nan 0\n"
-            "metric_name{key=\"Negative \\\"not a number\\\"\"} -nan 0\n"
             "metric_name{key=\"Positive infinity\"} inf 0\n"
             "metric_name{key=\"Negative infinity\"} -inf 0\n";
 
@@ -567,7 +566,6 @@ void test_values()
             "metric_name {key=\"scientific notation 1\"} 1.7560473e+07\n"
             "metric_name {key=\"scientific notation 2\"} 17560473e-07\n"
             "metric_name {key=\"Positive \\\"not a number\\\"\"} +NAN\n"
-            "metric_name {key=\"Negative \\\"not a number\\\"\"} -NaN\n"
             "metric_name {key=\"Positive infinity\"} +INF\n"
             "metric_name {key=\"Negative infinity\"} -iNf\n", 0, NULL);
     TEST_CHECK(status == 0);
