@@ -20,6 +20,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: true
+
       - name: Build on ${{ matrix.os }} with vs-2019
         run: |
           .\scripts\win_build.bat
@@ -43,6 +46,8 @@ jobs:
           yum install -y cmake3
 
       - uses: actions/checkout@v3
+        with:
+          submodules: true
 
       - name: Run compilation
         run: |
@@ -61,6 +66,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: true
+
       - name: Build on ${{ matrix.os }} with ${{ matrix.compiler }}
         uses: uraimo/run-on-arch-action@v2.2.1
         with:
@@ -92,6 +100,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: true
+
       - name: Build on ${{ matrix.os }} with ${{ matrix.compiler }}
         run: |
           echo "CC = $CC, CXX = $CXX"
@@ -118,6 +129,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: true
+
       - uses: docker://lpenz/ghaction-cmake:0.19
         with:
           preset: ${{ matrix.preset }}
