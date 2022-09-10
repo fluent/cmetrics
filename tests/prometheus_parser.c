@@ -548,6 +548,17 @@ void test_values()
     cfl_sds_t result;
     struct cmt *cmt;
 
+    const char expected[] = "# HELP metric_name some docstring\n"
+            "# TYPE metric_name gauge\n"
+            "metric_name{key=\"simple integer\"} 54 0\n"
+            "metric_name{key=\"simple float\"} 12.470000000000001 0\n"
+            "metric_name{key=\"scientific notation 1\"} 17560473 0\n"
+            "metric_name{key=\"scientific notation 2\"} 1.7560473000000001 0\n"
+            "metric_name{key=\"Positive \\\"not a number\\\"\"} nan 0\n"
+            "metric_name{key=\"Negative \\\"not a number\\\"\"} -nan 0\n"
+            "metric_name{key=\"Positive infinity\"} inf 0\n"
+            "metric_name{key=\"Negative infinity\"} -inf 0\n";
+
     status = cmt_decode_prometheus_create(&cmt,
             "# HELP metric_name some docstring\n"
             "# TYPE metric_name gauge\n"
@@ -560,20 +571,15 @@ void test_values()
             "metric_name {key=\"Positive infinity\"} +INF\n"
             "metric_name {key=\"Negative infinity\"} -iNf\n", 0, NULL);
     TEST_CHECK(status == 0);
-    result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
-    TEST_CHECK(strcmp(result,
-            "# HELP metric_name some docstring\n"
-            "# TYPE metric_name gauge\n"
-            "metric_name{key=\"simple integer\"} 54 0\n"
-            "metric_name{key=\"simple float\"} 12.470000000000001 0\n"
-            "metric_name{key=\"scientific notation 1\"} 17560473 0\n"
-            "metric_name{key=\"scientific notation 2\"} 1.7560473000000001 0\n"
-            "metric_name{key=\"Positive \\\"not a number\\\"\"} nan 0\n"
-            "metric_name{key=\"Negative \\\"not a number\\\"\"} -nan 0\n"
-            "metric_name{key=\"Positive infinity\"} inf 0\n"
-            "metric_name{key=\"Negative infinity\"} -inf 0\n") == 0);
+    if (!status) {
+        result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
+        status = strcmp(result, expected);
+        TEST_CHECK(status == 0);
+        if (status) {
+            fprintf(stderr, "EXPECTED:\n======\n%s\n======\nRESULT:\n======\n%s\n======\n", expected, result);
+        }
+    }
 
-    printf("=== result ===\n%s\n", result);
     cfl_sds_destroy(result);
     cmt_decode_prometheus_destroy(cmt);
 }
