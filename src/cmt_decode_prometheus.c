@@ -656,7 +656,7 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
     double sum;
     double count_dbl;
     size_t label_count;
-    uint64_t count;
+    uint64_t count = 0;
     struct cfl_list *head;
     struct cfl_list *tmp;
     struct cmt_decode_prometheus_context_sample *sample;
