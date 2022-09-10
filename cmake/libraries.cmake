@@ -1,3 +1,3 @@
 # List of bundled libraries
-set(CTR_PATH_LIB_CFL        "lib/cfl")
+set(CMT_PATH_LIB_CFL        "lib/cfl")
 

@@ -52,12 +52,14 @@ if(CMT_DEV)
 endif()
 
 set(FLEX_BISON_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
+# Bundled libraries
+include(cmake/libraries.cmake)
+
 # Include headers and dependency headers
 include_directories(
   src
   include
-  lib/monkey/include
-  lib/xxHash-0.8.0/
   ${FLEX_BISON_GENERATED_DIR}
   )
 
@@ -169,23 +171,6 @@ else()
   set(CMT_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_PREFIX}/include")
 endif()
 
-# xxHash
-if(NOT TARGET xxhash)
-  # Do something when target found
-  set(XXHASH_BUILD_ENABLE_INLINE_API OFF)
-  set(XXHASH_BUILD_XXHSUM OFF)
-  set(BUILD_SHARED_LIBS OFF)
-  add_subdirectory(lib/xxHash-0.8.0/cmake_unofficial EXCLUDE_FROM_ALL)
-
-  if (CMT_INSTALL_TARGETS)
-    install(TARGETS xxhash
-      RUNTIME DESTINATION ${CMT_INSTALL_BINDIR}
-      LIBRARY DESTINATION ${CMT_INSTALL_LIBDIR}
-      ARCHIVE DESTINATION ${CMT_INSTALL_LIBDIR}
-      COMPONENT library)
-  endif()
-endif()
-
 # mpack
 if(NOT TARGET mpack-static)
   include_directories(lib/mpack/src/)
@@ -216,7 +201,6 @@ endif()
 # Source code
 add_subdirectory(include)
 add_subdirectory(src)
-add_subdirectory(lib/monkey/include)
 
 # Tests
 if(CMT_TESTS)
