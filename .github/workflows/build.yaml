@@ -45,9 +45,10 @@ jobs:
           rpm -ivh epel-release-latest-7.noarch.rpm && \
           yum install -y cmake3
 
-      - uses: actions/checkout@v3
-        with:
-          submodules: true
+      - name: Clone repo with submodules (1.8.3 version of Git)
+        run: |
+          git clone --recursive https://github.com/calyptia/cmetrics.git
+        shell: bash
 
       - name: Run compilation
         run: |
