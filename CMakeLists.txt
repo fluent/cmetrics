@@ -141,13 +141,13 @@ endif()
 # Check if 'C Floppy' library is available in the environment, if not,
 # we will try to build a local copy at a later stage
 check_c_source_compiles("
-  #include <cfl/cfl.h>
+  #include <cfl/cfl_found.h>
   int main() {
-     cfl_init();
-     return 0;
+     return cfl_found();
   }" CMT_HAVE_CFL)
 if(CMT_HAVE_CFL)
   CMT_DEFINITION(CMT_HAVE_CFL)
+  message(STATUS "CFL found in the system. OK")
 endif()
 
 # Configure header files
