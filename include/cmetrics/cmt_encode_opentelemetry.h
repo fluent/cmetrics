@@ -22,8 +22,7 @@
 #define CMT_ENCODE_OPENTELEMETRY_H
 
 #include <cmetrics/cmetrics.h>
-#include <opentelemetry/metrics.pb-c.h>
-#include <opentelemetry/metrics_service.pb-c.h>
+#include <fluent-otel-proto/fluent-otel.h>
 
 #define CMT_ENCODE_OPENTELEMETRY_SUCCESS                0
 #define CMT_ENCODE_OPENTELEMETRY_ALLOCATION_ERROR       1

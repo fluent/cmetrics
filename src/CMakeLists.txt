@@ -67,7 +67,7 @@ endif()
 
 # Static Library
 add_library(cmetrics-static STATIC ${src})
-target_link_libraries(cmetrics-static mpack-static cfl-static)
+target_link_libraries(cmetrics-static mpack-static cfl-static fluent-otel-proto)
 
 # Install Library
 if(MSVC)
