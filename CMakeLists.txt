@@ -213,6 +213,7 @@ endif()
 # fluent-otel-proto
 if (NOT CMT_HAVE_FLUENT_OTEL_PROTO)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/${CMT_PATH_LIB_FLUENT_OTEL_PROTO}/include)
+  CMT_OPTION(FLUENT_PROTO_METRICS   "on")
   CMT_OPTION(FLUENT_PROTO_EXAMPLES "off")
   add_subdirectory(lib/fluent-otel-proto)
   CMT_DEFINITION(CMT_HAVE_FLUENT_OTEL_PROTO)
