@@ -1250,20 +1250,6 @@ static int decode_service_request(struct cfl_list *context_list,
     return result;
 }
 
-uint64_t flb_time_get_cpu_timestamp()
-{
-    int             result;
-    struct timespec tm;
-
-    result = clock_gettime(CLOCK_MONOTONIC_RAW, &tm);
-
-    if (result != 0) {
-        return 0;
-    }
-
-    return tm.tv_nsec;
-}
-
 int cmt_decode_opentelemetry_create(struct cfl_list *result_context_list,
                                     char *in_buf, size_t in_size,
                                     size_t *offset)
