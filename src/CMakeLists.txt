@@ -32,13 +32,8 @@ set(src
   cmt_encode_msgpack.c
   cmt_decode_msgpack.c
   cmt_mpack_utils.c
-  external/protobuf-c.c
   external/remote.pb-c.c
   external/types.pb-c.c
-  external/opentelemetry_common.pb-c.c
-  external/opentelemetry_metrics.pb-c.c
-  external/opentelemetry_resource.pb-c.c
-  external/opentelemetry_metrics_service.pb-c.c
   )
 
 if (${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
