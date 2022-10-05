@@ -299,18 +299,18 @@ static int unpack_static_label_component(mpack_reader_t *reader,
 static int unpack_static_label(mpack_reader_t *reader,
                                size_t index, void *context)
 {
-    struct cfl_list                   *target_label_list;
-    struct cmt_label                  *new_static_label;
-    struct cmt_msgpack_decode_context *decode_context;
-    int                                result;
+    struct cfl_list  *target_label_list;
+    struct cmt_label *new_static_label;
+    struct cmt       *decode_context;
+    int               result;
 
-    decode_context = (struct cmt_msgpack_decode_context *) context;
-
-    if (NULL == decode_context) {
+    if (NULL == context) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
     }
 
-    target_label_list = &decode_context->cmt->static_labels->list;
+    decode_context = (struct cmt *) context;
+
+    target_label_list = &decode_context->static_labels->list;
 
     if (NULL == reader            ||
         NULL == target_label_list) {
@@ -337,6 +337,9 @@ static int unpack_static_label(mpack_reader_t *reader,
         }
 
         free(new_static_label);
+    }
+    else {
+        cfl_list_add(&new_static_label->_head, target_label_list);
     }
 
     return result;
@@ -936,7 +939,6 @@ static int unpack_basic_type_meta(mpack_reader_t *reader, size_t index, void *co
             {"ver",              unpack_meta_ver},
             {"type",             unpack_meta_type},
             {"opts",             unpack_meta_opts},
-            {"static_labels",    unpack_meta_static_labels},
             {"labels",           unpack_meta_labels},
             {"buckets",          unpack_meta_buckets},
             {"quantiles",        unpack_meta_quantiles},
@@ -1325,13 +1327,30 @@ static int unpack_context_external_metadata(mpack_reader_t *reader, size_t index
     return result;
 }
 
+static int unpack_context_processing_section(mpack_reader_t *reader, size_t index, void *context)
+{
+    struct cmt_mpack_map_entry_callback_t callbacks[] = \
+        {
+            {"static_labels", unpack_meta_static_labels},
+            {NULL,            NULL}
+        };
+
+    if (NULL == reader ||
+        NULL == context) {
+        return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    return cmt_mpack_unpack_map(reader, callbacks, context);
+}
+
 static int unpack_context_header(mpack_reader_t *reader, size_t index, void *context)
 {
     struct cmt_mpack_map_entry_callback_t callbacks[] = \
         {
-            {"cmetrics", unpack_context_internal_metadata},
-            {"external", unpack_context_external_metadata},
-            {NULL,       NULL}
+            {"cmetrics",   unpack_context_internal_metadata},
+            {"external",   unpack_context_external_metadata},
+            {"processing", unpack_context_processing_section},
+            {NULL,         NULL}
         };
 
     if (NULL == reader ||
