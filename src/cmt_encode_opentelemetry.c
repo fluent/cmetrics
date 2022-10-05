@@ -961,6 +961,9 @@ static Opentelemetry__Proto__Metrics__V1__ResourceMetrics *
     if (metadata != NULL) {
         resource_metrics->schema_url = fetch_metadata_string_key(metadata, "schema_url", &error_detection_flag);
     }
+    else {
+        error_detection_flag = CMT_FALSE;
+    }
 
     if (error_detection_flag) {
         destroy_resource_metrics(resource_metrics);
