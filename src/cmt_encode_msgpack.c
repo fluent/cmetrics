@@ -56,11 +56,10 @@ static void pack_header(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map 
     size_t                index;
     struct cmt_summary   *summary = NULL;
     struct cmt_histogram *histogram = NULL;
-    struct cmt_label     *static_label;
     size_t                meta_field_count;
 
     opts = map->opts;
-    meta_field_count = 5;
+    meta_field_count = 4;
 
     if (map->type == CMT_HISTOGRAM) {
         histogram = (struct cmt_histogram *) map->parent;
@@ -106,21 +105,6 @@ static void pack_header(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map 
     mpack_write_cstr(writer, opts->description);
 
     mpack_finish_map(writer); /* 'opts' */
-
-    /* 'static_labels' (static labels) */
-    mpack_write_cstr(writer, "static_labels");
-    mpack_start_array(writer, cfl_list_size(&cmt->static_labels->list));
-    cfl_list_foreach(head, &cmt->static_labels->list) {
-        static_label = cfl_list_entry(head, struct cmt_label, _head);
-
-        mpack_start_array(writer, 2);
-
-        mpack_write_cstr(writer, static_label->key);
-        mpack_write_cstr(writer, static_label->val);
-
-        mpack_finish_array(writer);
-    }
-    mpack_finish_array(writer);
 
     /* 'labels' (label keys) */
     mpack_write_cstr(writer, "labels");
@@ -252,7 +236,13 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
         cfl_list_foreach(head, &metric->labels) {
             label = cfl_list_entry(head, struct cmt_map_label, _head);
 
-            mpack_write_cstr(writer, label->name);
+            if (label->name != NULL) {
+                printf("label->name = '%s'\n", label->name);
+                mpack_write_cstr(writer, label->name);
+            }
+            else {
+                mpack_write_nil(writer);
+            }
         }
 
         mpack_finish_array(writer);
@@ -300,12 +290,49 @@ static int pack_basic_type(mpack_writer_t *writer, struct cmt *cmt, struct cmt_m
     return 0;
 }
 
+static void pack_static_labels(mpack_writer_t *writer, struct cmt *cmt)
+{
+    struct cmt_label *static_label;
+    struct cfl_list  *head;
+
+    /* 'static_labels' (static labels) */
+    mpack_write_cstr(writer, "static_labels");
+
+    mpack_start_array(writer, cfl_list_size(&cmt->static_labels->list));
+
+    cfl_list_foreach(head, &cmt->static_labels->list) {
+        static_label = cfl_list_entry(head, struct cmt_label, _head);
+
+        mpack_start_array(writer, 2);
+
+        mpack_write_cstr(writer, static_label->key);
+        mpack_write_cstr(writer, static_label->val);
+
+        mpack_finish_array(writer);
+    }
+
+    mpack_finish_array(writer);
+}
+
+static int pack_static_processing_section(mpack_writer_t *writer, struct cmt *cmt)
+{
+    mpack_write_cstr(writer, "processing");
+
+    mpack_start_map(writer, 1);
+
+    pack_static_labels(writer, cmt);
+
+    mpack_finish_map(writer); /* 'processing' */
+
+    return 0;
+}
+
 static int pack_context_header(mpack_writer_t *writer, struct cmt *cmt)
 {
     int result;
 
     mpack_write_cstr(writer, "meta");
-    mpack_start_map(writer, 2);
+    mpack_start_map(writer, 3);
 
     mpack_write_cstr(writer, "cmetrics");
     result = pack_cfl_variant_kvlist(writer, cmt->internal_metadata);
@@ -320,6 +347,8 @@ static int pack_context_header(mpack_writer_t *writer, struct cmt *cmt)
     if (result != 0) {
         return -2;
     }
+
+    pack_static_processing_section(writer, cmt);
 
     mpack_finish_map(writer); /* 'context_header' */
 
@@ -420,7 +449,12 @@ int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size)
                 'cmetrics' => {
                                 'producer': STRING
                 },
-                'external' => { ... }
+                'external' => { ... },
+                'processing' => {
+                                    'static_labels' =>  [
+                                                            [STRING, STRING], ...
+                                                        ]
+                                }
             },
             'metrics' =>    [
                                 {
@@ -436,10 +470,6 @@ int cmt_encode_msgpack_create(struct cmt *cmt, char **out_buf, size_t *out_size)
                                                             'name'        => name
                                                             'description' => description
                                                 },
-                                                'static_labels' => [
-                                                    [STRING, STRING],
-                                                    ...
-                                                ],
                                                 'label_keys' => [STRING, ...],
                                                 'buckets' => [n, ...]
                                     },
