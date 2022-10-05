@@ -619,7 +619,7 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
         context->current.histogram = h;
     }
 
-    if (cmt_histogram_set_default(h, 0, bucket_defaults, sum, count,
+    if (cmt_histogram_set_default(h, timestamp, bucket_defaults, sum, count,
                 label_i,
                 label_i ? values_without_le : NULL)) {
         ret = report_error(context,
