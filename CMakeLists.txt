@@ -347,4 +347,7 @@ if(CMT_SYSTEM_MACOS)
   endif()
 endif()
 
+# Create tarball
+add_custom_target(tarball COMMAND "bash" "${CMAKE_CURRENT_SOURCE_DIR}/create-submoduled-tarball.sh" "cmetrics-${CMT_VERSION_STR}")
+
 include(CPack)
