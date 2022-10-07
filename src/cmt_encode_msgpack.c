@@ -237,7 +237,6 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
             label = cfl_list_entry(head, struct cmt_map_label, _head);
 
             if (label->name != NULL) {
-                printf("label->name = '%s'\n", label->name);
                 mpack_write_cstr(writer, label->name);
             }
             else {
