@@ -32,6 +32,7 @@
 #include <cmetrics/cmt_encode_opentelemetry.h>
 #include <cmetrics/cmt_encode_text.h>
 #include <cmetrics/cmt_encode_influx.h>
+#include <cmetrics/cmt_encode_splunk_hec.h>
 
 #include "cmt_tests.h"
 
@@ -727,6 +728,59 @@ void test_influx()
     cmt_destroy(cmt);
 }
 
+void test_splunk_hec()
+{
+    uint64_t ts;
+    cfl_sds_t text;
+    struct cmt *cmt;
+    struct cmt_counter *c1;
+    struct cmt_counter *c2;
+    const char *host = "localhost", *index = "fluent-bit-metrics", *source = "fluent-bit-cmetrics", *source_type = "cmetrics";
+
+    char *out1 = \
+        "{\"host\":\"localhost\",\"time\":1435658235.000000123,\"event\":\"metric\",\"index\":\"fluent-bit-metrics\",\"source\":\"fluent-bit-cmetrics\",\"sourcetype\":\"cmetrics\",\"fields\":{\"metric_name:labels.test\":1.0}}"
+        "{\"host\":\"localhost\",\"time\":1435658235.000000123,\"event\":\"metric\",\"index\":\"fluent-bit-metrics\",\"source\":\"fluent-bit-cmetrics\",\"sourcetype\":\"cmetrics\",\"fields\":{\"metric_name:labels.test\":2.0,\"host\":\"calyptia.com\",\"app\":\"cmetrics\"}}"
+        "{\"host\":\"localhost\",\"time\":1435658235.000000123,\"event\":\"metric\",\"index\":\"fluent-bit-metrics\",\"source\":\"fluent-bit-cmetrics\",\"sourcetype\":\"cmetrics\",\"fields\":{\"metric_name:nosubsystem\":1.0,\"host\":\"aaa\",\"app\":\"bbb\"}}";
+
+    char *out2 = \
+        "{\"host\":\"localhost\",\"time\":1435658235.000000123,\"event\":\"metric\",\"index\":\"fluent-bit-metrics\",\"fields\":{\"metric_name:labels.test\":1.0,\"dev\":\"Calyptia\",\"lang\":\"C\"}}"
+        "{\"host\":\"localhost\",\"time\":1435658235.000000123,\"event\":\"metric\",\"index\":\"fluent-bit-metrics\",\"fields\":{\"metric_name:labels.test\":2.0,\"dev\":\"Calyptia\",\"lang\":\"C\",\"host\":\"calyptia.com\",\"app\":\"cmetrics\"}}"
+        "{\"host\":\"localhost\",\"time\":1435658235.000000123,\"event\":\"metric\",\"index\":\"fluent-bit-metrics\",\"fields\":{\"metric_name:nosubsystem\":1.0,\"dev\":\"Calyptia\",\"lang\":\"C\",\"host\":\"aaa\",\"app\":\"bbb\"}}";
+
+    cmt = cmt_create();
+    TEST_CHECK(cmt != NULL);
+
+    c1 = cmt_counter_create(cmt, "cmt", "labels", "test", "Static labels test",
+                            2, (char *[]) {"host", "app"});
+
+    ts = 1435658235000000123;
+    cmt_counter_inc(c1, ts, 0, NULL);
+    cmt_counter_inc(c1, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
+    cmt_counter_inc(c1, ts, 2, (char *[]) {"calyptia.com", "cmetrics"});
+
+    c2 = cmt_counter_create(cmt, "cmt", "", "nosubsystem", "No subsystem",
+                            2, (char *[]) {"host", "app"});
+
+    cmt_counter_inc(c2, ts, 2, (char *[]) {"aaa", "bbb"});
+
+    /* Encode to splunk hec (no static labels) */
+    text = cmt_encode_splunk_hec_create(cmt, host, index, source, source_type);
+    printf("%s\n", text);
+    TEST_CHECK(strcmp(text, out1) == 0);
+    cmt_encode_splunk_hec_destroy(text);
+
+    /* append static labels */
+    cmt_label_add(cmt, "dev", "Calyptia");
+    cmt_label_add(cmt, "lang", "C");
+
+    text = cmt_encode_splunk_hec_create(cmt, host, index, NULL, NULL);
+    printf("%s\n", text);
+    TEST_CHECK(strcmp(text, out2) == 0);
+    cmt_encode_splunk_hec_destroy(text);
+
+    cmt_destroy(cmt);
+}
+
 TEST_LIST = {
     {"cmt_msgpack_cleanup_on_error",   test_cmt_to_msgpack_cleanup_on_error},
     {"cmt_msgpack_partial_processing", test_cmt_msgpack_partial_processing},
@@ -739,5 +793,6 @@ TEST_LIST = {
     {"prometheus",                     test_prometheus},
     {"text",                           test_text},
     {"influx",                         test_influx},
+    {"splunk_hec",                     test_splunk_hec},
     { 0 }
 };
