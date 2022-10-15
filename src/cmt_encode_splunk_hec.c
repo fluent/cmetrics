@@ -49,9 +49,10 @@ static cfl_sds_t double_to_string(double val)
     return str;
 }
 
-static cfl_sds_t format_metric_name(cfl_sds_t *buf, struct cmt_map *map, const char *suffix)
+static void format_metric_name(cfl_sds_t *buf, struct cmt_map *map, const char *suffix)
 {
     int mlen = 0;
+    int slen = 0;
     cfl_sds_t metric_name = NULL;
     struct cmt_opts *opts;
 
@@ -74,13 +75,13 @@ static cfl_sds_t format_metric_name(cfl_sds_t *buf, struct cmt_map *map, const c
         cfl_sds_cat_safe(&metric_name, opts->name, cfl_sds_len(opts->name));
     }
     if (suffix != NULL) {
-        cfl_sds_cat_safe(&metric_name, suffix, strlen(suffix));
+        slen = strlen(suffix);
+        mlen += slen;
+        cfl_sds_cat_safe(&metric_name, suffix, slen);
     }
     cfl_sds_cat_safe(&metric_name, "\":", 2);
     cfl_sds_cat_safe(buf, metric_name, mlen);
     cfl_sds_destroy(metric_name);
-
-    return metric_name;
 }
 
 static void append_metric_value(cfl_sds_t *buf, struct cmt_map *map,
@@ -249,6 +250,255 @@ static void format_metric_labels(struct cmt_splunk_hec_context *context, cfl_sds
     }
 }
 
+static void append_bucket_metric(cfl_sds_t *buf, struct cmt_map *map,
+                                 struct cmt_metric *metric, int index)
+{
+    int len = 0;
+    double val;
+    char tmp[128];
+    cfl_sds_t metric_val;
+
+    /* metric name for bucket */
+    format_metric_name(buf, map, "_bucket");
+
+    /* Retrieve metric value */
+    val = cmt_metric_hist_get_value(metric, index);
+    metric_val = double_to_string(val);
+
+    len = snprintf(tmp, sizeof(tmp) - 1, "%s", metric_val);
+    cfl_sds_cat_safe(buf, tmp, len);
+    cfl_sds_destroy(metric_val);
+}
+
+static void format_histogram_bucket(struct cmt_splunk_hec_context *context, cfl_sds_t *buf, struct cmt_map *map,
+                                    struct cmt_metric *metric)
+{
+    int index;
+    int len = 0;
+    char tmp[128];
+    cfl_sds_t val;
+    uint64_t metric_val;
+    struct cmt_histogram *histogram;
+    struct cmt_histogram_buckets *buckets;
+    cfl_sds_t metric_str;
+
+    histogram = (struct cmt_histogram *) map->parent;
+    buckets = histogram->buckets;
+
+    for (index = 0; index <= buckets->count; index++) {
+        /* Common fields */
+        format_context_common(context, buf, map, metric);
+
+        /* Other fields */
+        cfl_sds_cat_safe(buf, "\"fields\":{", 10);
+
+        /* bucket metric */
+        append_bucket_metric(buf, map, metric, index);
+
+        /* upper bound */
+        cfl_sds_cat_safe(buf, ",\"le\":", 6);
+
+        if (index < buckets->count) {
+            cfl_sds_cat_safe(buf, "\"", 1);
+            val = double_to_string(buckets->upper_bounds[index]);
+            cfl_sds_cat_safe(buf, val, cfl_sds_len(val));
+            cfl_sds_destroy(val);
+            cfl_sds_cat_safe(buf, "\"", 1);
+        }
+        else {
+            cfl_sds_cat_safe(buf, "\"+Inf\"", 6);
+        }
+
+        /* Format labels */
+        format_metric_labels(context, buf, map, metric);
+
+        /* Close parenthesis for fields */
+        cfl_sds_cat_safe(buf, "}", 1);
+
+        /* Close parenthesis */
+        cfl_sds_cat_safe(buf, "}", 1);
+    }
+
+    /* Format histogram sum */
+    {
+        /* Common fields */
+        format_context_common(context, buf, map, metric);
+
+        /* Other fields */
+        cfl_sds_cat_safe(buf, "\"fields\":{", 10);
+
+        /* metric name for bucket */
+        format_metric_name(buf, map, "_sum");
+
+        /* Retrieve metric value */
+        metric_val = cmt_metric_hist_get_sum_value(metric);
+        metric_str = double_to_string(metric_val);
+
+        len = snprintf(tmp, sizeof(tmp) - 1, "%s", metric_str);
+        cfl_sds_cat_safe(buf, tmp, len);
+        cfl_sds_destroy(metric_str);
+
+        /* Format labels */
+        format_metric_labels(context, buf, map, metric);
+
+        /* Close parenthesis for fields */
+        cfl_sds_cat_safe(buf, "}", 1);
+
+        /* Close parenthesis */
+        cfl_sds_cat_safe(buf, "}", 1);
+    }
+
+    /* Format histogram sum */
+    {
+        /* Common fields */
+        format_context_common(context, buf, map, metric);
+
+        /* Other fields */
+        cfl_sds_cat_safe(buf, "\"fields\":{", 10);
+
+        /* metric name for bucket */
+        format_metric_name(buf, map, "_count");
+
+        /* Retrieve metric value */
+        metric_val = cmt_metric_hist_get_count_value(metric);
+        metric_str = double_to_string(metric_val);
+
+        len = snprintf(tmp, sizeof(tmp) - 1, "%s", metric_str);
+        cfl_sds_cat_safe(buf, tmp, len);
+        cfl_sds_destroy(metric_str);
+
+        /* Format labels */
+        format_metric_labels(context, buf, map, metric);
+
+        /* Close parenthesis for fields */
+        cfl_sds_cat_safe(buf, "}", 1);
+
+        /* Close parenthesis */
+        cfl_sds_cat_safe(buf, "}", 1);
+    }
+}
+
+static void append_quantiles_metric(cfl_sds_t *buf, struct cmt_map *map,
+                                    struct cmt_metric *metric, int index)
+{
+    int len = 0;
+    double val;
+    char tmp[128];
+    cfl_sds_t metric_val;
+
+    /* metric name for bucket */
+    format_metric_name(buf, map, NULL);
+
+    /* Retrieve metric value */
+    val = cmt_summary_quantile_get_value(metric, index);
+    metric_val = double_to_string(val);
+
+    len = snprintf(tmp, sizeof(tmp) - 1, "%s", metric_val);
+    cfl_sds_cat_safe(buf, tmp, len);
+    cfl_sds_destroy(metric_val);
+}
+
+static void format_summary_metric(struct cmt_splunk_hec_context *context, cfl_sds_t *buf, struct cmt_map *map,
+                                  struct cmt_metric *metric)
+{
+    int index;
+    int len = 0;
+    char tmp[128];
+    cfl_sds_t val;
+    uint64_t metric_val;
+    struct cmt_summary *summary;
+    cfl_sds_t metric_str;
+
+    summary = (struct cmt_summary *) map->parent;
+
+    if (metric->sum_quantiles_set) {
+        for (index = 0; index < summary->quantiles_count; index++) {
+            /* Common fields */
+            format_context_common(context, buf, map, metric);
+
+            /* Other fields */
+            cfl_sds_cat_safe(buf, "\"fields\":{", 10);
+
+            /* bucket metric */
+            append_quantiles_metric(buf, map, metric, index);
+
+            /* quantiles */
+            cfl_sds_cat_safe(buf, ",\"qt\":\"", 7);
+            val = double_to_string(summary->quantiles[index]);
+            cfl_sds_cat_safe(buf, val, cfl_sds_len(val));
+            cfl_sds_destroy(val);
+            cfl_sds_cat_safe(buf, "\"", 1);
+
+            /* Format labels */
+            format_metric_labels(context, buf, map, metric);
+
+            /* Close parenthesis for fields */
+            cfl_sds_cat_safe(buf, "}", 1);
+
+            /* Close parenthesis */
+            cfl_sds_cat_safe(buf, "}", 1);
+        }
+    }
+
+    /* Format Summary sum */
+    {
+        /* Common fields */
+        format_context_common(context, buf, map, metric);
+
+        /* Other fields */
+        cfl_sds_cat_safe(buf, "\"fields\":{", 10);
+
+        /* metric name for bucket */
+        format_metric_name(buf, map, "_sum");
+
+        /* Retrieve metric value */
+        metric_val = cmt_summary_get_sum_value(metric);
+        metric_str = double_to_string(metric_val);
+
+        len = snprintf(tmp, sizeof(tmp) - 1, "%s", metric_str);
+        cfl_sds_cat_safe(buf, tmp, len);
+        cfl_sds_destroy(metric_str);
+
+        /* Format labels */
+        format_metric_labels(context, buf, map, metric);
+
+        /* Close parenthesis for fields */
+        cfl_sds_cat_safe(buf, "}", 1);
+
+        /* Close parenthesis */
+        cfl_sds_cat_safe(buf, "}", 1);
+    }
+
+    /* Format summary count */
+    {
+        /* Common fields */
+        format_context_common(context, buf, map, metric);
+
+        /* Other fields */
+        cfl_sds_cat_safe(buf, "\"fields\":{", 10);
+
+        /* metric name for bucket */
+        format_metric_name(buf, map, "_count");
+
+        /* Retrieve metric value */
+        metric_val = cmt_summary_get_count_value(metric);
+        metric_str = double_to_string(metric_val);
+
+        len = snprintf(tmp, sizeof(tmp) - 1, "%s", metric_str);
+        cfl_sds_cat_safe(buf, tmp, len);
+        cfl_sds_destroy(metric_str);
+
+        /* Format labels */
+        format_metric_labels(context, buf, map, metric);
+
+        /* Close parenthesis for fields */
+        cfl_sds_cat_safe(buf, "}", 1);
+
+        /* Close parenthesis */
+        cfl_sds_cat_safe(buf, "}", 1);
+    }
+}
+
 static void format_metric_data_points(struct cmt_splunk_hec_context *context, cfl_sds_t *buf, struct cmt_map *map,
                                       struct cmt_metric *metric)
 {
@@ -275,10 +525,10 @@ static void format_metric(struct cmt_splunk_hec_context *context, cfl_sds_t *buf
                           struct cmt_metric *metric)
 {
     if (map->type == CMT_HISTOGRAM) {
-        /* return format_histogram_bucket(context, buf, map, metric); */
+        return format_histogram_bucket(context, buf, map, metric);
     }
     else if (map->type == CMT_SUMMARY) {
-        /* return format_summary_metric(context, buf, map, metric); */
+        return format_summary_metric(context, buf, map, metric);
     }
     else {
         /* For Counter, Gauge, and Untyped types */
