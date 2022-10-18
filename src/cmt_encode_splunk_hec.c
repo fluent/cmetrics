@@ -84,6 +84,15 @@ static void format_metric_name(cfl_sds_t *buf, struct cmt_map *map, const char *
     cfl_sds_destroy(metric_name);
 }
 
+static void format_metric_type(cfl_sds_t *buf, const char *metric_type_name)
+{
+    int len = 0;
+    char tmp[32];
+
+    len = snprintf(tmp, sizeof(tmp) - 1, ",\"metric_type\":\"%s\"", metric_type_name);
+    cfl_sds_cat_safe(buf, tmp, len);
+}
+
 static void append_metric_value(cfl_sds_t *buf, struct cmt_map *map,
                                 struct cmt_metric *metric)
 {
@@ -312,6 +321,9 @@ static void format_histogram_bucket(struct cmt_splunk_hec_context *context, cfl_
         /* Format labels */
         format_metric_labels(context, buf, map, metric);
 
+        /* Format metric type */
+        format_metric_type(buf, "Histogram");
+
         /* Close parenthesis for fields */
         cfl_sds_cat_safe(buf, "}", 1);
 
@@ -341,6 +353,9 @@ static void format_histogram_bucket(struct cmt_splunk_hec_context *context, cfl_
         /* Format labels */
         format_metric_labels(context, buf, map, metric);
 
+        /* Format metric type */
+        format_metric_type(buf, "Histogram");
+
         /* Close parenthesis for fields */
         cfl_sds_cat_safe(buf, "}", 1);
 
@@ -369,6 +384,9 @@ static void format_histogram_bucket(struct cmt_splunk_hec_context *context, cfl_
 
         /* Format labels */
         format_metric_labels(context, buf, map, metric);
+
+        /* Format metric type */
+        format_metric_type(buf, "Histogram");
 
         /* Close parenthesis for fields */
         cfl_sds_cat_safe(buf, "}", 1);
@@ -432,6 +450,9 @@ static void format_summary_metric(struct cmt_splunk_hec_context *context, cfl_sd
             /* Format labels */
             format_metric_labels(context, buf, map, metric);
 
+            /* Format metric type */
+            format_metric_type(buf, "Summary");
+
             /* Close parenthesis for fields */
             cfl_sds_cat_safe(buf, "}", 1);
 
@@ -462,6 +483,9 @@ static void format_summary_metric(struct cmt_splunk_hec_context *context, cfl_sd
         /* Format labels */
         format_metric_labels(context, buf, map, metric);
 
+        /* Format metric type */
+        format_metric_type(buf, "Summary");
+
         /* Close parenthesis for fields */
         cfl_sds_cat_safe(buf, "}", 1);
 
@@ -490,6 +514,9 @@ static void format_summary_metric(struct cmt_splunk_hec_context *context, cfl_sd
 
         /* Format labels */
         format_metric_labels(context, buf, map, metric);
+
+        /* Format metric type */
+        format_metric_type(buf, "Summary");
 
         /* Close parenthesis for fields */
         cfl_sds_cat_safe(buf, "}", 1);
