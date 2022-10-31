@@ -965,7 +965,7 @@ static int unpack_basic_type_meta(mpack_reader_t *reader, size_t index, void *co
             {"labels",           unpack_meta_labels},
             {"buckets",          unpack_meta_buckets},
             {"quantiles",        unpack_meta_quantiles},
-            {"agg_type",         unpack_meta_aggregation_type},
+            {"aggregation_type", unpack_meta_aggregation_type},
             {NULL,               NULL}
         };
 

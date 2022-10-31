@@ -152,7 +152,7 @@ static void pack_header(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map 
     }
     else if (map->type == CMT_COUNTER){
         /* aggregation_type */
-        mpack_write_cstr(writer, "agg_type");
+        mpack_write_cstr(writer, "aggregation_type");
         mpack_write_int(writer, counter->aggregation_type);
     }
 
