@@ -817,8 +817,6 @@ static int unpack_meta_aggregation_type(mpack_reader_t *reader, size_t index, vo
 
     if (CMT_DECODE_MSGPACK_SUCCESS == result) {
         decode_context->aggregation_type = value;
-
-        result = create_metric_instance(decode_context->map);
     }
 
     return result;
