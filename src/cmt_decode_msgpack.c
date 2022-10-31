@@ -800,7 +800,7 @@ static int unpack_meta_type(mpack_reader_t *reader, size_t index, void *context)
     return result;
 }
 
-static int unpack_agg_type(mpack_reader_t *reader, size_t index, void *context)
+static int unpack_meta_aggregation_type(mpack_reader_t *reader, size_t index, void *context)
 {
     uint64_t                           value;
     int                                result;
@@ -967,7 +967,7 @@ static int unpack_basic_type_meta(mpack_reader_t *reader, size_t index, void *co
             {"labels",           unpack_meta_labels},
             {"buckets",          unpack_meta_buckets},
             {"quantiles",        unpack_meta_quantiles},
-            {"agg_type",         unpack_agg_type},
+            {"agg_type",         unpack_meta_aggregation_type},
             {NULL,               NULL}
         };
 
