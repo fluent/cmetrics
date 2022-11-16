@@ -235,7 +235,8 @@ if (NOT CMT_HAVE_CFL)
   CMT_DEFINITION(CMT_HAVE_CFL)
   CMT_DEFINITION(CMT_HAVE_CFL_INTERNAL)
   if (CMT_INSTALL_TARGETS)
-    install(FILES lib/cfl/include/cfl/
+    file(GLOB bundledCFLHeaders "lib/cfl/include/cfl/*.h")
+    install(FILES ${bundledCFLHeaders}
       DESTINATION ${CMT_INSTALL_INCLUDEDIR}/cfl
       COMPONENT headers
       PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
@@ -251,7 +252,8 @@ if (NOT CMT_HAVE_FLUENT_OTEL_PROTO)
   CMT_DEFINITION(CMT_HAVE_FLUENT_OTEL_PROTO)
   CMT_DEFINITION(CMT_HAVE_FLUENT_OTEL_PROTO_INTERNAL)
   if (CMT_INSTALL_TARGETS)
-    install(FILES lib/fluent-otel-proto/include/fluent-otel-proto/
+    file(GLOB bundledOTELProtoHeaders "lib/fluent-otel-proto/include/fluent-otel-proto/*.h")
+    install(FILES ${bundledOTELProtoHeaders}
       DESTINATION ${CMT_INSTALL_INCLUDEDIR}/fluent-otel-proto
       COMPONENT headers
       PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
