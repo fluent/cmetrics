@@ -234,6 +234,12 @@ if (NOT CMT_HAVE_CFL)
   add_subdirectory(lib/cfl)
   CMT_DEFINITION(CMT_HAVE_CFL)
   CMT_DEFINITION(CMT_HAVE_CFL_INTERNAL)
+  if (CMT_INSTALL_TARGETS)
+    install(FILES lib/cfl/include/cfl/
+      DESTINATION ${CMT_INSTALL_INCLUDEDIR}/cfl
+      COMPONENT headers
+      PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+  endif()
 endif()
 
 # fluent-otel-proto
@@ -244,6 +250,12 @@ if (NOT CMT_HAVE_FLUENT_OTEL_PROTO)
   add_subdirectory(lib/fluent-otel-proto)
   CMT_DEFINITION(CMT_HAVE_FLUENT_OTEL_PROTO)
   CMT_DEFINITION(CMT_HAVE_FLUENT_OTEL_PROTO_INTERNAL)
+  if (CMT_INSTALL_TARGETS)
+    install(FILES lib/fluent-otel-proto/include/fluent-otel-proto/
+      DESTINATION ${CMT_INSTALL_INCLUDEDIR}/fluent-otel-proto
+      COMPONENT headers
+      PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+  endif()
 endif()
 
 # Source code
@@ -314,7 +326,7 @@ set(CPACK_RPM_PACKAGE_GROUP "System Environment/Daemons")
 set(CPACK_RPM_PACKAGE_LICENSE "Apache v2.0")
 set(CPACK_RPM_PACKAGE_RELEASE ${CPACK_PACKAGE_RELEASE})
 set(CPACK_PACKAGE_DESCRIPTION_FILE "${PROJECT_SOURCE_DIR}/cpack/description")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Fast data collector for Linux")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A standalone library to create and manipulate metrics in C")
 set(CPACK_RPM_SPEC_MORE_DEFINE "%define ignore \#")
 set(CPACK_RPM_USER_FILELIST
   "%ignore /lib"
