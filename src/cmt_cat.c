@@ -24,6 +24,7 @@
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_untyped.h>
 #include <cmetrics/cmt_histogram.h>
+#include <cmetrics/cmt_summary.h>
 
 static int copy_label_keys(struct cmt_map *map, char **out)
 {
@@ -150,6 +151,21 @@ static int copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map *
             }
             metric_dst->hist_count = metric_src->hist_count;
             metric_dst->hist_sum = metric_src->hist_sum;
+        }
+        else if (src->type == CMT_SUMMARY) {
+            metric_dst->sum_quantiles_count = metric_src->sum_quantiles_count;
+            metric_dst->sum_quantiles_set = metric_src->sum_quantiles_set;
+            if (!metric_dst->sum_quantiles) {
+                metric_dst->sum_quantiles = calloc(1, sizeof(uint64_t) * (metric_src->sum_quantiles_count));
+                if (!metric_dst->sum_quantiles) {
+                    return -1;
+                }
+            }
+            for (i = 0; i < metric_src->sum_quantiles_count; i++) {
+                metric_dst->sum_quantiles[i] = metric_src->sum_quantiles[i];
+            }
+            metric_dst->sum_count = metric_src->sum_count;
+            metric_dst->sum_sum = metric_src->sum_sum;
         }
 
         ts  = cmt_metric_get_timestamp(metric_src);
@@ -315,6 +331,57 @@ static int copy_histogram(struct cmt *cmt, struct cmt_histogram *histogram)
     return 0;
 }
 
+static int copy_summary(struct cmt *cmt, struct cmt_summary *summary)
+{
+    int i;
+    int ret;
+    char **labels = NULL;
+    struct cmt_map *map;
+    struct cmt_opts *opts;
+    struct cmt_summary *sum;
+    double *quantiles;
+    uint64_t timestamp;
+    double summary_sum;
+
+    map = summary->map;
+    opts = map->opts;
+    timestamp = cmt_metric_get_timestamp(&map->metric);
+
+    ret = copy_label_keys(map, (char **) &labels);
+    if (ret == -1) {
+        return -1;
+    }
+
+    quantiles = calloc(1, sizeof(double) * summary->quantiles_count);
+    for (i = 0; i < summary->quantiles_count; i++) {
+        quantiles[i] = summary->quantiles[i];
+    }
+
+    /* create summary */
+    sum = cmt_summary_create(cmt,
+                             opts->ns, opts->subsystem,
+                             opts->name, opts->description,
+                             summary->quantiles_count,
+                             quantiles,
+                             map->label_count, labels);
+    if (!sum) {
+        return -1;
+    }
+
+    summary_sum = cmt_summary_get_sum_value(&summary->map->metric);
+
+    cmt_summary_set_default(sum, timestamp, quantiles, summary_sum, summary->quantiles_count, map->label_count, labels);
+    free(labels);
+    free(quantiles);
+
+    ret = copy_map(&sum->opts, sum->map, map);
+    if (ret == -1) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int append_context(struct cmt *dst, struct cmt *src)
 {
     int ret;
@@ -323,6 +390,7 @@ static int append_context(struct cmt *dst, struct cmt *src)
     struct cmt_gauge *gauge;
     struct cmt_untyped *untyped;
     struct cmt_histogram *histogram;
+    struct cmt_summary *summary;
 
      /* Counters */
     cfl_list_foreach(head, &src->counters) {
@@ -355,6 +423,15 @@ static int append_context(struct cmt *dst, struct cmt *src)
     cfl_list_foreach(head, &src->histograms) {
         histogram = cfl_list_entry(head, struct cmt_histogram, _head);
         ret = copy_histogram(dst, histogram);
+        if (ret == -1) {
+            return -1;
+        }
+    }
+
+    /* Summary */
+    cfl_list_foreach(head, &src->summaries) {
+        summary = cfl_list_entry(head, struct cmt_summary, _head);
+        ret = copy_summary(dst, summary);
         if (ret == -1) {
             return -1;
         }
