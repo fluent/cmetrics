@@ -23,6 +23,7 @@
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_untyped.h>
+#include <cmetrics/cmt_histogram.h>
 
 static int copy_label_keys(struct cmt_map *map, char **out)
 {
@@ -96,6 +97,7 @@ static int copy_label_values(struct cmt_metric *metric, char **out)
 
 static int copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map *src)
 {
+    int i;
     int c;
     int ret;
     uint64_t ts;
@@ -134,6 +136,20 @@ static int copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map *
 
         if (!metric_dst) {
             return -1;
+        }
+
+        if (src->type == CMT_HISTOGRAM) {
+            if (!metric_dst->hist_buckets) {
+                metric_dst->hist_buckets = calloc(1, sizeof(uint64_t) * (metric_src->hist_count + 1));
+                if (!metric_dst->hist_buckets) {
+                    return -1;
+                }
+            }
+            for (i = 0; i < metric_src->hist_count; i++) {
+                metric_dst->hist_buckets[i] = metric_src->hist_buckets[i];
+            }
+            metric_dst->hist_count = metric_src->hist_count;
+            metric_dst->hist_sum = metric_src->hist_sum;
         }
 
         ts  = cmt_metric_get_timestamp(metric_src);
@@ -249,6 +265,56 @@ static int copy_untyped(struct cmt *cmt, struct cmt_untyped *untyped)
     return 0;
 }
 
+static int copy_histogram(struct cmt *cmt, struct cmt_histogram *histogram)
+{
+    int i;
+    double val;
+    int ret;
+    char **labels = NULL;
+    struct cmt_map *map;
+    struct cmt_opts *opts;
+    struct cmt_histogram *hist;
+    uint64_t timestamp;
+    struct cmt_histogram_buckets *buckets;
+    int64_t buckets_count;
+
+    map = histogram->map;
+    opts = map->opts;
+    timestamp = cmt_metric_get_timestamp(&map->metric);
+
+    ret = copy_label_keys(map, (char **) &labels);
+    if (ret == -1) {
+        return -1;
+    }
+
+    buckets_count = histogram->buckets->count;
+    buckets = cmt_histogram_buckets_create_size(histogram->buckets->upper_bounds,
+                                                buckets_count);
+
+    /* create histogram */
+    hist = cmt_histogram_create(cmt,
+                                opts->ns, opts->subsystem,
+                                opts->name, opts->description,
+                                buckets,
+                                map->label_count, labels);
+    if (!hist) {
+        return -1;
+    }
+
+    for (i = 0; i < buckets_count; i++) {
+        val = histogram->buckets->upper_bounds[i];
+        cmt_histogram_observe(hist, timestamp, val, map->label_count, labels);
+    }
+    free(labels);
+
+    ret = copy_map(&hist->opts, hist->map, map);
+    if (ret == -1) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int append_context(struct cmt *dst, struct cmt *src)
 {
     int ret;
@@ -256,6 +322,7 @@ static int append_context(struct cmt *dst, struct cmt *src)
     struct cmt_counter *counter;
     struct cmt_gauge *gauge;
     struct cmt_untyped *untyped;
+    struct cmt_histogram *histogram;
 
      /* Counters */
     cfl_list_foreach(head, &src->counters) {
@@ -279,6 +346,15 @@ static int append_context(struct cmt *dst, struct cmt *src)
     cfl_list_foreach(head, &src->untypeds) {
         untyped = cfl_list_entry(head, struct cmt_untyped, _head);
         ret = copy_untyped(dst, untyped);
+        if (ret == -1) {
+            return -1;
+        }
+    }
+
+    /* Histogram */
+    cfl_list_foreach(head, &src->histograms) {
+        histogram = cfl_list_entry(head, struct cmt_histogram, _head);
+        ret = copy_histogram(dst, histogram);
         if (ret == -1) {
             return -1;
         }
