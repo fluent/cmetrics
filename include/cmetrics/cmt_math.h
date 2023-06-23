@@ -23,11 +23,6 @@
 #include <inttypes.h>
 #include <string.h>
 
-union val_union {
-    uint64_t u;
-    double d;
-};
-
 /*
  * This is not rocket-science and to make things easier we assume that operating on
  * floating pointer numbers we will lose precision. So we just do simple casts.
@@ -35,18 +30,12 @@ union val_union {
 
 static inline uint64_t cmt_math_d64_to_uint64(double val)
 {
-    union val_union u;
-
-    u.d = val;
-    return u.u;
+    return (uint64_t)val;
 }
 
 static inline double cmt_math_uint64_to_d64(uint64_t val)
 {
-    union val_union u;
-
-    u.u = val;
-    return u.d;
+    return (double)val;
 }
 
 #endif
