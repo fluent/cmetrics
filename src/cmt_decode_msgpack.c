@@ -1006,7 +1006,12 @@ static int unpack_basic_type_meta(mpack_reader_t *reader, size_t index, void *co
         }
         else if(decode_context->map->type == CMT_COUNTER) {
             counter = (struct cmt_counter *) decode_context->map->parent;
-            counter->aggregation_type = decode_context->aggregation_type;
+            if (counter == NULL) {
+                result = CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
+            }
+            else {
+                counter->aggregation_type = decode_context->aggregation_type;
+            }
         }
     }
 
