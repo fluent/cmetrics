@@ -33,7 +33,7 @@
 #include <cmetrics/cmt_encode_text.h>
 #include <cmetrics/cmt_encode_influx.h>
 #include <cmetrics/cmt_encode_splunk_hec.h>
-#include <cmetrics/cmt_encode_cloudwatch_emf_payload.h>
+#include <cmetrics/cmt_encode_cloudwatch_emf.h>
 
 #include "cmt_tests.h"
 
@@ -580,7 +580,7 @@ curl -v 'http://localhost:9090/v1/metrics' -H 'Content-Type: application/x-proto
     cmt_destroy(cmt);
 }
 
-void test_cloudwatch_emf_payload()
+void test_cloudwatch_emf()
 {
     int ret;
     struct cmt *cmt;
@@ -596,7 +596,7 @@ void test_cloudwatch_emf_payload()
     cmt_label_add(cmt, "format", "EMF");
     cmt_label_add(cmt, "dev", "CMetrics Authors");
 
-    ret = cmt_encode_cloudwatch_emf_payload_create(cmt, &mp_buf, &mp_size, wrap_array);
+    ret = cmt_encode_cloudwatch_emf_create(cmt, &mp_buf, &mp_size, wrap_array);
     TEST_CHECK(0 == ret);
 
     if (ret != 0) {
@@ -615,7 +615,7 @@ fluent-bit\n\n");
 
     fclose(sample_file);
 
-    cmt_encode_cloudwatch_emf_payload_destroy(mp_buf);
+    cmt_encode_cloudwatch_emf_destroy(mp_buf);
 
     cmt_destroy(cmt);
 }
@@ -1086,7 +1086,7 @@ TEST_LIST = {
     {"cmt_msgpack_labels",             test_cmt_to_msgpack_labels},
     {"cmt_msgpack",                    test_cmt_to_msgpack},
     {"opentelemetry",                  test_opentelemetry},
-    {"cloudwatch_emf_payload",         test_cloudwatch_emf_payload},
+    {"cloudwatch_emf",                 test_cloudwatch_emf},
     {"prometheus",                     test_prometheus},
     {"text",                           test_text},
     {"influx",                         test_influx},

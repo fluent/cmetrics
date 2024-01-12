@@ -18,26 +18,26 @@
  */
 
 
-#ifndef CMT_ENCODE_CLOUDWATCH_EMF_PAYLOAD_H
-#define CMT_ENCODE_CLOUDWATCH_EMF_PAYLOAD_H
+#ifndef CMT_ENCODE_CLOUDWATCH_EMF_H
+#define CMT_ENCODE_CLOUDWATCH_EMF_H
 
 #include <time.h>
 #include <cfl/cfl.h>
 #include <cmetrics/cmetrics.h>
 
-#define CMT_ENCODE_CLOUDWATCH_EMF_PAYLOAD_SUCCESS                 0
-#define CMT_ENCODE_CLOUDWATCH_EMF_PAYLOAD_INVALID_ARGUMENT_ERROR -1
-#define CMT_ENCODE_CLOUDWATCH_EMF_PAYLOAD_CREATION_FAILED        -2
-#define CMT_ENCODE_CLOUDWATCH_EMF_PAYLOAD_INVALID_DATA_ERROR     -4
+#define CMT_ENCODE_CLOUDWATCH_EMF_SUCCESS                 0
+#define CMT_ENCODE_CLOUDWATCH_EMF_INVALID_ARGUMENT_ERROR -1
+#define CMT_ENCODE_CLOUDWATCH_EMF_CREATION_FAILED        -2
+#define CMT_ENCODE_CLOUDWATCH_EMF_INVALID_DATA_ERROR     -4
 
 /* Metric Unit */
 #define CMT_EMF_UNIT_PERCENT "Percent"
 #define CMT_EMF_UNIT_BYTES   "Bytes"
 #define CMT_EMF_UNIT_COUNTER "Counter"
 
-int cmt_encode_cloudwatch_emf_payload_create(struct cmt *cmt,
-                                             char **out_buf, size_t *out_size,
-                                             int wrap_array);
-void cmt_encode_cloudwatch_emf_payload_destroy(char *out_buf);
+int cmt_encode_cloudwatch_emf_create(struct cmt *cmt,
+                                     char **out_buf, size_t *out_size,
+                                     int wrap_array);
+void cmt_encode_cloudwatch_emf_destroy(char *out_buf);
 
 #endif

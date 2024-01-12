@@ -27,7 +27,7 @@
 #include <cmetrics/cmt_summary.h>
 #include <cmetrics/cmt_time.h>
 #include <cmetrics/cmt_compat.h>
-#include <cmetrics/cmt_encode_cloudwatch_emf_payload.h>
+#include <cmetrics/cmt_encode_cloudwatch_emf.h>
 #include <cmetrics/cmt_variant_utils.h>
 
 static void pack_basic_header(mpack_writer_t *writer, struct cmt *cmt,
@@ -418,7 +418,7 @@ static int pack_context_metrics(mpack_writer_t *writer, struct cmt *cmt, int wra
         mpack_finish_array(writer); /* outermost context scope */
     }
 
-    return CMT_ENCODE_CLOUDWATCH_EMF_PAYLOAD_SUCCESS;
+    return CMT_ENCODE_CLOUDWATCH_EMF_SUCCESS;
 }
 
 static int pack_emf_payload(mpack_writer_t *writer, struct cmt *cmt, int wrap_array)
@@ -427,16 +427,16 @@ static int pack_emf_payload(mpack_writer_t *writer, struct cmt *cmt, int wrap_ar
 
     result = pack_context_metrics(writer, cmt, wrap_array);
 
-    if (result != CMT_ENCODE_CLOUDWATCH_EMF_PAYLOAD_SUCCESS) {
-        return CMT_ENCODE_CLOUDWATCH_EMF_PAYLOAD_CREATION_FAILED;
+    if (result != CMT_ENCODE_CLOUDWATCH_EMF_SUCCESS) {
+        return CMT_ENCODE_CLOUDWATCH_EMF_CREATION_FAILED;
     }
 
     return 0;
 }
 
-int cmt_encode_cloudwatch_emf_payload_create(struct cmt *cmt,
-                                             char **out_buf, size_t *out_size,
-                                             int wrap_array)
+int cmt_encode_cloudwatch_emf_create(struct cmt *cmt,
+                                     char **out_buf, size_t *out_size,
+                                     int wrap_array)
 {
     char *data;
     size_t size;
@@ -444,7 +444,7 @@ int cmt_encode_cloudwatch_emf_payload_create(struct cmt *cmt,
     int result;
 
     if (cmt == NULL) {
-        return CMT_ENCODE_CLOUDWATCH_EMF_PAYLOAD_INVALID_ARGUMENT_ERROR;
+        return CMT_ENCODE_CLOUDWATCH_EMF_INVALID_ARGUMENT_ERROR;
     }
 
     mpack_writer_init_growable(&writer, &data, &size);
@@ -454,7 +454,7 @@ int cmt_encode_cloudwatch_emf_payload_create(struct cmt *cmt,
     if (mpack_writer_destroy(&writer) != mpack_ok) {
         fprintf(stderr, "An error occurred encoding the data!\n");
 
-        return CMT_ENCODE_CLOUDWATCH_EMF_PAYLOAD_INVALID_DATA_ERROR;
+        return CMT_ENCODE_CLOUDWATCH_EMF_INVALID_DATA_ERROR;
     }
 
     if (result != 0) {
@@ -467,7 +467,7 @@ int cmt_encode_cloudwatch_emf_payload_create(struct cmt *cmt,
     return 0;
 }
 
-void cmt_encode_cloudwatch_emf_payload_destroy(char *out_buf)
+void cmt_encode_cloudwatch_emf_destroy(char *out_buf)
 {
     if (out_buf != NULL) {
         MPACK_FREE(out_buf);
