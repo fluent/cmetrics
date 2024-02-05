@@ -34,6 +34,7 @@
 
 int cmt_filter(struct cmt *dst, struct cmt *src,
                const char *fqname, const char *label_key,
+               void *compare_ctx, int (*compare)(void *compare_ctx, const char *str, size_t slen),
                int flags);
 
 #endif

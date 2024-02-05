@@ -27,7 +27,9 @@
 #include <cmetrics/cmt_summary.h>
 #include <cmetrics/cmt_filter.h>
 
-static int compare_label_keys(struct cmt_map *src, const char *label_key, int flags)
+static int compare_label_keys(struct cmt_map *src, const char *label_key,
+                              void *compare_ctx, int (*compare)(void *compare_ctx, const char *str, size_t slen),
+                              int flags)
 {
     struct cfl_list *head;
     struct cmt_map_label *label;
@@ -51,13 +53,20 @@ static int compare_label_keys(struct cmt_map *src, const char *label_key, int fl
 
             return (flags & CMT_FILTER_EXCLUDE) ? CMT_TRUE : CMT_FALSE;
         }
+
+        /* compare with an external context (e.g. Onigmo) */
+        if (compare_ctx != NULL && compare != NULL) {
+            return compare(compare_ctx, label->name, strlen(label->name));
+        }
     }
 
     return CMT_FALSE;
 }
 
 static int filter_context_label_key(struct cmt *dst, struct cmt *src,
-                                    const char *label_key, int flags)
+                                    const char *label_key,
+                                    void *compare_ctx, int (*compare)(void *compare_ctx, const char *str, size_t slen),
+                                    int flags)
 {
     int ret;
     struct cfl_list *head;
@@ -71,7 +80,7 @@ static int filter_context_label_key(struct cmt *dst, struct cmt *src,
     cfl_list_foreach(head, &src->counters) {
         counter = cfl_list_entry(head, struct cmt_counter, _head);
 
-        if (compare_label_keys(counter->map, label_key, flags) == CMT_FALSE) {
+        if (compare_label_keys(counter->map, label_key, compare_ctx, compare, flags) == CMT_FALSE) {
             continue;
         }
 
@@ -85,7 +94,7 @@ static int filter_context_label_key(struct cmt *dst, struct cmt *src,
     cfl_list_foreach(head, &src->gauges) {
         gauge = cfl_list_entry(head, struct cmt_gauge, _head);
 
-        if (compare_label_keys(gauge->map, label_key, flags) == CMT_FALSE) {
+        if (compare_label_keys(gauge->map, label_key, compare_ctx, compare, flags) == CMT_FALSE) {
             continue;
         }
 
@@ -99,7 +108,7 @@ static int filter_context_label_key(struct cmt *dst, struct cmt *src,
     cfl_list_foreach(head, &src->untypeds) {
         untyped = cfl_list_entry(head, struct cmt_untyped, _head);
 
-        if (compare_label_keys(untyped->map, label_key, flags) == CMT_FALSE) {
+        if (compare_label_keys(untyped->map, label_key, compare_ctx, compare, flags) == CMT_FALSE) {
             continue;
         }
 
@@ -113,7 +122,7 @@ static int filter_context_label_key(struct cmt *dst, struct cmt *src,
     cfl_list_foreach(head, &src->histograms) {
         histogram = cfl_list_entry(head, struct cmt_histogram, _head);
 
-        if (compare_label_keys(histogram->map, label_key, flags) == CMT_FALSE) {
+        if (compare_label_keys(histogram->map, label_key, compare_ctx, compare, flags) == CMT_FALSE) {
             continue;
         }
 
@@ -127,7 +136,7 @@ static int filter_context_label_key(struct cmt *dst, struct cmt *src,
     cfl_list_foreach(head, &src->summaries) {
         summary = cfl_list_entry(head, struct cmt_summary, _head);
 
-        if (compare_label_keys(summary->map, label_key, flags) == CMT_FALSE) {
+        if (compare_label_keys(summary->map, label_key, compare_ctx, compare, flags) == CMT_FALSE) {
             continue;
         }
 
@@ -140,7 +149,9 @@ static int filter_context_label_key(struct cmt *dst, struct cmt *src,
     return CMT_FILTER_SUCCESS;
 }
 
-static int compare_fqname(struct cmt_opts *src, const char *fqname, int flags)
+static int compare_fqname(struct cmt_opts *src, const char *fqname,
+                          void *compare_ctx, int (*compare)(void *compare_ctx, const char *str, size_t slen),
+                          int flags)
 {
     /* compare fqname for prefix */
     if (flags & CMT_FILTER_PREFIX) {
@@ -160,11 +171,18 @@ static int compare_fqname(struct cmt_opts *src, const char *fqname, int flags)
         return (flags & CMT_FILTER_EXCLUDE) ? CMT_TRUE : CMT_FALSE;
     }
 
+    /* compare with an external context (e.g. Onigmo) */
+    if (compare_ctx != NULL && compare != NULL) {
+        return compare(compare_ctx, src->fqname, strlen(src->fqname));
+    }
+
     return CMT_FALSE;
 }
 
 static int filter_context_fqname(struct cmt *dst, struct cmt *src,
-                                 const char *fqname, int flags)
+                                 const char *fqname,
+                                 void *compare_ctx, int (*compare)(void *compare_ctx, const char *str, size_t slen),
+                                 int flags)
 {
     int ret;
     struct cfl_list *head;
@@ -178,7 +196,7 @@ static int filter_context_fqname(struct cmt *dst, struct cmt *src,
     cfl_list_foreach(head, &src->counters) {
         counter = cfl_list_entry(head, struct cmt_counter, _head);
 
-        if (compare_fqname(counter->map->opts, fqname, flags) == CMT_FALSE) {
+        if (compare_fqname(counter->map->opts, fqname, compare_ctx, compare, flags) == CMT_FALSE) {
             continue;
         }
 
@@ -191,7 +209,7 @@ static int filter_context_fqname(struct cmt *dst, struct cmt *src,
     /* Gauges */
     cfl_list_foreach(head, &src->gauges) {
         gauge = cfl_list_entry(head, struct cmt_gauge, _head);
-        if (compare_fqname(gauge->map->opts, fqname, flags) == CMT_FALSE) {
+        if (compare_fqname(gauge->map->opts, fqname, compare_ctx, compare, flags) == CMT_FALSE) {
             continue;
         }
 
@@ -204,7 +222,7 @@ static int filter_context_fqname(struct cmt *dst, struct cmt *src,
     /* Untyped */
     cfl_list_foreach(head, &src->untypeds) {
         untyped = cfl_list_entry(head, struct cmt_untyped, _head);
-        if (compare_fqname(untyped->map->opts, fqname, flags) == CMT_FALSE) {
+        if (compare_fqname(untyped->map->opts, fqname, compare_ctx, compare, flags) == CMT_FALSE) {
             continue;
         }
 
@@ -217,7 +235,7 @@ static int filter_context_fqname(struct cmt *dst, struct cmt *src,
     /* Histogram */
     cfl_list_foreach(head, &src->histograms) {
         histogram = cfl_list_entry(head, struct cmt_histogram, _head);
-        if (compare_fqname(histogram->map->opts, fqname, flags) == CMT_FALSE) {
+        if (compare_fqname(histogram->map->opts, fqname, compare_ctx, compare, flags) == CMT_FALSE) {
             continue;
         }
 
@@ -230,7 +248,7 @@ static int filter_context_fqname(struct cmt *dst, struct cmt *src,
     /* Summary */
     cfl_list_foreach(head, &src->summaries) {
         summary = cfl_list_entry(head, struct cmt_summary, _head);
-        if (compare_fqname(summary->map->opts, fqname, flags) == CMT_FALSE) {
+        if (compare_fqname(summary->map->opts, fqname, compare_ctx, compare, flags) == CMT_FALSE) {
             continue;
         }
 
@@ -245,6 +263,7 @@ static int filter_context_fqname(struct cmt *dst, struct cmt *src,
 
 int cmt_filter(struct cmt *dst, struct cmt *src,
                const char *fqname, const char *label_key,
+               void *compare_ctx, int (*compare)(void *compare_ctx, const char *str, size_t slen),
                int flags)
 {
     int ret = CMT_FILTER_SUCCESS;
@@ -262,16 +281,16 @@ int cmt_filter(struct cmt *dst, struct cmt *src,
         return CMT_FILTER_INVALID_FLAGS;
     }
 
-    if (fqname != NULL) {
-        ret = filter_context_fqname(dst, src, fqname, flags);
+    if (fqname != NULL || (compare_ctx != NULL && compare != NULL)) {
+        ret = filter_context_fqname(dst, src, fqname, compare_ctx, compare, flags);
     }
 
     if (ret != CMT_FILTER_SUCCESS) {
         return CMT_FILTER_FAILED_OPERATION;
     }
 
-    if (label_key != NULL) {
-        ret = filter_context_label_key(dst, src, label_key, flags);
+    if (label_key != NULL || (compare_ctx != NULL && compare != NULL)) {
+        ret = filter_context_label_key(dst, src, label_key, compare_ctx, compare, flags);
     }
 
     if (ret != CMT_FILTER_SUCCESS) {

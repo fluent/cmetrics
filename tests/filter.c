@@ -207,7 +207,8 @@ void test_filter()
     /* filter with fqname (INCLUDE & PREFIX) */
     fqname = "spring";
     flags |= CMT_FILTER_PREFIX;
-    ret = cmt_filter(cmt2, cmt, fqname, NULL, flags);
+    ret = cmt_filter(cmt2, cmt, fqname, NULL,
+                     NULL, NULL, flags);
     TEST_CHECK(ret == 0);
 
     /* check output (fqname) */
@@ -225,7 +226,8 @@ void test_filter()
     /* filter with fqname (INCLUDE & SUBSTRING) */
     fqname = "load";
     flags |= CMT_FILTER_SUBSTRING;
-    ret = cmt_filter(cmt3, cmt, fqname, NULL, flags);
+    ret = cmt_filter(cmt3, cmt, fqname, NULL,
+                     NULL, NULL, flags);
     TEST_CHECK(ret == 0);
 
     /* check output (fqname) */
@@ -243,7 +245,8 @@ void test_filter()
     /* filter with label_key (EXCLUDE & PREFIX) */
     label_key = "host";
     flags |= CMT_FILTER_PREFIX;
-    ret = cmt_filter(cmt4, cmt, NULL, label_key, flags);
+    ret = cmt_filter(cmt4, cmt, NULL, label_key,
+                     NULL, NULL, flags);
     TEST_CHECK(ret == 0);
 
     /* check output (label_key) */
@@ -262,7 +265,8 @@ void test_filter()
     label_key = "label";
     flags |= CMT_FILTER_EXCLUDE;
     flags |= CMT_FILTER_SUBSTRING;
-    ret = cmt_filter(cmt5, cmt, NULL, label_key, flags);
+    ret = cmt_filter(cmt5, cmt, NULL, label_key,
+                     NULL, NULL, flags);
     TEST_CHECK(ret == 0);
 
     /* check output (label_key) */
