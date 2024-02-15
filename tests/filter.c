@@ -195,27 +195,30 @@ void test_filter()
     struct cmt *cmt3;
     struct cmt *cmt4;
     struct cmt *cmt5;
+    struct cmt *cmt6;
     int flags = 0;
     char *fqname;
     char *label_key;
 
     cmt = generate_filter_test_data();
 
+    text = cmt_encode_text_create(cmt);
+    printf("[Not filtered] ====>\n%s\n", text);
+
+    cmt_encode_text_destroy(text);
+
     cmt2 = cmt_create();
     TEST_CHECK(cmt2 != NULL);
 
-    /* filter with fqname (INCLUDE & PREFIX) */
-    fqname = "spring";
-    flags |= CMT_FILTER_PREFIX;
+    /* filter with fqname (SUBSTRING) */
+    fqname = "counter";
+    flags |= CMT_FILTER_SUBSTRING;
     ret = cmt_filter(cmt2, cmt, fqname, NULL,
                      NULL, NULL, flags);
     TEST_CHECK(ret == 0);
-
     /* check output (fqname) */
     text = cmt_encode_text_create(cmt2);
-    printf("====>\n%s\n", text);
-
-    cmt_encode_text_destroy(text);
+    printf("[substring matched with \"%s\" in fqname] ====>\n%s\n", fqname, text);
 
     /* reset flags */
     flags = 0;
@@ -223,35 +226,35 @@ void test_filter()
     cmt3 = cmt_create();
     TEST_CHECK(cmt3 != NULL);
 
-    /* filter with fqname (INCLUDE & SUBSTRING) */
-    fqname = "load";
-    flags |= CMT_FILTER_SUBSTRING;
+    /* filter with fqname (INCLUDE & PREFIX) */
+    fqname = "spring";
+    flags |= CMT_FILTER_PREFIX;
     ret = cmt_filter(cmt3, cmt, fqname, NULL,
                      NULL, NULL, flags);
     TEST_CHECK(ret == 0);
 
     /* check output (fqname) */
     text = cmt_encode_text_create(cmt3);
-    printf("====>\n%s\n", text);
+    printf("[prefix matched with \"%s\" in fqname] ====>\n%s\n", fqname, text);
 
     cmt_encode_text_destroy(text);
-
-    cmt4 = cmt_create();
-    TEST_CHECK(cmt4 != NULL);
 
     /* reset flags */
     flags = 0;
 
-    /* filter with label_key (EXCLUDE & PREFIX) */
-    label_key = "host";
-    flags |= CMT_FILTER_PREFIX;
-    ret = cmt_filter(cmt4, cmt, NULL, label_key,
+    cmt4 = cmt_create();
+    TEST_CHECK(cmt4 != NULL);
+
+    /* filter with fqname (INCLUDE & SUBSTRING) */
+    fqname = "load";
+    flags |= CMT_FILTER_SUBSTRING;
+    ret = cmt_filter(cmt4, cmt, fqname, NULL,
                      NULL, NULL, flags);
     TEST_CHECK(ret == 0);
 
-    /* check output (label_key) */
+    /* check output (fqname) */
     text = cmt_encode_text_create(cmt4);
-    printf("====>\n%s\n", text);
+    printf("[substring matched with \"%s\" in fqname] ====>\n%s\n", fqname, text);
 
     cmt_encode_text_destroy(text);
 
@@ -261,17 +264,36 @@ void test_filter()
     /* reset flags */
     flags = 0;
 
-    /* filter with label_key (EXCLUDE & SUBSTRING) */
-    label_key = "label";
-    flags |= CMT_FILTER_EXCLUDE;
-    flags |= CMT_FILTER_SUBSTRING;
+    /* filter with label_key (EXCLUDE & PREFIX) */
+    label_key = "host";
+    flags |= CMT_FILTER_PREFIX;
     ret = cmt_filter(cmt5, cmt, NULL, label_key,
                      NULL, NULL, flags);
     TEST_CHECK(ret == 0);
 
     /* check output (label_key) */
     text = cmt_encode_text_create(cmt5);
-    printf("====>\n%s\n", text);
+    printf("[prefix matched with \"%s\" in label key] ====>\n%s\n", label_key, text);
+
+    cmt_encode_text_destroy(text);
+
+    cmt6 = cmt_create();
+    TEST_CHECK(cmt6 != NULL);
+
+    /* reset flags */
+    flags = 0;
+
+    /* filter with label_key (EXCLUDE & SUBSTRING) */
+    label_key = "label";
+    flags |= CMT_FILTER_EXCLUDE;
+    flags |= CMT_FILTER_SUBSTRING;
+    ret = cmt_filter(cmt6, cmt, NULL, label_key,
+                     NULL, NULL, flags);
+    TEST_CHECK(ret == 0);
+
+    /* check output (label_key) */
+    text = cmt_encode_text_create(cmt6);
+    printf("[exclude with \"%s\" in label key] ====>\n%s\n", label_key, text);
 
     cmt_encode_text_destroy(text);
 
@@ -281,6 +303,7 @@ void test_filter()
     cmt_destroy(cmt3);
     cmt_destroy(cmt4);
     cmt_destroy(cmt5);
+    cmt_destroy(cmt6);
 }
 
 TEST_LIST = {
