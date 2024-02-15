@@ -23,9 +23,10 @@
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_cat.h>
 
-#define CMT_FILTER_EXCLUDE   (1 << 1)
-#define CMT_FILTER_PREFIX    (1 << 2)
-#define CMT_FILTER_SUBSTRING (1 << 3)
+#define CMT_FILTER_EXCLUDE             (1 << 1)
+#define CMT_FILTER_PREFIX              (1 << 2)
+#define CMT_FILTER_SUBSTRING           (1 << 3)
+#define CMT_FILTER_REGEX_SEARCH_LABELS (1 << 4)
 
 #define CMT_FILTER_SUCCESS           0
 #define CMT_FILTER_INVALID_ARGUMENT -1
