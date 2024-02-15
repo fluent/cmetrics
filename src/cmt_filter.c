@@ -289,7 +289,9 @@ int cmt_filter(struct cmt *dst, struct cmt *src,
         return CMT_FILTER_FAILED_OPERATION;
     }
 
-    if (label_key != NULL || (compare_ctx != NULL && compare != NULL)) {
+    /* On callback mode, labels are not searched by default. */
+    if (label_key != NULL ||
+        (compare_ctx != NULL && compare != NULL && flags & CMT_FILTER_REGEX_SEARCH_LABELS)) {
         ret = filter_context_label_key(dst, src, label_key, compare_ctx, compare, flags);
     }
 
