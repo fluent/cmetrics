@@ -220,6 +220,8 @@ void test_filter()
     text = cmt_encode_text_create(cmt2);
     printf("[substring matched with \"%s\" in fqname] ====>\n%s\n", fqname, text);
 
+    cmt_encode_text_destroy(text);
+
     /* reset flags */
     flags = 0;
 
