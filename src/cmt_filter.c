@@ -93,7 +93,7 @@ static int filter_context_label_key(struct cmt *dst, struct cmt *src,
             continue;
         }
 
-        ret = cmt_cat_copy_counter(dst, counter);
+        ret = cmt_cat_counter(dst, counter);
         if (ret == -1) {
             return -1;
         }
@@ -107,7 +107,7 @@ static int filter_context_label_key(struct cmt *dst, struct cmt *src,
             continue;
         }
 
-        ret = cmt_cat_copy_gauge(dst, gauge);
+        ret = cmt_cat_gauge(dst, gauge);
         if (ret == -1) {
             return -1;
         }
@@ -121,7 +121,7 @@ static int filter_context_label_key(struct cmt *dst, struct cmt *src,
             continue;
         }
 
-        ret = cmt_cat_copy_untyped(dst, untyped);
+        ret = cmt_cat_untyped(dst, untyped);
         if (ret == -1) {
             return -1;
         }
@@ -135,7 +135,7 @@ static int filter_context_label_key(struct cmt *dst, struct cmt *src,
             continue;
         }
 
-        ret = cmt_cat_copy_histogram(dst, histogram);
+        ret = cmt_cat_histogram(dst, histogram);
         if (ret == -1) {
             return -1;
         }
@@ -149,7 +149,7 @@ static int filter_context_label_key(struct cmt *dst, struct cmt *src,
             continue;
         }
 
-        ret = cmt_cat_copy_summary(dst, summary);
+        ret = cmt_cat_summary(dst, summary);
         if (ret == -1) {
             return -1;
         }
@@ -213,7 +213,7 @@ static int filter_context_fqname(struct cmt *dst, struct cmt *src,
             continue;
         }
 
-        ret = cmt_cat_copy_counter(dst, counter);
+        ret = cmt_cat_counter(dst, counter);
         if (ret == -1) {
             return -1;
         }
@@ -226,7 +226,7 @@ static int filter_context_fqname(struct cmt *dst, struct cmt *src,
             continue;
         }
 
-        ret = cmt_cat_copy_gauge(dst, gauge);
+        ret = cmt_cat_gauge(dst, gauge);
         if (ret == -1) {
             return -1;
         }
@@ -239,7 +239,7 @@ static int filter_context_fqname(struct cmt *dst, struct cmt *src,
             continue;
         }
 
-        ret = cmt_cat_copy_untyped(dst, untyped);
+        ret = cmt_cat_untyped(dst, untyped);
         if (ret == -1) {
             return -1;
         }
@@ -252,7 +252,7 @@ static int filter_context_fqname(struct cmt *dst, struct cmt *src,
             continue;
         }
 
-        ret = cmt_cat_copy_histogram(dst, histogram);
+        ret = cmt_cat_histogram(dst, histogram);
         if (ret == -1) {
             return -1;
         }
@@ -265,7 +265,7 @@ static int filter_context_fqname(struct cmt *dst, struct cmt *src,
             continue;
         }
 
-        ret = cmt_cat_copy_summary(dst, summary);
+        ret = cmt_cat_summary(dst, summary);
         if (ret == -1) {
             return -1;
         }
