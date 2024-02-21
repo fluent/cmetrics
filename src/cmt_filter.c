@@ -62,7 +62,7 @@ static int compare_label_keys(struct cmt_map *src, const char *label_key,
         /* Compare with an external context (e.g. Onigmo).
          * flb_regex_match should take three arguments that are
          * flb_regex context, string and its string length.
-         * The length of string is changed and not determined by label_key.
+         * The length of string is changed by the callback and not determined by label_key.
          */
         if (compare_ctx != NULL && compare != NULL) {
             return compare(compare_ctx, label->name, strlen(label->name));
@@ -183,7 +183,7 @@ static int compare_fqname(struct cmt_opts *src, const char *fqname,
     /* Compare with an external context (e.g. Onigmo).
      * flb_regex_match should take three arguments that are
      * flb_regex context, string and its string length.
-     * The length of string is changed and not determined by fqname.
+     * The length of string is changed by the callback and not determined by fqname.
      */
     if (compare_ctx != NULL && compare != NULL) {
         return compare(compare_ctx, src->fqname, strlen(src->fqname));
