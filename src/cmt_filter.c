@@ -33,12 +33,17 @@ static int compare_label_keys(struct cmt_map *src, const char *label_key,
 {
     struct cfl_list *head;
     struct cmt_map_label *label;
+    size_t label_key_size = 0;
+
+    if (label_key != NULL) {
+        label_key_size = strlen(label_key);
+    }
 
     cfl_list_foreach(head, &src->label_keys) {
         label = cfl_list_entry(head, struct cmt_map_label, _head);
         /* compare label_keys for prefix */
         if (flags & CMT_FILTER_PREFIX) {
-            if (strncmp(label->name, label_key, strlen(label_key)) == 0) {
+            if (strncmp(label->name, label_key, label_key_size) == 0) {
                 return (flags & CMT_FILTER_EXCLUDE) ? CMT_FALSE : CMT_TRUE;
             }
 
@@ -54,7 +59,11 @@ static int compare_label_keys(struct cmt_map *src, const char *label_key,
             return (flags & CMT_FILTER_EXCLUDE) ? CMT_TRUE : CMT_FALSE;
         }
 
-        /* compare with an external context (e.g. Onigmo) */
+        /* Compare with an external context (e.g. Onigmo).
+         * flb_regex_match should take three arguments that are
+         * flb_regex context, string and its string length.
+         * The length of string is changed and not determined by label_key.
+         */
         if (compare_ctx != NULL && compare != NULL) {
             return compare(compare_ctx, label->name, strlen(label->name));
         }
@@ -171,7 +180,11 @@ static int compare_fqname(struct cmt_opts *src, const char *fqname,
         return (flags & CMT_FILTER_EXCLUDE) ? CMT_TRUE : CMT_FALSE;
     }
 
-    /* compare with an external context (e.g. Onigmo) */
+    /* Compare with an external context (e.g. Onigmo).
+     * flb_regex_match should take three arguments that are
+     * flb_regex context, string and its string length.
+     * The length of string is changed and not determined by fqname.
+     */
     if (compare_ctx != NULL && compare != NULL) {
         return compare(compare_ctx, src->fqname, strlen(src->fqname));
     }
