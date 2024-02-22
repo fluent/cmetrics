@@ -35,10 +35,12 @@ static int compare_label_keys(struct cmt_map *src, const char *label_key,
     struct cmt_map_label *label;
     size_t label_key_size = 0;
 
-    if (flags & CMT_FILTER_PREFIX && label_key != NULL) {
-        label_key_size = strlen(label_key);
+    if (flags & CMT_FILTER_PREFIX) {
+        if (label_key == NULL) {
+            return CMT_FALSE;
+        }
 
-        return CMT_FALSE;
+        label_key_size = strlen(label_key);
     }
 
     cfl_list_foreach(head, &src->label_keys) {
