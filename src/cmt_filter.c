@@ -169,6 +169,10 @@ static int compare_fqname(struct cmt_opts *src, const char *fqname,
     size_t fqname_size;
 
     if (flags & CMT_FILTER_PREFIX) {
+        if (fqname == NULL) {
+            return CMT_FALSE;
+        }
+
         fqname_size = strlen(fqname);
     }
     else if (compare_ctx != NULL && compare != NULL) {
