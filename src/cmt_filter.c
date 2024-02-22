@@ -189,11 +189,7 @@ static int compare_fqname(struct cmt_opts *src, const char *fqname,
         return (flags & CMT_FILTER_EXCLUDE) ? CMT_TRUE : CMT_FALSE;
     }
 
-    /* Compare with an external context (e.g. Onigmo).
-     * flb_regex_match should take three arguments that are
-     * flb_regex context, string and its string length.
-     * The length of string is changed by the callback and not determined by fqname.
-     */
+    /* Compare with an external context (e.g. Onigmo). */
     if (compare_ctx != NULL && compare != NULL) {
         return compare(compare_ctx, src->fqname, fqname_size);
     }
