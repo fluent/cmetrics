@@ -35,7 +35,7 @@ static int compare_label_keys(struct cmt_map *src, const char *label_key,
     struct cmt_map_label *label;
     size_t label_key_size = 0;
 
-    if (label_key != NULL) {
+    if (flags & CMT_FILTER_PREFIX && label_key != NULL) {
         label_key_size = strlen(label_key);
     }
 
@@ -162,9 +162,18 @@ static int compare_fqname(struct cmt_opts *src, const char *fqname,
                           void *compare_ctx, int (*compare)(void *compare_ctx, const char *str, size_t slen),
                           int flags)
 {
+    size_t fqname_size;
+
+    if (flags & CMT_FILTER_PREFIX) {
+        fqname_size = strlen(fqname);
+    }
+    else if (compare_ctx != NULL && compare != NULL) {
+        fqname_size = strlen(src->fqname);
+    }
+
     /* compare fqname for prefix */
     if (flags & CMT_FILTER_PREFIX) {
-        if (strncmp(src->fqname, fqname, strlen(fqname)) == 0) {
+        if (strncmp(src->fqname, fqname, fqname_size) == 0) {
             return (flags & CMT_FILTER_EXCLUDE) ? CMT_FALSE : CMT_TRUE;
         }
 
@@ -186,7 +195,7 @@ static int compare_fqname(struct cmt_opts *src, const char *fqname,
      * The length of string is changed by the callback and not determined by fqname.
      */
     if (compare_ctx != NULL && compare != NULL) {
-        return compare(compare_ctx, src->fqname, strlen(src->fqname));
+        return compare(compare_ctx, src->fqname, fqname_size);
     }
 
     return CMT_FALSE;
