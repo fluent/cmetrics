@@ -610,6 +610,7 @@ static int decode_metrics_entry(struct cmt *cmt,
         /* case PROMETHEUS__METRIC_METADATA__METRIC_TYPE__SUMMARY: */
 
         default:
+            result = CMT_DECODE_PROMETHEUS_REMOTE_WRITE_UNSUPPORTED_METRIC_TYPE;
             break;
         }
     }
