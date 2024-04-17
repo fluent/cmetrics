@@ -543,6 +543,7 @@ static int decode_metrics_entry(struct cmt *cmt,
                                           0, NULL);
 
             if (instance == NULL) {
+                free(metric_name);
                 return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
             }
 
@@ -561,6 +562,7 @@ static int decode_metrics_entry(struct cmt *cmt,
                                         0, NULL);
 
             if (instance == NULL) {
+                free(metric_name);
                 return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
             }
 
@@ -579,6 +581,7 @@ static int decode_metrics_entry(struct cmt *cmt,
                                           0, NULL);
 
             if (instance == NULL) {
+                free(metric_name);
                 return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
             }
 
@@ -598,6 +601,7 @@ static int decode_metrics_entry(struct cmt *cmt,
                                             0, NULL);
 
             if (instance == NULL) {
+                free(metric_name);
                 return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
             }
 
@@ -613,6 +617,8 @@ static int decode_metrics_entry(struct cmt *cmt,
             result = CMT_DECODE_PROMETHEUS_REMOTE_WRITE_UNSUPPORTED_METRIC_TYPE;
             break;
         }
+
+        free(metric_name);
     }
 
     return result;
@@ -641,10 +647,13 @@ int cmt_decode_prometheus_remote_write_create(struct cmt **out_cmt, char *in_buf
     result = decode_metrics_entry(cmt, write);
     if (result != CMT_DECODE_PROMETHEUS_REMOTE_WRITE_SUCCESS) {
         cmt_destroy(cmt);
+        prometheus__write_request__free_unpacked(write, &cmt_system_allocator);
         result = CMT_DECODE_PROMETHEUS_REMOTE_WRITE_DECODE_ERROR;
 
         return result;
     }
+
+    prometheus__write_request__free_unpacked(write, &cmt_system_allocator);
 
     *out_cmt = cmt;
 
