@@ -20,11 +20,14 @@
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_counter.h>
+#include <cmetrics/cmt_untyped.h>
 #include <cmetrics/cmt_summary.h>
 #include <cmetrics/cmt_histogram.h>
 #include <cmetrics/cmt_encode_prometheus.h>
 #include <cmetrics/cmt_decode_opentelemetry.h>
 #include <cmetrics/cmt_encode_opentelemetry.h>
+#include <cmetrics/cmt_decode_prometheus_remote_write.h>
+#include <cmetrics/cmt_encode_prometheus_remote_write.h>
 
 #include "cmt_tests.h"
 
@@ -120,6 +123,59 @@ static struct cmt *generate_encoder_test_data()
     return cmt;
 }
 
+static struct cmt *generate_encoder_test_basic_data()
+{
+    double              val;
+    struct cmt         *cmt;
+    uint64_t            ts;
+    struct cmt_gauge   *g1;
+    struct cmt_counter *c1;
+    struct cmt_untyped *u1;
+
+    /* Use the current timestamp because there is cut off. */
+    ts = cfl_time_now();
+    cmt = cmt_create();
+
+    c1 = cmt_counter_create(cmt, "kubernetes", "network", "load_counter", "Network load counter",
+                            2, (char *[]) {"hostname", "app"});
+
+    cmt_counter_get_val(c1, 0, NULL, &val);
+    cmt_counter_inc(c1, ts, 0, NULL);
+    cmt_counter_add(c1, ts, 2, 0, NULL);
+    cmt_counter_get_val(c1, 0, NULL, &val);
+
+    cmt_counter_inc(c1, ts, 2, (char *[]) {"localhost", "cmetrics"});
+    cmt_counter_get_val(c1, 2, (char *[]) {"localhost", "cmetrics"}, &val);
+    cmt_counter_add(c1, ts, 10.55, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_get_val(c1, 2, (char *[]) {"localhost", "test"}, &val);
+    cmt_counter_set(c1, ts, 12.15, 2, (char *[]) {"localhost", "test"});
+    cmt_counter_set(c1, ts, 1, 2, (char *[]) {"localhost", "test"});
+
+    g1 = cmt_gauge_create(cmt, "kubernetes", "network", "load_gauge", "Network load gauge", 0, NULL);
+
+    cmt_gauge_get_val(g1, 0, NULL, &val);
+    cmt_gauge_set(g1, ts, 2.0, 0, NULL);
+    cmt_gauge_get_val(g1, 0, NULL, &val);
+    cmt_gauge_inc(g1, ts, 0, NULL);
+    cmt_gauge_get_val(g1, 0, NULL, &val);
+    cmt_gauge_sub(g1, ts, 2, 0, NULL);
+    cmt_gauge_get_val(g1, 0, NULL, &val);
+    cmt_gauge_dec(g1, ts, 0, NULL);
+    cmt_gauge_get_val(g1, 0, NULL, &val);
+    cmt_gauge_inc(g1, ts, 0, NULL);
+
+    u1 = cmt_untyped_create(cmt, "kubernetes", "network", "load", "Network load",
+                            2, (char *[]) {"hostname", "app"});
+
+    cmt_untyped_set(u1, ts, 2, 0, NULL);
+    cmt_untyped_get_val(u1, 2, (char *[]) {"localhost", "cmetrics"}, &val);
+    cmt_untyped_get_val(u1, 2, (char *[]) {"localhost", "test"}, &val);
+    cmt_untyped_set(u1, ts, 12.15, 2, (char *[]) {"localhost", "test"});
+    cmt_untyped_set(u1, ts, 1, 2, (char *[]) {"localhost", "test"});
+
+    return cmt;
+}
+
 void test_opentelemetry()
 {
     cfl_sds_t        reference_prometheus_context;
@@ -178,7 +234,38 @@ void test_opentelemetry()
     cmt_destroy(cmt);
 }
 
+void test_prometheus_remote_write()
+{
+    int ret;
+    cfl_sds_t payload;
+    struct cmt *decoded_context;
+    struct cmt *cmt;
+
+    cmt_initialize();
+
+    cmt = generate_encoder_test_basic_data();
+    TEST_CHECK(cmt != NULL);
+
+    payload = cmt_encode_prometheus_remote_write_create(cmt);
+    TEST_CHECK(payload != NULL);
+
+    if (payload == NULL) {
+        cmt_destroy(cmt);
+
+        return;
+    }
+
+    ret = cmt_decode_prometheus_remote_write_create(&decoded_context, payload, cfl_sds_len(payload));
+    TEST_CHECK(ret == CMT_DECODE_PROMETHEUS_REMOTE_WRITE_SUCCESS);
+
+    cmt_encode_prometheus_remote_write_destroy(payload);
+
+    cmt_destroy(cmt);
+}
+
+
 TEST_LIST = {
     {"opentelemetry", test_opentelemetry},
+    {"prometheus_remote_write", test_prometheus_remote_write},
     { 0 }
 };
