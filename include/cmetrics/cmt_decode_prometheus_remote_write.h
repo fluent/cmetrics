@@ -33,21 +33,6 @@
 #define CMT_DECODE_PROMETHEUS_REMOTE_WRITE_UNPACK_ERROR            6
 #define CMT_DECODE_PROMETHEUS_REMOTE_WRITE_UNSUPPORTED_METRIC_TYPE 7
 
-static void *__cmt_allocator_alloc(void *data, size_t size) {
-    return malloc(size);
-}
-static void __cmt_allocator_free(void *data, void *ptr) {
-    free(ptr);
-}
-
-static ProtobufCAllocator __cmt_allocator = {
-  .alloc = __cmt_allocator_alloc,
-  .free = __cmt_allocator_free,
-  .allocator_data = NULL
-};
-
-#define cmt_system_allocator __cmt_allocator
-
 int cmt_decode_prometheus_remote_write_create(struct cmt **out_cmt, char *in_buf, size_t in_size);
 void cmt_decode_prometheus_remote_write_destroy(struct cmt *cmt);
 

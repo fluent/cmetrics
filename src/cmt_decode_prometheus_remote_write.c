@@ -26,6 +26,21 @@
 #include <cmetrics/cmt_untyped.h>
 #include <cmetrics/cmt_decode_prometheus_remote_write.h>
 
+static void *__cmt_allocator_alloc(void *data, size_t size) {
+    return malloc(size);
+}
+static void __cmt_allocator_free(void *data, void *ptr) {
+    free(ptr);
+}
+
+static ProtobufCAllocator __cmt_allocator = {
+  .alloc = __cmt_allocator_alloc,
+  .free = __cmt_allocator_free,
+  .allocator_data = NULL
+};
+
+#define cmt_system_allocator __cmt_allocator
+
 static char *cmt_metric_name_from_labels(Prometheus__TimeSeries *ts)
 {
     int i;
