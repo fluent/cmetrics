@@ -259,6 +259,7 @@ void test_prometheus_remote_write()
     TEST_CHECK(ret == CMT_DECODE_PROMETHEUS_REMOTE_WRITE_SUCCESS);
 
     cmt_encode_prometheus_remote_write_destroy(payload);
+    cmt_decode_prometheus_remote_write_destroy(decoded_context);
 
     cmt_destroy(cmt);
 }
