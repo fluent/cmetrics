@@ -61,6 +61,9 @@ static struct cmt_map_label *create_map_label(char *caption, size_t length)
     struct cmt_map_label *map_label;
 
     map_label = calloc(1, sizeof(struct cmt_map_label));
+    if (!map_label) {
+        return NULL;
+    }
 
     if (map_label != NULL) {
         if (caption != NULL) {
@@ -468,9 +471,7 @@ static int decode_histogram_time_series(struct cmt *cmt,
 
     result = CMT_DECODE_PROMETHEUS_REMOTE_WRITE_SUCCESS;
 
-    for (index = 0 ;
-         result == 0 &&
-         index < hist_count ; index++) {
+    for (index = 0; result == 0 && index < hist_count; index++) {
         histogram = ts->histograms[index];
         result = decode_histogram_points(cmt, map,
                                          ts->n_histograms,
