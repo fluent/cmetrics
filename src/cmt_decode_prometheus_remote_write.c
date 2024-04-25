@@ -515,6 +515,7 @@ static int decode_metrics_entry(struct cmt *cmt,
     void *instance;
     int   result;
     int   ts_count = 0;
+    int   hist_count = 0;
     int   meta_count = 0;
     Prometheus__MetricMetadata             *metadata = NULL;
     Prometheus__MetricMetadata__MetricType  type;
@@ -526,11 +527,16 @@ static int decode_metrics_entry(struct cmt *cmt,
     for (i = 0; i < ts_count; i++) {
         ts = write->timeseries[i];
         meta_count = write->n_metadata;
+        hist_count = ts->n_histograms;
         if (meta_count > 0) {
             metadata = write->metadata[i];
         }
         if (metadata == NULL) {
             type = PROMETHEUS__METRIC_METADATA__METRIC_TYPE__GAUGE;
+            metric_description = "-";
+        }
+        else if (hist_count > 0) {
+            type = PROMETHEUS__METRIC_METADATA__METRIC_TYPE__HISTOGRAM;
             metric_description = "-";
         }
         else {
