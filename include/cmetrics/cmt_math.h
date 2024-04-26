@@ -30,24 +30,30 @@
 
 static inline uint64_t cmt_math_d64_to_uint64(double val)
 {
+    uint64_t tmp;
+
     if (isnan(val)) {
-        return 0;
+        /* we need to decide how to handle this */
     }
 
     if (isinf(val)) {
+        /* we need to decide how to handle this */
+    }
+
+    if ((uint64_t) val > UINT64_MAX) {
         return UINT64_MAX;
     }
 
-    if (val > (double) UINT64_MAX) {
-        return UINT64_MAX;
-    }
-
-    return (uint64_t) val;
+    memcpy(&tmp, &val, sizeof(double));
+    return (uint64_t) (tmp);
 }
 
 static inline double cmt_math_uint64_to_d64(uint64_t val)
 {
-    return (double) val;
+    double tmp;
+
+    memcpy(&tmp, &val, sizeof(uint64_t));
+    return tmp;
 }
 
 #endif
