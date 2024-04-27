@@ -21,7 +21,12 @@
 #define CMT_MATH_H
 
 #include <inttypes.h>
-#include <math.h>
+#include <string.h>
+
+union val_union {
+    uint64_t u;
+    double d;
+};
 
 /*
  * This is not rocket-science and to make things easier we assume that operating on
@@ -30,24 +35,18 @@
 
 static inline uint64_t cmt_math_d64_to_uint64(double val)
 {
-    if (isnan(val)) {
-        return 0;
-    }
+    union val_union u;
 
-    if (isinf(val)) {
-        return UINT64_MAX;
-    }
-
-    if (val > (double) UINT64_MAX) {
-        return UINT64_MAX;
-    }
-
-    return (uint64_t) val;
+    u.d = val;
+    return u.u;
 }
 
 static inline double cmt_math_uint64_to_d64(uint64_t val)
 {
-    return (double) val;
+    union val_union u;
+
+    u.u = val;
+    return u.d;
 }
 
 #endif
