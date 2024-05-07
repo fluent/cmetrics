@@ -213,7 +213,8 @@ int cmt_cat_copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map 
 
 }
 
-int cmt_cat_counter(struct cmt *cmt, struct cmt_counter *counter)
+int cmt_cat_counter(struct cmt *cmt, struct cmt_counter *counter,
+                    struct cmt_map *filtered_map)
 {
     int ret;
     char **labels = NULL;
@@ -240,15 +241,24 @@ int cmt_cat_counter(struct cmt *cmt, struct cmt_counter *counter)
         return -1;
     }
 
-    ret = cmt_cat_copy_map(&c->opts, c->map, map);
-    if (ret == -1) {
-        return -1;
+    if (filtered_map != NULL) {
+        ret = cmt_cat_copy_map(&c->opts, c->map, filtered_map);
+        if (ret == -1) {
+            return -1;
+        }
+    }
+    else {
+        ret = cmt_cat_copy_map(&c->opts, c->map, map);
+        if (ret == -1) {
+            return -1;
+        }
     }
 
     return 0;
 }
 
-int cmt_cat_gauge(struct cmt *cmt, struct cmt_gauge *gauge)
+int cmt_cat_gauge(struct cmt *cmt, struct cmt_gauge *gauge,
+                  struct cmt_map *filtered_map)
 {
     int ret;
     char **labels = NULL;
@@ -274,15 +284,24 @@ int cmt_cat_gauge(struct cmt *cmt, struct cmt_gauge *gauge)
         return -1;
     }
 
-    ret = cmt_cat_copy_map(&g->opts, g->map, map);
-    if (ret == -1) {
-        return -1;
+    if (filtered_map != NULL) {
+        ret = cmt_cat_copy_map(&g->opts, g->map, filtered_map);
+        if (ret == -1) {
+            return -1;
+        }
+    }
+    else {
+        ret = cmt_cat_copy_map(&g->opts, g->map, map);
+        if (ret == -1) {
+            return -1;
+        }
     }
 
     return 0;
 }
 
-int cmt_cat_untyped(struct cmt *cmt, struct cmt_untyped *untyped)
+int cmt_cat_untyped(struct cmt *cmt, struct cmt_untyped *untyped,
+                    struct cmt_map *filtered_map)
 {
     int ret;
     char **labels = NULL;
@@ -308,15 +327,24 @@ int cmt_cat_untyped(struct cmt *cmt, struct cmt_untyped *untyped)
         return -1;
     }
 
-    ret = cmt_cat_copy_map(&u->opts, u->map, map);
-    if (ret == -1) {
-        return -1;
+    if (filtered_map != NULL) {
+        ret = cmt_cat_copy_map(&u->opts, u->map, filtered_map);
+        if (ret == -1) {
+            return -1;
+        }
+    }
+    else {
+        ret = cmt_cat_copy_map(&u->opts, u->map, map);
+        if (ret == -1) {
+            return -1;
+        }
     }
 
     return 0;
 }
 
-int cmt_cat_histogram(struct cmt *cmt, struct cmt_histogram *histogram)
+int cmt_cat_histogram(struct cmt *cmt, struct cmt_histogram *histogram,
+                      struct cmt_map *filtered_map)
 {
     int i;
     double val;
@@ -354,15 +382,24 @@ int cmt_cat_histogram(struct cmt *cmt, struct cmt_histogram *histogram)
         return -1;
     }
 
-    ret = cmt_cat_copy_map(&hist->opts, hist->map, map);
-    if (ret == -1) {
-        return -1;
+    if (filtered_map != NULL) {
+        ret = cmt_cat_copy_map(&hist->opts, hist->map, filtered_map);
+        if (ret == -1) {
+            return -1;
+        }
+    }
+    else {
+        ret = cmt_cat_copy_map(&hist->opts, hist->map, map);
+        if (ret == -1) {
+            return -1;
+        }
     }
 
     return 0;
 }
 
-int cmt_cat_summary(struct cmt *cmt, struct cmt_summary *summary)
+int cmt_cat_summary(struct cmt *cmt, struct cmt_summary *summary,
+                    struct cmt_map *filtered_map)
 {
     int i;
     int ret;
@@ -405,9 +442,17 @@ int cmt_cat_summary(struct cmt *cmt, struct cmt_summary *summary)
     free(labels);
     free(quantiles);
 
-    ret = cmt_cat_copy_map(&sum->opts, sum->map, map);
-    if (ret == -1) {
-        return -1;
+    if (filtered_map != NULL) {
+        ret = cmt_cat_copy_map(&sum->opts, sum->map, filtered_map);
+        if (ret == -1) {
+            return -1;
+        }
+    }
+    else {
+        ret = cmt_cat_copy_map(&sum->opts, sum->map, map);
+        if (ret == -1) {
+            return -1;
+        }
     }
 
     return 0;
@@ -426,7 +471,7 @@ static int append_context(struct cmt *dst, struct cmt *src)
      /* Counters */
     cfl_list_foreach(head, &src->counters) {
         counter = cfl_list_entry(head, struct cmt_counter, _head);
-        ret = cmt_cat_counter(dst, counter);
+        ret = cmt_cat_counter(dst, counter, NULL);
         if (ret == -1) {
             return -1;
         }
@@ -435,7 +480,7 @@ static int append_context(struct cmt *dst, struct cmt *src)
     /* Gauges */
     cfl_list_foreach(head, &src->gauges) {
         gauge = cfl_list_entry(head, struct cmt_gauge, _head);
-        ret = cmt_cat_gauge(dst, gauge);
+        ret = cmt_cat_gauge(dst, gauge, NULL);
         if (ret == -1) {
             return -1;
         }
@@ -444,7 +489,7 @@ static int append_context(struct cmt *dst, struct cmt *src)
     /* Untyped */
     cfl_list_foreach(head, &src->untypeds) {
         untyped = cfl_list_entry(head, struct cmt_untyped, _head);
-        ret = cmt_cat_untyped(dst, untyped);
+        ret = cmt_cat_untyped(dst, untyped, NULL);
         if (ret == -1) {
             return -1;
         }
@@ -453,7 +498,7 @@ static int append_context(struct cmt *dst, struct cmt *src)
     /* Histogram */
     cfl_list_foreach(head, &src->histograms) {
         histogram = cfl_list_entry(head, struct cmt_histogram, _head);
-        ret = cmt_cat_histogram(dst, histogram);
+        ret = cmt_cat_histogram(dst, histogram, NULL);
         if (ret == -1) {
             return -1;
         }
@@ -462,7 +507,7 @@ static int append_context(struct cmt *dst, struct cmt *src)
     /* Summary */
     cfl_list_foreach(head, &src->summaries) {
         summary = cfl_list_entry(head, struct cmt_summary, _head);
-        ret = cmt_cat_summary(dst, summary);
+        ret = cmt_cat_summary(dst, summary, NULL);
         if (ret == -1) {
             return -1;
         }
