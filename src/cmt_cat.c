@@ -96,7 +96,7 @@ static int copy_label_values(struct cmt_metric *metric, char **out)
     return i;
 }
 
-static int copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map *src)
+int cmt_cat_copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map *src)
 {
     int i;
     int c;
@@ -240,7 +240,7 @@ int cmt_cat_counter(struct cmt *cmt, struct cmt_counter *counter)
         return -1;
     }
 
-    ret = copy_map(&c->opts, c->map, map);
+    ret = cmt_cat_copy_map(&c->opts, c->map, map);
     if (ret == -1) {
         return -1;
     }
@@ -274,7 +274,7 @@ int cmt_cat_gauge(struct cmt *cmt, struct cmt_gauge *gauge)
         return -1;
     }
 
-    ret = copy_map(&g->opts, g->map, map);
+    ret = cmt_cat_copy_map(&g->opts, g->map, map);
     if (ret == -1) {
         return -1;
     }
@@ -308,7 +308,7 @@ int cmt_cat_untyped(struct cmt *cmt, struct cmt_untyped *untyped)
         return -1;
     }
 
-    ret = copy_map(&u->opts, u->map, map);
+    ret = cmt_cat_copy_map(&u->opts, u->map, map);
     if (ret == -1) {
         return -1;
     }
@@ -354,7 +354,7 @@ int cmt_cat_histogram(struct cmt *cmt, struct cmt_histogram *histogram)
         return -1;
     }
 
-    ret = copy_map(&hist->opts, hist->map, map);
+    ret = cmt_cat_copy_map(&hist->opts, hist->map, map);
     if (ret == -1) {
         return -1;
     }
@@ -405,7 +405,7 @@ int cmt_cat_summary(struct cmt *cmt, struct cmt_summary *summary)
     free(labels);
     free(quantiles);
 
-    ret = copy_map(&sum->opts, sum->map, map);
+    ret = cmt_cat_copy_map(&sum->opts, sum->map, map);
     if (ret == -1) {
         return -1;
     }
