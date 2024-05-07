@@ -26,7 +26,7 @@
 #include <cmetrics/cmt_histogram.h>
 #include <cmetrics/cmt_summary.h>
 
-static int copy_label_keys(struct cmt_map *map, char **out)
+int cmt_cat_copy_label_keys(struct cmt_map *map, char **out)
 {
     int i;
     int s;
@@ -225,7 +225,7 @@ int cmt_cat_counter(struct cmt *cmt, struct cmt_counter *counter,
     map = counter->map;
     opts = map->opts;
 
-    ret = copy_label_keys(map, (char **) &labels);
+    ret = cmt_cat_copy_label_keys(map, (char **) &labels);
     if (ret == -1) {
         return -1;
     }
@@ -269,7 +269,7 @@ int cmt_cat_gauge(struct cmt *cmt, struct cmt_gauge *gauge,
     map = gauge->map;
     opts = map->opts;
 
-    ret = copy_label_keys(map, (char **) &labels);
+    ret = cmt_cat_copy_label_keys(map, (char **) &labels);
     if (ret == -1) {
         return -1;
     }
@@ -312,7 +312,7 @@ int cmt_cat_untyped(struct cmt *cmt, struct cmt_untyped *untyped,
     map = untyped->map;
     opts = map->opts;
 
-    ret = copy_label_keys(map, (char **) &labels);
+    ret = cmt_cat_copy_label_keys(map, (char **) &labels);
     if (ret == -1) {
         return -1;
     }
@@ -361,7 +361,7 @@ int cmt_cat_histogram(struct cmt *cmt, struct cmt_histogram *histogram,
     opts = map->opts;
     timestamp = cmt_metric_get_timestamp(&map->metric);
 
-    ret = copy_label_keys(map, (char **) &labels);
+    ret = cmt_cat_copy_label_keys(map, (char **) &labels);
     if (ret == -1) {
         return -1;
     }
@@ -415,7 +415,7 @@ int cmt_cat_summary(struct cmt *cmt, struct cmt_summary *summary,
     opts = map->opts;
     timestamp = cmt_metric_get_timestamp(&map->metric);
 
-    ret = copy_label_keys(map, (char **) &labels);
+    ret = cmt_cat_copy_label_keys(map, (char **) &labels);
     if (ret == -1) {
         return -1;
     }
