@@ -28,6 +28,7 @@ struct cmt_untyped;
 struct cmt_histogram;
 struct cmt_summary;
 
+int cmt_cat_copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map *src);
 int cmt_cat_counter(struct cmt *cmt, struct cmt_counter *counter);
 int cmt_cat_gauge(struct cmt *cmt, struct cmt_gauge *gauge);
 int cmt_cat_untyped(struct cmt *cmt, struct cmt_untyped *untyped);
