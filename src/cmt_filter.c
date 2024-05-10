@@ -170,7 +170,7 @@ static int filter_get_label_index(struct cmt_map *src, const char *label_key)
 
     cfl_list_foreach(head, &src->label_keys) {
         label = cfl_list_entry(head, struct cmt_map_label, _head);
-        if (strcasecmp(label->name, label_key) == 0) {
+        if (strncmp(label->name, label_key, strlen(label->name)) == 0) {
            return index;
         }
 
@@ -212,7 +212,7 @@ int metrics_check_label_value_existence(struct cmt_metric *metric,
         return CMT_FALSE;
     }
 
-    if (strncasecmp(label->name, label_value, strlen(label->name)) == 0) {
+    if (strncmp(label->name, label_value, strlen(label->name)) == 0) {
         return CMT_TRUE;
     }
 
