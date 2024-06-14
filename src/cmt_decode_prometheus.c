@@ -57,14 +57,8 @@ static void reset_context(struct cmt_decode_prometheus_context *context,
     }
 
     if (context->metric.ns) {
-        if (strcmp(context->metric.ns, "")) {
-            /* when namespace is empty, "name" contains a pointer to the
-             * allocated string */
-            free(context->metric.ns);
-        }
-        else {
-            free(context->metric.name);
-        }
+        free(context->metric.ns);
+        free(context->metric.name);
     }
 
     cfl_sds_destroy(context->strbuf);
@@ -166,20 +160,21 @@ static int split_metric_name(struct cmt_decode_prometheus_context *context,
     }
     *subsystem = strchr(*ns, '_');
     if (!(*subsystem)) {
-        *name = *ns;
-        *ns = "";
+        *name = strdup(*ns);
+        free(*ns);
+        *ns = strdup("");
     }
     else {
         **subsystem = 0;  /* split */
         (*subsystem)++;
         *name = strchr(*subsystem, '_');
         if (!(*name)) {
-            *name = *subsystem;
+            *name = strdup(*subsystem);
             *subsystem = "";
         }
         else {
-            **name = 0;
-            (*name)++;
+            **name = '\0';
+            *name = strdup((*name)++);
         }
     }
     return 0;
