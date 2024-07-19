@@ -23,6 +23,7 @@
 #include <time.h>
 #ifdef _WIN32
 #include <windows.h>
+#define strtok_r strtok_s
 #endif
 
 static inline struct tm *cmt_platform_gmtime_r(const time_t *timep, struct tm *result)

@@ -27,6 +27,7 @@
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_untyped.h>
 #include <cmetrics/cmt_decode_statsd.h>
+#include <cmetrics/cmt_compat.h>
 
 static struct cmt_map_label *create_map_label(char *caption, size_t length)
 {
