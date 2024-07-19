@@ -521,6 +521,11 @@ static int decode_metrics_lines(struct cmt *cmt,
 
     line = strtok_r(in_buf, "\n", &store);
     while (line != NULL) {
+        /* StatsD format always has | at least one. */
+        if (strstr(line, "|") == NULL) {
+            break;
+        }
+
         ret = statsd_process_line(cmt, line, flags);
         if (ret != CMT_DECODE_STATSD_SUCCESS) {
             ret = CMT_DECODE_STATSD_DECODE_ERROR;
