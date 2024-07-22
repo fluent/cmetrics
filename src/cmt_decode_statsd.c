@@ -120,67 +120,68 @@ static int decode_labels(struct cmt *cmt,
         return CMT_DECODE_STATSD_ALLOCATION_ERROR;
     }
 
-    label_kv = strtok_r(labels, ",", &store);
-
-    while (label_kv != NULL) {
-        colon = strchr(label_kv, ':');
-        label_k = cfl_sds_create_len(label_kv, colon - label_kv);
-        if (label_k == NULL) {
-            free(value_index_list);
-            return CMT_DECODE_STATSD_INVALID_TAG_FORMAT_ERROR;
-        }
-        label_v = cfl_sds_create_len(colon + 1, strlen(label_kv) - strlen(label_k) - 1);
-        if (label_v == NULL) {
-            cfl_sds_destroy(label_k);
-            free(value_index_list);
-
-            return CMT_DECODE_STATSD_INVALID_TAG_FORMAT_ERROR;
-        }
-
-        label_found = CMT_FALSE;
-        label_index = 0;
-
-        cfl_list_foreach(label_iterator, &map->label_keys) {
-            current_label = cfl_list_entry(label_iterator, struct cmt_map_label, _head);
-
-            if (strcmp(current_label->name, label_k) == 0) {
-                label_found = CMT_TRUE;
-
-                break;
-            }
-
-            label_index++;
-        }
-
-        if (label_index > 127) {
-            cfl_sds_destroy(label_k);
-            cfl_sds_destroy(label_v);
-            free(value_index_list);
-
-            return CMT_DECODE_STATSD_INVALID_ARGUMENT_ERROR;
-        }
-
-        if (label_found == CMT_FALSE) {
-            result = append_new_map_label_key(map, label_k);
-        }
-
-        if (result == CMT_DECODE_STATSD_SUCCESS) {
-            value_index_list[label_index] = (void *) label_v;
-        }
-
-        cfl_sds_destroy(label_k);
-
-        label_kv = strtok_r(NULL, ",", &store);
-    }
+    label_found = CMT_FALSE;
+    label_index = 0;
 
     if (incremental) {
         label_k = cfl_sds_create("incremental");
         result = append_new_map_label_key(map, label_k);
         cfl_sds_destroy(label_k);
-        label_index++;
 
         if (result == CMT_DECODE_STATSD_SUCCESS) {
             value_index_list[label_index] = (void *) cfl_sds_create("true");
+        }
+    }
+
+    if (labels != NULL) {
+        label_kv = strtok_r(labels, ",", &store);
+
+        while (label_kv != NULL) {
+            colon = strchr(label_kv, ':');
+            label_k = cfl_sds_create_len(label_kv, colon - label_kv);
+            if (label_k == NULL) {
+                free(value_index_list);
+                return CMT_DECODE_STATSD_INVALID_TAG_FORMAT_ERROR;
+            }
+            label_v = cfl_sds_create_len(colon + 1, strlen(label_kv) - strlen(label_k) - 1);
+            if (label_v == NULL) {
+                cfl_sds_destroy(label_k);
+                free(value_index_list);
+
+                return CMT_DECODE_STATSD_INVALID_TAG_FORMAT_ERROR;
+            }
+
+            cfl_list_foreach(label_iterator, &map->label_keys) {
+                current_label = cfl_list_entry(label_iterator, struct cmt_map_label, _head);
+
+                if (strcmp(current_label->name, label_k) == 0) {
+                    label_found = CMT_TRUE;
+
+                    break;
+                }
+
+                label_index++;
+            }
+
+            if (label_index > 127) {
+                cfl_sds_destroy(label_k);
+                cfl_sds_destroy(label_v);
+                free(value_index_list);
+
+                return CMT_DECODE_STATSD_INVALID_ARGUMENT_ERROR;
+            }
+
+            if (label_found == CMT_FALSE) {
+                result = append_new_map_label_key(map, label_k);
+            }
+
+            if (result == CMT_DECODE_STATSD_SUCCESS) {
+                value_index_list[label_index] = (void *) label_v;
+            }
+
+            cfl_sds_destroy(label_k);
+
+            label_kv = strtok_r(NULL, ",", &store);
         }
     }
 
@@ -456,8 +457,8 @@ static int cmt_get_statsd_type(char *str)
 
 static int statsd_process_line(struct cmt *cmt, char *line, int flags)
 {
-    char *colon, *bar, *atmark, *labels;
-    struct cmt_statsd_message m;
+    char *colon = NULL, *bar = NULL, *atmark = NULL, *labels = NULL;
+    struct cmt_statsd_message m = {0};
 
     /*
      * bucket:value|type|@sample_rate|#key1:value1,key2:value2,...
