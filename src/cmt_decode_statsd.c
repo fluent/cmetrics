@@ -524,7 +524,7 @@ static int decode_metrics_lines(struct cmt *cmt,
     while (line != NULL) {
         /* StatsD format always has | at least one. */
         if (strstr(line, "|") == NULL) {
-            break;
+            goto retry;
         }
 
         ret = statsd_process_line(cmt, line, flags);
@@ -533,7 +533,7 @@ static int decode_metrics_lines(struct cmt *cmt,
 
             break;
         }
-
+retry:
         line = strtok_r(NULL, "\n", &store);
     }
 
