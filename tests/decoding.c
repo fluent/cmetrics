@@ -203,8 +203,14 @@ void test_statsd()
     int ret;
     struct cmt *decoded_context;
     cfl_sds_t payload = read_file(CMT_TESTS_DATA_PATH "/statsd_payload.txt");
+    size_t len = 0;
     cfl_sds_t text = NULL;
     int flags = 0;
+
+    /* For strtok_r, fill the last byte as \0. */
+    len = cfl_sds_len(payload);
+    cfl_sds_set_len(payload, len + 1);
+    payload[len] = '\0';
 
     cmt_initialize();
 
