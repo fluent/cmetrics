@@ -139,7 +139,7 @@ static int decode_labels(struct cmt *cmt,
         while (label_kv != NULL) {
             colon = strchr(label_kv, ':');
             if (colon == NULL) {
-                break;
+                goto retry;
             }
             label_k = cfl_sds_create_len(label_kv, colon - label_kv);
             if (label_k == NULL) {
@@ -184,6 +184,7 @@ static int decode_labels(struct cmt *cmt,
 
             cfl_sds_destroy(label_k);
 
+        retry:
             label_kv = strtok_r(NULL, ",", &store);
         }
     }
