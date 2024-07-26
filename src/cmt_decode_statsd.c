@@ -134,7 +134,7 @@ static int decode_labels(struct cmt *cmt,
     }
 
     if (labels != NULL) {
-        label_kv = strtok_r(labels, ",", &store);
+        label_kv = cmt_platform_strtok_r(labels, ",", &store);
 
         while (label_kv != NULL) {
             colon = strchr(label_kv, ':');
@@ -185,7 +185,7 @@ static int decode_labels(struct cmt *cmt,
             cfl_sds_destroy(label_k);
 
         retry:
-            label_kv = strtok_r(NULL, ",", &store);
+            label_kv = cmt_platform_strtok_r(NULL, ",", &store);
         }
     }
 
@@ -524,7 +524,7 @@ static int decode_metrics_lines(struct cmt *cmt,
     char *line = NULL;
     char *store = NULL;
 
-    line = strtok_r(in_buf, "\n", &store);
+    line = cmt_platform_strtok_r(in_buf, "\n", &store);
     while (line != NULL) {
         /* StatsD format always has | at least one. */
         if (strstr(line, "|") == NULL) {
@@ -538,7 +538,7 @@ static int decode_metrics_lines(struct cmt *cmt,
             break;
         }
 retry:
-        line = strtok_r(NULL, "\n", &store);
+        line = cmt_platform_strtok_r(NULL, "\n", &store);
     }
 
     return ret;
