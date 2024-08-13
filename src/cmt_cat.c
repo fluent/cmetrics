@@ -429,6 +429,8 @@ int cmt_cat_summary(struct cmt *cmt, struct cmt_summary *summary,
                              quantiles,
                              map->label_count, labels);
     if (!sum) {
+        free(labels);
+        free(quantiles);
         return -1;
     }
 
