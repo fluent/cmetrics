@@ -108,7 +108,7 @@ static int decode_labels(struct cmt *cmt,
     size_t                 label_index;
     int                    label_found;
     char                  *label_kv, *colon;
-    cfl_sds_t              label_k, label_v, tmp;
+    cfl_sds_t              label_k = NULL, label_v = NULL, tmp = NULL;
     int                    result;
     struct cfl_list *head = NULL;
     struct cfl_list *kvs = NULL;
@@ -203,10 +203,12 @@ static int decode_labels(struct cmt *cmt,
             }
 
             if (result == CMT_DECODE_STATSD_SUCCESS) {
-                value_index_list[label_index] = (void *) label_v;
+                value_index_list[label_index] = (void *) cfl_sds_create_len(label_v,
+                                                                            cfl_sds_len(label_v));
             }
 
             cfl_sds_destroy(label_k);
+            cfl_sds_destroy(label_v);
         }
     }
 
