@@ -1679,7 +1679,6 @@ void test_issue_fluent_bit_9267()
     size_t in_size = cfl_sds_len(in_buf);
 
     cmt = NULL;
-
     status = cmt_decode_prometheus_create(&cmt, in_buf, in_size, &opts);
     TEST_CHECK(status == 0);
     if (status) {
