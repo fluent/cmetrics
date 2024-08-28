@@ -1669,7 +1669,6 @@ void test_issue_fluent_bit_9267()
 {
     char errbuf[256];
     int status;
-    cfl_sds_t result = NULL;
     struct cmt *cmt;
     struct cmt_decode_prometheus_parse_opts opts;
     memset(&opts, 0, sizeof(opts));
@@ -1678,13 +1677,17 @@ void test_issue_fluent_bit_9267()
     cfl_sds_t in_buf = read_file(CMT_TESTS_DATA_PATH "/issue_fluent_bit_9267.txt");
     size_t in_size = cfl_sds_len(in_buf);
 
+    cmt = NULL;
+
     status = cmt_decode_prometheus_create(&cmt, in_buf, in_size, &opts);
     TEST_CHECK(status == 0);
     if (status) {
         fprintf(stderr, "PARSE ERROR:\n======\n%s\n======\n", errbuf);
     }
 
-    cmt_decode_prometheus_destroy(cmt);
+    if (cmt != NULL) {
+        cmt_decode_prometheus_destroy(cmt);
+    }
     cfl_sds_destroy(in_buf);
 }
 
