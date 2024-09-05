@@ -69,12 +69,18 @@ endif()
 
 # Configuration options
 option(CMT_DEV                       "Enable development mode"                   No)
+option(CMT_DEBUG                     "Enable debug mode"                         No)
 option(CMT_TESTS                     "Enable unit testing"                       No)
 option(CMT_INSTALL_TARGETS           "Enable subdirectory library installations" Yes)
 option(CMT_ENABLE_PROMETHEUS_DECODER "Enable prometheus decoder"                 Yes)
 
 if(CMT_DEV)
   set(CMT_TESTS   Yes)
+  set(CMT_DEBUG   Yes)
+endif()
+
+if(CMT_DEBUG)
+  set(CMAKE_BUILD_TYPE Debug)
 endif()
 
 set(FLEX_BISON_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR})
