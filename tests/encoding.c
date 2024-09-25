@@ -583,10 +583,12 @@ void test_opentelemetry()
     cfl_sds_t payload;
     struct cmt *cmt;
     FILE *sample_file;
+    uint64_t ts;
 
     cmt_initialize();
+    ts = cfl_time_now();
 
-    cmt = generate_encoder_test_data();
+    cmt = generate_encoder_test_data_with_timestamp(ts);
 
     payload = cmt_encode_opentelemetry_create(cmt);
     TEST_CHECK(NULL != payload);
@@ -609,7 +611,26 @@ curl -v 'http://localhost:9090/v1/metrics' -H 'Content-Type: application/x-proto
 
     fclose(sample_file);
 
-    cmt_encode_prometheus_remote_write_destroy(payload);
+    cmt_encode_opentelemetry_destroy(payload);
+
+    cmt_destroy(cmt);
+}
+
+void test_opentelemetry_outdated()
+{
+    cfl_sds_t payload;
+    struct cmt *cmt;
+    uint64_t ts;
+
+    cmt_initialize();
+    ts = cfl_time_now() - CMT_ENCODE_OPENTELEMETRY_CUTOFF_THRESHOLD * 1.5;
+
+    cmt = generate_encoder_test_data_with_timestamp(ts);
+
+    payload = cmt_encode_opentelemetry_create(cmt);
+    TEST_CHECK(NULL == payload);
+
+    cmt_encode_opentelemetry_destroy(payload);
 
     cmt_destroy(cmt);
 }
@@ -1173,6 +1194,7 @@ TEST_LIST = {
     {"cmt_msgpack_labels",             test_cmt_to_msgpack_labels},
     {"cmt_msgpack",                    test_cmt_to_msgpack},
     {"opentelemetry",                  test_opentelemetry},
+    {"opentelemetry_old_context",      test_opentelemetry_outdated},
     {"cloudwatch_emf",                 test_cloudwatch_emf},
     {"prometheus",                     test_prometheus},
     {"text",                           test_text},

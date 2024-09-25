@@ -2369,6 +2369,17 @@ int append_sample_to_metric(struct cmt_opentelemetry_context *context,
     return result;
 }
 
+static int check_staled_timestamp(struct cmt_metric *metric, uint64_t now, uint64_t cutoff)
+{
+    uint64_t ts;
+    uint64_t diff;
+
+    ts = cmt_metric_get_timestamp(metric);
+    diff = now - ts;
+
+    return diff > cutoff;
+}
+
 int pack_basic_type(struct cmt_opentelemetry_context *context,
                     struct cmt_map *map,
                     size_t *metric_index)
@@ -2382,8 +2393,10 @@ int pack_basic_type(struct cmt_opentelemetry_context *context,
     Opentelemetry__Proto__Metrics__V1__Metric *metric;
     int                                        result;
     struct cfl_list                            *head;
+    uint64_t                                    now;
 
     sample_count = 0;
+    now = cfl_time_now();
 
     if (map->metric_static_set) {
         sample_count++;
@@ -2434,6 +2447,12 @@ int pack_basic_type(struct cmt_opentelemetry_context *context,
                                          &map->metric,
                                          sample_index++);
 
+        if (check_staled_timestamp(&map->metric, now,
+                                   CMT_ENCODE_OPENTELEMETRY_CUTOFF_THRESHOLD)) {
+            /* Skip processing metrics which are staled over the threshold */
+            return CMT_ENCODE_OPENTELEMETRY_CUTOFF_ERROR;
+        }
+
         if (result != CMT_ENCODE_OPENTELEMETRY_SUCCESS) {
             destroy_metric(metric);
 
@@ -2443,6 +2462,12 @@ int pack_basic_type(struct cmt_opentelemetry_context *context,
 
     cfl_list_foreach(head, &map->metrics) {
         sample = cfl_list_entry(head, struct cmt_metric, _head);
+
+        if (check_staled_timestamp(&map->metric, now,
+                                   CMT_ENCODE_OPENTELEMETRY_CUTOFF_THRESHOLD)) {
+            /* Skip processing metrics which are staled over the threshold */
+            return CMT_ENCODE_OPENTELEMETRY_CUTOFF_ERROR;
+        }
 
         result = append_sample_to_metric(context,
                                          metric,
@@ -2527,6 +2552,10 @@ cfl_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt)
             counter = cfl_list_entry(head, struct cmt_counter, _head);
             result = pack_basic_type(context, counter->map, &metric_index);
 
+            if (result == CMT_ENCODE_OPENTELEMETRY_CUTOFF_ERROR) {
+                continue;
+            }
+
             if (result != CMT_ENCODE_OPENTELEMETRY_SUCCESS) {
                 break;
             }
@@ -2537,6 +2566,10 @@ cfl_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt)
         cfl_list_foreach(head, &cmt->gauges) {
             gauge = cfl_list_entry(head, struct cmt_gauge, _head);
             result = pack_basic_type(context, gauge->map, &metric_index);
+
+            if (result == CMT_ENCODE_OPENTELEMETRY_CUTOFF_ERROR) {
+                continue;
+            }
 
             if (result != CMT_ENCODE_OPENTELEMETRY_SUCCESS) {
                 break;
@@ -2549,6 +2582,10 @@ cfl_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt)
             untyped = cfl_list_entry(head, struct cmt_untyped, _head);
             result = pack_basic_type(context, untyped->map, &metric_index);
 
+            if (result == CMT_ENCODE_OPENTELEMETRY_CUTOFF_ERROR) {
+                continue;
+            }
+
             if (result != CMT_ENCODE_OPENTELEMETRY_SUCCESS) {
                 break;
             }
@@ -2559,6 +2596,10 @@ cfl_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt)
         cfl_list_foreach(head, &cmt->summaries) {
             summary = cfl_list_entry(head, struct cmt_summary, _head);
             result = pack_basic_type(context, summary->map, &metric_index);
+
+            if (result == CMT_ENCODE_OPENTELEMETRY_CUTOFF_ERROR) {
+                continue;
+            }
 
             if (result != CMT_ENCODE_OPENTELEMETRY_SUCCESS) {
                 break;
@@ -2571,6 +2612,10 @@ cfl_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt)
             histogram = cfl_list_entry(head, struct cmt_histogram, _head);
             result = pack_basic_type(context, histogram->map, &metric_index);
 
+            if (result == CMT_ENCODE_OPENTELEMETRY_CUTOFF_ERROR) {
+                continue;
+            }
+
             if (result != CMT_ENCODE_OPENTELEMETRY_SUCCESS) {
                 break;
             }
@@ -2579,6 +2624,9 @@ cfl_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt)
 
     if (result == CMT_ENCODE_OPENTELEMETRY_SUCCESS) {
         buf = render_opentelemetry_context_to_sds(context);
+    }
+    else if (result == CMT_ENCODE_OPENTELEMETRY_CUTOFF_ERROR) {
+        buf = NULL;
     }
 
     destroy_opentelemetry_context(context);
