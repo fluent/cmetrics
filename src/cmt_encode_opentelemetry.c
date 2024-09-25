@@ -2449,6 +2449,8 @@ int pack_basic_type(struct cmt_opentelemetry_context *context,
 
         if (check_staled_timestamp(&map->metric, now,
                                    CMT_ENCODE_OPENTELEMETRY_CUTOFF_THRESHOLD)) {
+            destroy_metric(metric);
+
             /* Skip processing metrics which are staled over the threshold */
             return CMT_ENCODE_OPENTELEMETRY_CUTOFF_ERROR;
         }
@@ -2465,6 +2467,8 @@ int pack_basic_type(struct cmt_opentelemetry_context *context,
 
         if (check_staled_timestamp(&map->metric, now,
                                    CMT_ENCODE_OPENTELEMETRY_CUTOFF_THRESHOLD)) {
+            destroy_metric(metric);
+
             /* Skip processing metrics which are staled over the threshold */
             return CMT_ENCODE_OPENTELEMETRY_CUTOFF_ERROR;
         }
