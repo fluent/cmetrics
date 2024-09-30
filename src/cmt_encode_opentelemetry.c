@@ -257,7 +257,7 @@ static void destroy_opentelemetry_context(
     struct cmt_opentelemetry_context *context);
 
 static struct cmt_opentelemetry_context *initialize_opentelemetry_context(
-    struct cmt *cmt);
+    struct cmt *cmt, struct cmt_opentelemetry_context_cutoff_opts *opts);
 
 static inline Opentelemetry__Proto__Common__V1__AnyValue *cfl_variant_to_otlp_any_value(struct cfl_variant *value);
 static inline Opentelemetry__Proto__Common__V1__KeyValue *cfl_variant_kvpair_to_otlp_kvpair(struct cfl_kvpair *input_pair);
@@ -2138,7 +2138,7 @@ static Opentelemetry__Proto__Resource__V1__Resource *
 }
 
 static struct cmt_opentelemetry_context *initialize_opentelemetry_context(
-    struct cmt *cmt)
+    struct cmt *cmt, struct cmt_opentelemetry_context_cutoff_opts *opts)
 {
     struct cfl_kvlist                            *resource_metrics_root;
     struct cfl_kvlist                            *scope_metrics_root;
@@ -2166,6 +2166,8 @@ static struct cmt_opentelemetry_context *initialize_opentelemetry_context(
     memset(context, 0, sizeof(struct cmt_opentelemetry_context));
 
     context->cmt = cmt;
+    context->use_cutoff = opts->use_cutoff;
+    context->cutoff_threshold = opts->cutoff_threshold;
 
     resource = initialize_resource(resource_root, &result);
 
@@ -2447,8 +2449,9 @@ int pack_basic_type(struct cmt_opentelemetry_context *context,
                                          &map->metric,
                                          sample_index++);
 
-        if (check_staled_timestamp(&map->metric, now,
-                                   CMT_ENCODE_OPENTELEMETRY_CUTOFF_THRESHOLD)) {
+        if (context->use_cutoff == CMT_TRUE &&
+            check_staled_timestamp(&map->metric, now,
+                                   context->cutoff_threshold)) {
             destroy_metric(metric);
 
             /* Skip processing metrics which are staled over the threshold */
@@ -2465,8 +2468,9 @@ int pack_basic_type(struct cmt_opentelemetry_context *context,
     cfl_list_foreach(head, &map->metrics) {
         sample = cfl_list_entry(head, struct cmt_metric, _head);
 
-        if (check_staled_timestamp(&map->metric, now,
-                                   CMT_ENCODE_OPENTELEMETRY_CUTOFF_THRESHOLD)) {
+        if (context->use_cutoff == CMT_TRUE &&
+            check_staled_timestamp(&map->metric, now,
+                                   context->cutoff_threshold)) {
             destroy_metric(metric);
 
             /* Skip processing metrics which are staled over the threshold */
@@ -2527,7 +2531,8 @@ static cfl_sds_t render_opentelemetry_context_to_sds(
     return result_buffer;
 }
 
-cfl_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt)
+cfl_sds_t cmt_encode_opentelemetry_create_with_cutoff_opts(struct cmt *cmt,
+                                                           struct cmt_opentelemetry_context_cutoff_opts *opts)
 {
     size_t                            metric_index;
     struct cmt_opentelemetry_context *context;
@@ -2543,7 +2548,7 @@ cfl_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt)
     buf = NULL;
     result = 0;
 
-    context = initialize_opentelemetry_context(cmt);
+    context = initialize_opentelemetry_context(cmt, opts);
 
     if (context == NULL) {
         return NULL;
@@ -2636,6 +2641,24 @@ cfl_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt)
     destroy_opentelemetry_context(context);
 
     return buf;
+}
+
+cfl_sds_t cmt_encode_opentelemetry_create_with_cutoff(struct cmt *cmt, int use_cutoff)
+{
+    struct cmt_opentelemetry_context_cutoff_opts opts;
+    opts.use_cutoff = use_cutoff;
+    opts.cutoff_threshold = CMT_ENCODE_OPENTELEMETRY_CUTOFF_THRESHOLD;
+
+    return cmt_encode_opentelemetry_create_with_cutoff_opts(cmt, &opts);
+}
+
+cfl_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt)
+{
+    struct cmt_opentelemetry_context_cutoff_opts opts;
+    opts.use_cutoff = CMT_FALSE;
+    opts.cutoff_threshold = CMT_ENCODE_OPENTELEMETRY_CUTOFF_DISABLED;
+
+    return cmt_encode_opentelemetry_create_with_cutoff_opts(cmt, &opts);
 }
 
 void cmt_encode_opentelemetry_destroy(cfl_sds_t text)

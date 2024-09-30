@@ -627,7 +627,30 @@ void test_opentelemetry_outdated()
 
     cmt = generate_encoder_test_data_with_timestamp(ts);
 
-    payload = cmt_encode_opentelemetry_create(cmt);
+    payload = cmt_encode_opentelemetry_create_with_cutoff(cmt, CMT_TRUE);
+    TEST_CHECK(NULL == payload);
+
+    cmt_encode_opentelemetry_destroy(payload);
+
+    cmt_destroy(cmt);
+}
+
+void test_opentelemetry_outdated_with_cutoff_opts()
+{
+    cfl_sds_t payload;
+    struct cmt *cmt;
+    uint64_t ts;
+    struct cmt_opentelemetry_context_cutoff_opts opts;
+
+    opts.use_cutoff = CMT_TRUE;
+    opts.cutoff_threshold = CMT_ENCODE_OPENTELEMETRY_CUTOFF_THRESHOLD;
+
+    cmt_initialize();
+    ts = cfl_time_now() - CMT_ENCODE_OPENTELEMETRY_CUTOFF_THRESHOLD * 1.5;
+
+    cmt = generate_encoder_test_data_with_timestamp(ts);
+
+    payload = cmt_encode_opentelemetry_create_with_cutoff_opts(cmt, &opts);
     TEST_CHECK(NULL == payload);
 
     cmt_encode_opentelemetry_destroy(payload);
@@ -1195,6 +1218,7 @@ TEST_LIST = {
     {"cmt_msgpack",                    test_cmt_to_msgpack},
     {"opentelemetry",                  test_opentelemetry},
     {"opentelemetry_old_context",      test_opentelemetry_outdated},
+    {"opentelemetry_cutoff_opts",      test_opentelemetry_outdated_with_cutoff_opts},
     {"cloudwatch_emf",                 test_cloudwatch_emf},
     {"prometheus",                     test_prometheus},
     {"text",                           test_text},

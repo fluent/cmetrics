@@ -33,6 +33,7 @@
 #define CMT_ENCODE_OPENTELEMETRY_CUTOFF_ERROR           5
 
 #define CMT_ENCODE_OPENTELEMETRY_CUTOFF_THRESHOLD       300000000000L /*  5 minutes in nanoseconds */
+#define CMT_ENCODE_OPENTELEMETRY_CUTOFF_DISABLED        -1L /* disabled */
 
 
 struct cmt_opentelemetry_context
@@ -40,9 +41,21 @@ struct cmt_opentelemetry_context
     size_t                                          resource_index;
     Opentelemetry__Proto__Metrics__V1__MetricsData *metrics_data;
     struct cmt                                     *cmt;
+    int                                             use_cutoff;
+    int64_t                                         cutoff_threshold;
+};
+
+struct cmt_opentelemetry_context_cutoff_opts
+{
+    int                                             use_cutoff;
+    int64_t                                         cutoff_threshold;
 };
 
 cfl_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt);
+cfl_sds_t cmt_encode_opentelemetry_create_with_cutoff(struct cmt *cmt, int use_cutoff);
+cfl_sds_t cmt_encode_opentelemetry_create_with_cutoff_opts(struct cmt *cmt,
+                                                           struct cmt_opentelemetry_context_cutoff_opts *opts);
+
 void cmt_encode_opentelemetry_destroy(cfl_sds_t text);
 
 #endif
