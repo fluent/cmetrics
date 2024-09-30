@@ -78,8 +78,7 @@ int cmt_mpack_consume_string_tag(mpack_reader_t *reader, cfl_sds_t *output_buffe
 {
     uint32_t    string_length;
     mpack_tag_t tag;
-    cfl_sds_t   left_buffer;
-    uint32_t    left_length;
+    uint32_t    skip_length;
 
     if (NULL == output_buffer) {
         return CMT_MPACK_INVALID_ARGUMENT_ERROR;
@@ -113,18 +112,13 @@ int cmt_mpack_consume_string_tag(mpack_reader_t *reader, cfl_sds_t *output_buffe
             return CMT_MPACK_ALLOCATION_ERROR;
         }
 
-        left_length = string_length - CMT_MPACK_MAX_STRING_LENGTH;
-        left_buffer = cfl_sds_create_size(left_length + 1);
-        if (NULL == left_buffer) {
-            return CMT_MPACK_ALLOCATION_ERROR;
-        }
+        skip_length = string_length - CMT_MPACK_MAX_STRING_LENGTH;
 
         cfl_sds_set_len(*output_buffer, CMT_MPACK_MAX_STRING_LENGTH);
         mpack_read_cstr(reader, *output_buffer, CMT_MPACK_MAX_STRING_LENGTH + 1, CMT_MPACK_MAX_STRING_LENGTH);
         cfl_sds_cat_safe(output_buffer, "...", 3);
 
-        mpack_read_cstr(reader, left_buffer, left_length + 1, left_length);
-        cfl_sds_destroy(left_buffer);
+        mpack_skip_bytes(reader, skip_length);
     }
     else {
         *output_buffer = cfl_sds_create_size(string_length + 1);
