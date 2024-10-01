@@ -640,7 +640,7 @@ void test_opentelemetry_outdated_with_cutoff_opts()
     cfl_sds_t payload;
     struct cmt *cmt;
     uint64_t ts;
-    struct cmt_opentelemetry_context_cutoff_opts opts;
+    struct cmt_opentelemetry_context_opts opts;
 
     opts.use_cutoff = CMT_TRUE;
     opts.cutoff_threshold = CMT_ENCODE_OPENTELEMETRY_CUTOFF_THRESHOLD;

@@ -257,7 +257,7 @@ static void destroy_opentelemetry_context(
     struct cmt_opentelemetry_context *context);
 
 static struct cmt_opentelemetry_context *initialize_opentelemetry_context(
-    struct cmt *cmt, struct cmt_opentelemetry_context_cutoff_opts *opts);
+    struct cmt *cmt, struct cmt_opentelemetry_context_opts *opts);
 
 static inline Opentelemetry__Proto__Common__V1__AnyValue *cfl_variant_to_otlp_any_value(struct cfl_variant *value);
 static inline Opentelemetry__Proto__Common__V1__KeyValue *cfl_variant_kvpair_to_otlp_kvpair(struct cfl_kvpair *input_pair);
@@ -2138,7 +2138,7 @@ static Opentelemetry__Proto__Resource__V1__Resource *
 }
 
 static struct cmt_opentelemetry_context *initialize_opentelemetry_context(
-    struct cmt *cmt, struct cmt_opentelemetry_context_cutoff_opts *opts)
+    struct cmt *cmt, struct cmt_opentelemetry_context_opts *opts)
 {
     struct cfl_kvlist                            *resource_metrics_root;
     struct cfl_kvlist                            *scope_metrics_root;
@@ -2532,7 +2532,7 @@ static cfl_sds_t render_opentelemetry_context_to_sds(
 }
 
 cfl_sds_t cmt_encode_opentelemetry_create_with_cutoff_opts(struct cmt *cmt,
-                                                           struct cmt_opentelemetry_context_cutoff_opts *opts)
+                                                           struct cmt_opentelemetry_context_opts *opts)
 {
     size_t                            metric_index;
     struct cmt_opentelemetry_context *context;
@@ -2645,7 +2645,7 @@ cfl_sds_t cmt_encode_opentelemetry_create_with_cutoff_opts(struct cmt *cmt,
 
 cfl_sds_t cmt_encode_opentelemetry_create_with_cutoff(struct cmt *cmt, int use_cutoff)
 {
-    struct cmt_opentelemetry_context_cutoff_opts opts;
+    struct cmt_opentelemetry_context_opts opts;
     opts.use_cutoff = use_cutoff;
     opts.cutoff_threshold = CMT_ENCODE_OPENTELEMETRY_CUTOFF_THRESHOLD;
 
@@ -2654,7 +2654,7 @@ cfl_sds_t cmt_encode_opentelemetry_create_with_cutoff(struct cmt *cmt, int use_c
 
 cfl_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt)
 {
-    struct cmt_opentelemetry_context_cutoff_opts opts;
+    struct cmt_opentelemetry_context_opts opts;
     opts.use_cutoff = CMT_FALSE;
     opts.cutoff_threshold = CMT_ENCODE_OPENTELEMETRY_CUTOFF_DISABLED;
 

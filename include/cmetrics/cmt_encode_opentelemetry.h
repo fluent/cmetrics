@@ -45,16 +45,16 @@ struct cmt_opentelemetry_context
     int64_t                                         cutoff_threshold;
 };
 
-struct cmt_opentelemetry_context_cutoff_opts
+struct cmt_opentelemetry_context_opts
 {
-    int                                             use_cutoff;
-    int64_t                                         cutoff_threshold;
+    int     use_cutoff;
+    int64_t cutoff_threshold;
 };
 
 cfl_sds_t cmt_encode_opentelemetry_create(struct cmt *cmt);
 cfl_sds_t cmt_encode_opentelemetry_create_with_cutoff(struct cmt *cmt, int use_cutoff);
 cfl_sds_t cmt_encode_opentelemetry_create_with_cutoff_opts(struct cmt *cmt,
-                                                           struct cmt_opentelemetry_context_cutoff_opts *opts);
+                                                           struct cmt_opentelemetry_context_opts *opts);
 
 void cmt_encode_opentelemetry_destroy(cfl_sds_t text);
 
