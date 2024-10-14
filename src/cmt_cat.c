@@ -36,7 +36,7 @@ int cmt_cat_copy_label_keys(struct cmt_map *map, char **out)
 
     /* labels array */
     s = map->label_count;
-    if (s == 0) {
+    if (s <= 0) {
         *out = NULL;
         return 0;
     }
