@@ -684,11 +684,19 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
     int label_i;
     uint64_t timestamp;
 
+    if (cfl_list_size(&context->metric.samples) < 2) {
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_SYNTAX_ERROR,
+                "not enough samples for summary");
+    }
+
     /* quantile_count = sample count - 2:
      * - sum
      * - count */
     quantile_count = cfl_list_size(&context->metric.samples) - 2;
-    timestamp = context->opts.override_timestamp;
+    if (context->opts.override_timestamp) {
+        timestamp = context->opts.override_timestamp;
+    }
 
     quantile_defaults = calloc(quantile_count, sizeof(*quantile_defaults));
     if (!quantile_defaults) {
