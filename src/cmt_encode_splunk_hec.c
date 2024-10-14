@@ -162,6 +162,7 @@ static void format_context_common(struct cmt_splunk_hec_context *context, cfl_sd
         len = snprintf(index, tlen, "\"index\":\"%s\",", context->index);
         cfl_sds_cat_safe(buf, index, len);
         free(index);
+        index = NULL;
     }
 
     /* source */
@@ -177,6 +178,7 @@ static void format_context_common(struct cmt_splunk_hec_context *context, cfl_sd
         len = snprintf(source, tlen, "\"source\":\"%s\",", context->source);
         cfl_sds_cat_safe(buf, source, len);
         free(source);
+        source = NULL;
     }
 
     /* sourcetype */
@@ -192,6 +194,7 @@ static void format_context_common(struct cmt_splunk_hec_context *context, cfl_sd
         len = snprintf(source_type, tlen, "\"sourcetype\":\"%s\",", context->source_type);
         cfl_sds_cat_safe(buf, source_type, len);
         free(source_type);
+        source_type = NULL;
     }
 
     return;
