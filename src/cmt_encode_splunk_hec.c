@@ -121,12 +121,15 @@ static void append_metric_value(cfl_sds_t *buf, struct cmt_map *map,
 static void format_context_common(struct cmt_splunk_hec_context *context, cfl_sds_t *buf, struct cmt_map *map,
                                   struct cmt_metric *metric)
 {
-    int len, tlen;
-    char hostname[256], timestamp[128];
-    char *index = NULL, *source = NULL, *source_type = NULL;
-    struct timespec tms;
-    uint64_t ts;
+    int len;
+    int tlen;
     int result = CMT_ENCODE_SPLUNK_HEC_ALLOCATION_ERROR;
+    uint64_t ts;
+    char hostname[256], timestamp[128];
+    char *index = NULL;
+    char *source = NULL;
+    char *source_type = NULL;
+    struct timespec tms;
 
     /* Open parenthesis */
     cfl_sds_cat_safe(buf, "{", 1);
@@ -180,7 +183,7 @@ static void format_context_common(struct cmt_splunk_hec_context *context, cfl_sd
     if (context->source_type != NULL) {
         tlen = strlen(context->source_type) + 18; /* adding snprintf template character length */
         source_type = malloc(tlen);
-        if (source == NULL) {
+        if (source_type == NULL) {
             cmt_errno();
             result = CMT_ENCODE_SPLUNK_HEC_ALLOCATION_ERROR;
 
