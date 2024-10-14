@@ -627,6 +627,7 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
         context->current.histogram = h;
     }
 
+
     if (cmt_histogram_set_default(h, timestamp, bucket_defaults, sum, count,
                 label_i,
                 label_i ? values_without_le : NULL)) {
@@ -661,7 +662,7 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
     size_t quantile_index;
     double *quantiles = NULL;
     double *quantile_defaults = NULL;
-    double sum;
+    double sum = 0.0;
     double count_dbl;
     size_t label_count;
     uint64_t count = 0;
