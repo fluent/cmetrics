@@ -456,7 +456,7 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
     cfl_sds_t *labels_without_le = NULL;
     cfl_sds_t *values_without_le = NULL;
     int label_i;
-    uint64_t timestamp;
+    uint64_t timestamp = 0;
 
     if (cfl_list_size(&context->metric.samples) < 3) {
         return report_error(context,
@@ -682,7 +682,7 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
     cfl_sds_t *labels_without_quantile = NULL;
     cfl_sds_t *values_without_quantile = NULL;
     int label_i;
-    uint64_t timestamp;
+    uint64_t timestamp = 0;
 
     if (cfl_list_size(&context->metric.samples) < 2) {
         return report_error(context,
