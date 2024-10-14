@@ -242,7 +242,7 @@ static inline int cmt_opts_compare(struct cmt_opts *a, struct cmt_opts *b)
 {
     int ret;
 
-    ret = strcmp(a->ns, a->ns);
+    ret = strcmp(a->ns, b->ns);
     if (ret != 0) {
         return ret;
     }
