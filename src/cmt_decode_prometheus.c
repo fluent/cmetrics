@@ -1143,17 +1143,36 @@ static int sample_start(struct cmt_decode_prometheus_context *context)
     return 0;
 }
 
-static int parse_sample(
-        struct cmt_decode_prometheus_context *context,
-        const char *value1,
-        const char *value2)
+static int parse_sample(struct cmt_decode_prometheus_context *context,
+                        const char *value1,
+                        const char *value2)
 {
+    int len;
     struct cmt_decode_prometheus_context_sample *sample;
     sample = cfl_list_entry_last(&context->metric.samples,
             struct cmt_decode_prometheus_context_sample, _head);
 
-    strcpy(sample->value1, value1);
-    strcpy(sample->value2, value2);
+    /* value1 */
+    len = strlen(value1);
+    if (len >= sizeof(sample->value1) - 1) {
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_SAMPLE_VALUE_TOO_LONG,
+                "sample value is too long (max %zu characters)", sizeof(sample->value1) - 1);
+    }
+
+    strncpy(sample->value1, value1, len);
+    sample->value1[len] = 0;
+
+    /* value2 */
+    len = strlen(value2);
+    if (len >= sizeof(sample->value2) - 1) {
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_SAMPLE_VALUE_TOO_LONG,
+                "sample value is too long (max %zu characters)", sizeof(sample->value2) - 1);
+    }
+    strncpy(sample->value2, value2, len);
+    sample->value2[len] = 0;
+
     return 0;
 }
 
