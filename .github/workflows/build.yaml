@@ -142,3 +142,24 @@ jobs:
           # dependencies_debian: ''
           cmakeflags: '-DCMT_TESTS=On -DCMT_DEV=on .'
           build_command: make all
+
+  test-required-checks-complete:
+    # note: this step always has to run in order to check if the dependent jobs passed. by default github skips running a job
+    # if the needed jobs upstream failed.
+    if: always()
+    needs:
+      - build-windows
+      - build-msys2
+      - build-centos
+      - build-debian
+      - build-unix-arm64
+      - build-unix-amd64
+      - build-analysis-tests
+    name: Required checks complete
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+    - name: Decide whether the needed jobs succeeded or failed
+      uses: re-actors/alls-green@release/v1
+      with:
+        jobs: ${{ toJSON(needs) }}

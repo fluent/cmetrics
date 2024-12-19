@@ -22,11 +22,11 @@ jobs:
         with:
           submodules: true
 
-       - uses: uraimo/run-on-arch-action@v2.8.1
+      - uses: uraimo/run-on-arch-action@v2.8.1
         name: Build the ${{matrix.format}} packages
         with:
           arch: aarch64
-          distro: ubuntu20.04
+          distro: ubuntu_latest
           run: |
             apt-get update && \
             apt-get install -y --no-install-recommends \
