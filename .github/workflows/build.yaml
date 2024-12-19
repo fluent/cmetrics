@@ -80,7 +80,7 @@ jobs:
       - name: Set up base image dependencies
         run: |
           apt-get update
-          apt-get install -y build-essential cmake make
+          apt-get install -y build-essential cmake make git
         shell: bash
 
       - uses: actions/checkout@v4
