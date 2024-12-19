@@ -87,8 +87,9 @@ jobs:
 
       - name: Run compilation
         run: |
-          cmake3 -DCMT_TESTS=on -DCMT_DEV=on .
+          cmake -DCMT_TESTS=on -DCMT_DEV=on .
           make
+        shell: bash
 
   build-unix-arm64:
     name: Build sources on arm64 for ${{ matrix.os }} - ${{ matrix.compiler }}
