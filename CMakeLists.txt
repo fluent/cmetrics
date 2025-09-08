@@ -24,7 +24,18 @@ if (CMAKE_HOST_SYSTEM_NAME MATCHES "Darwin")
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
     if (BREW_BISON EQUAL 0 AND EXISTS "${BREW_BISON_PREFIX}")
-        message(STATUS "Found Bison keg installed by Homebrew at ${BREW_BISON_PREFIX}")
+        message(STATUS "include <ctype.h>
+#include <errno.h>
+#include <math.h>
+#include <stdarg.h>
+#include <stdint.h>
+
+#include <cmetrics/cmetrics.h>
+#include <cmetrics/cmt_gauge.h>
+#include <cmetrics/cmt_untyped.h>
+#include <cmetrics/cmt_histogram.h>
+#include <cmetrics/cmt_summary.h>
+#include <cmetrics/cmt_counter.h>Found Bison keg installed by Homebrew at ${BREW_BISON_PREFIX}")
         set(BISON_EXECUTABLE "${BREW_BISON_PREFIX}/bin/bison")
     endif()
 
@@ -68,11 +79,11 @@ else()
 endif()
 
 # Configuration options
-option(CMT_DEV                       "Enable development mode"                   No)
-option(CMT_DEBUG                     "Enable debug mode"                         No)
-option(CMT_TESTS                     "Enable unit testing"                       No)
+option(CMT_DEV                       "Enable development mode"                    No)
+option(CMT_DEBUG                     "Enable debug mode"                          No)
+option(CMT_TESTS                     "Enable unit testing"                        No)
 option(CMT_INSTALL_TARGETS           "Enable subdirectory library installations" Yes)
-option(CMT_ENABLE_PROMETHEUS_DECODER "Enable prometheus decoder"                 Yes)
+option(CMT_PROMETHEUS_TEXT_DECODER   "Enable prometheus text format decoder (requires Flex/Bison)" Yes)
 
 if(CMT_DEV)
   set(CMT_TESTS   Yes)
@@ -155,7 +166,7 @@ check_c_source_compiles("
      return 0;
   }" CMT_HAVE_MSGPACK)
 
-if(CMT_ENABLE_PROMETHEUS_DECODER)
+if(CMT_PROMETHEUS_TEXT_DECODER)
     # Flex and Bison: check if the variables has not been defined before by
     # a parent project to avoid conflicts.
     if(NOT FLEX_FOUND)
@@ -167,7 +178,8 @@ if(CMT_ENABLE_PROMETHEUS_DECODER)
     endif()
 
     if(FLEX_FOUND AND BISON_FOUND)
-        set(CMT_BUILD_PROMETHEUS_DECODER 1)
+        set(CMT_BUILD_PROMETHEUS_TEXT_DECODER 1)
+        CMT_DEFINITION(CMT_HAVE_PROMETHEUS_TEXT_DECODER)
     endif()
 endif()
 
