@@ -22,6 +22,8 @@
 #include <cmetrics/cmt_encode_msgpack.h>
 #include <cmetrics/cmt_decode_msgpack.h>
 #include <cmetrics/cmt_encode_text.h>
+#include <cmetrics/cmt_decode_prometheus.h>
+#include <cmetrics/cmt_encode_prometheus.h>
 
 #include "cmt_tests.h"
 
@@ -89,7 +91,34 @@ void test_issue_54()
     cmt_destroy(cmt1);
 }
 
+/* issue: https://github.com/fluent/fluent-bit/issues/10761 */
+void test_prometheus_metric_no_subsystem()
+{
+    const char text[] =
+        "# HELP up A simple example metric no subsystem\n"
+        "# TYPE up gauge\n"
+        "up{job=\"42\"} 1\n";
+    struct cmt *cmt;
+    cfl_sds_t result;
+    int ret;
+
+    cmt_initialize();
+
+    ret = cmt_decode_prometheus_create(&cmt, text, strlen(text), NULL);
+    TEST_CHECK(ret == CMT_DECODE_PROMETHEUS_SUCCESS);
+    if (ret == CMT_DECODE_PROMETHEUS_SUCCESS) {
+        result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
+        TEST_CHECK(result != NULL);
+        if (result) {
+            TEST_CHECK(strstr(result, "up{job=\"42\"} 1") != NULL);
+            cmt_encode_prometheus_destroy(result);
+        }
+        cmt_decode_prometheus_destroy(cmt);
+    }
+}
+
 TEST_LIST = {
     {"issue_54", test_issue_54},
+    {"prometheus_metric_no_subsystem", test_prometheus_metric_no_subsystem},
     { 0 }
 };
