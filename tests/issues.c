@@ -91,6 +91,8 @@ void test_issue_54()
     cmt_destroy(cmt1);
 }
 
+#ifdef CMT_HAVE_PROMETHEUS_TEXT_DECODER
+
 /* issue: https://github.com/fluent/fluent-bit/issues/10761 */
 void test_prometheus_metric_no_subsystem()
 {
@@ -117,8 +119,12 @@ void test_prometheus_metric_no_subsystem()
     }
 }
 
+#endif
+
 TEST_LIST = {
     {"issue_54", test_issue_54},
+#ifdef CMT_HAVE_PROMETHEUS_TEXT_DECODER
     {"prometheus_metric_no_subsystem", test_prometheus_metric_no_subsystem},
+#endif
     { 0 }
 };
