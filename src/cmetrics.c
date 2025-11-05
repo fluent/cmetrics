@@ -164,7 +164,7 @@ void cmt_expire(struct cmt *cmt, uint64_t expiration)
 
     cfl_list_foreach_safe(head, tmp, &cmt->histograms) {
         h = cfl_list_entry(head, struct cmt_histogram, _head);
-        cmt_map_metrics_expire(s->map, expiration);
+        cmt_map_metrics_expire(h->map, expiration);
     }
 
     cfl_list_foreach_safe(head, tmp, &cmt->untypeds) {
