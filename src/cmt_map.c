@@ -316,3 +316,19 @@ void destroy_label_list(struct cfl_list *label_list)
     }
 }
 
+/* This function can be used to expire untouched metrics.
+ */
+int cmt_map_metrics_expire(struct cmt_map *map, uint64_t expiration)
+{
+    struct cfl_list *tmp;
+    struct cfl_list *head;
+    struct cmt_metric *metric;
+
+    cfl_list_foreach_safe(head, tmp, &map->metrics) {
+        metric = cfl_list_entry(head, struct cmt_metric, _head);
+        if (metric->timestamp <= expiration) {
+            cmt_map_metric_destroy(metric);
+        }
+    }
+    return 0;
+}
