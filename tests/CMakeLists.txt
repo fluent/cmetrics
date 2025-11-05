@@ -12,6 +12,7 @@ set(UNIT_TESTS_FILES
   issues.c
   null_label.c
   filter.c
+  expire.c
   )
 
 if (CMT_BUILD_PROMETHEUS_TEXT_DECODER)
@@ -39,11 +40,16 @@ foreach(source_file ${UNIT_TESTS_FILES})
     encode_output.c
     )
 
-  target_link_libraries(${source_file_we} cmetrics-static cfl-static fluent-otel-proto)
+  target_link_libraries(${source_file_we} cmetrics-static fluent-otel-proto)
+  if (CMT_HAVE_CFL)
+    target_link_libraries(${source_file_we} cfl)
+  else()
+    target_link_libraries(${source_file_we} cfl-static)
+  endif()
 
-if(NOT CMT_SYSTEM_WINDOWS)
-  target_link_libraries(${source_file_we} pthread)
-endif()
+  if(NOT CMT_SYSTEM_WINDOWS)
+    target_link_libraries(${source_file_we} pthread)
+  endif()
 
   add_test(NAME ${source_file_we}
     COMMAND ${CMAKE_BINARY_DIR}/tests/${source_file_we}
