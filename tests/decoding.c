@@ -32,19 +32,17 @@
 
 #include "cmt_tests.h"
 
-static struct cmt *generate_encoder_test_data()
+static struct cmt *generate_encoder_test_data_with_timestamp(uint64_t ts)
 {
     double                        quantiles[5];
     struct cmt_histogram_buckets *buckets;
     double                        val;
     struct cmt                   *cmt;
-    uint64_t                      ts;
     struct cmt_gauge             *g1;
     struct cmt_counter           *c1;
     struct cmt_summary           *s1;
     struct cmt_histogram         *h1;
 
-    ts = 0;
     cmt = cmt_create();
 
     c1 = cmt_counter_create(cmt, "kubernetes", "network", "load_counter", "Network load counter",
@@ -124,6 +122,14 @@ static struct cmt *generate_encoder_test_data()
     return cmt;
 }
 
+static struct cmt *generate_encoder_test_data_now()
+{
+    uint64_t ts = 0;
+    ts = cfl_time_now();
+
+    return generate_encoder_test_data_with_timestamp(ts);
+}
+
 void test_opentelemetry()
 {
     cfl_sds_t        reference_prometheus_context;
@@ -139,7 +145,7 @@ void test_opentelemetry()
 
     cmt_initialize();
 
-    cmt = generate_encoder_test_data();
+    cmt = generate_encoder_test_data_now();
     TEST_CHECK(cmt != NULL);
 
     reference_prometheus_context = cmt_encode_prometheus_create(cmt, CMT_TRUE);
