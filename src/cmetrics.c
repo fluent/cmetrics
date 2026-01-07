@@ -29,6 +29,7 @@
 #include <cmetrics/cmt_atomic.h>
 #include <cmetrics/cmt_compat.h>
 #include <cmetrics/cmt_label.h>
+#include <cmetrics/cmt_map.h>
 #include <cmetrics/cmt_version.h>
 
 #include <cfl/cfl_kvlist.h>
@@ -134,6 +135,42 @@ void cmt_destroy(struct cmt *cmt)
     }
 
     free(cmt);
+}
+
+void cmt_expire(struct cmt *cmt, uint64_t expiration)
+{
+    struct cfl_list *tmp;
+    struct cfl_list *head;
+    struct cmt_counter *c;
+    struct cmt_gauge *g;
+    struct cmt_summary *s;
+    struct cmt_histogram *h;
+    struct cmt_untyped *u;
+
+    cfl_list_foreach_safe(head, tmp, &cmt->counters) {
+        c = cfl_list_entry(head, struct cmt_counter, _head);
+        cmt_map_metrics_expire(c->map, expiration);
+    }
+
+    cfl_list_foreach_safe(head, tmp, &cmt->gauges) {
+        g = cfl_list_entry(head, struct cmt_gauge, _head);
+        cmt_map_metrics_expire(g->map, expiration);
+    }
+
+    cfl_list_foreach_safe(head, tmp, &cmt->summaries) {
+        s = cfl_list_entry(head, struct cmt_summary, _head);
+        cmt_map_metrics_expire(s->map, expiration);
+    }
+
+    cfl_list_foreach_safe(head, tmp, &cmt->histograms) {
+        h = cfl_list_entry(head, struct cmt_histogram, _head);
+        cmt_map_metrics_expire(h->map, expiration);
+    }
+
+    cfl_list_foreach_safe(head, tmp, &cmt->untypeds) {
+        u = cfl_list_entry(head, struct cmt_untyped, _head);
+        cmt_map_metrics_expire(u->map, expiration);
+    }
 }
 
 int cmt_label_add(struct cmt *cmt, char *key, char *val)
