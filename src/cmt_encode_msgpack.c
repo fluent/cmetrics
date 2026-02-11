@@ -184,6 +184,13 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
         s++;
     }
 
+    if (map->type != CMT_HISTOGRAM &&
+        map->type != CMT_EXP_HISTOGRAM &&
+        map->type != CMT_SUMMARY &&
+        cmt_metric_get_value_type(metric) != CMT_METRIC_VALUE_DOUBLE) {
+        s += 2;
+    }
+
     mpack_start_map(writer, s);
 
     mpack_write_cstr(writer, "ts");
@@ -287,6 +294,19 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
         mpack_write_cstr(writer, "value");
         val = cmt_metric_get_value(metric);
         mpack_write_double(writer, val);
+
+        if (cmt_metric_get_value_type(metric) == CMT_METRIC_VALUE_INT64) {
+            mpack_write_cstr(writer, "value_type");
+            mpack_write_uint(writer, CMT_METRIC_VALUE_INT64);
+            mpack_write_cstr(writer, "value_int64");
+            mpack_write_i64(writer, cmt_metric_get_int64_value(metric));
+        }
+        else if (cmt_metric_get_value_type(metric) == CMT_METRIC_VALUE_UINT64) {
+            mpack_write_cstr(writer, "value_type");
+            mpack_write_uint(writer, CMT_METRIC_VALUE_UINT64);
+            mpack_write_cstr(writer, "value_uint64");
+            mpack_write_u64(writer, cmt_metric_get_uint64_value(metric));
+        }
     }
 
     s = cfl_list_size(&metric->labels);

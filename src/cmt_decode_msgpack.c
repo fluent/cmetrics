@@ -432,8 +432,67 @@ static int unpack_metric_value(mpack_reader_t *reader, size_t index, void *conte
 
     result = cmt_mpack_consume_double_tag(reader, &value);
 
-    if(CMT_DECODE_MSGPACK_SUCCESS == result) {
-        decode_context->metric->val = cmt_math_d64_to_uint64(value);
+    if (CMT_DECODE_MSGPACK_SUCCESS == result &&
+        decode_context->metric_value_type_set == CMT_FALSE) {
+        cmt_metric_set_double(decode_context->metric,
+                              decode_context->metric->timestamp,
+                              value);
+    }
+
+    return result;
+}
+
+static int unpack_metric_value_type(mpack_reader_t *reader, size_t index, void *context)
+{
+    uint64_t value;
+    int result;
+    struct cmt_msgpack_decode_context *decode_context;
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    result = cmt_mpack_consume_uint_tag(reader, &value);
+    if (result == CMT_DECODE_MSGPACK_SUCCESS) {
+        if (value == CMT_METRIC_VALUE_INT64 ||
+            value == CMT_METRIC_VALUE_UINT64 ||
+            value == CMT_METRIC_VALUE_DOUBLE) {
+            decode_context->metric->value_type = (int) value;
+        }
+    }
+
+    return result;
+}
+
+static int unpack_metric_value_int64(mpack_reader_t *reader, size_t index, void *context)
+{
+    int64_t value;
+    int result;
+    struct cmt_msgpack_decode_context *decode_context;
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+    result = cmt_mpack_consume_int_tag(reader, &value);
+    if (result == CMT_DECODE_MSGPACK_SUCCESS) {
+        cmt_metric_set_int64(decode_context->metric,
+                             decode_context->metric->timestamp,
+                             value);
+        decode_context->metric_value_type_set = CMT_TRUE;
+    }
+
+    return result;
+}
+
+static int unpack_metric_value_uint64(mpack_reader_t *reader, size_t index, void *context)
+{
+    uint64_t value;
+    int result;
+    struct cmt_msgpack_decode_context *decode_context;
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+    result = cmt_mpack_consume_uint_tag(reader, &value);
+    if (result == CMT_DECODE_MSGPACK_SUCCESS) {
+        cmt_metric_set_uint64(decode_context->metric,
+                              decode_context->metric->timestamp,
+                              value);
+        decode_context->metric_value_type_set = CMT_TRUE;
     }
 
     return result;
@@ -835,6 +894,9 @@ static int unpack_metric(mpack_reader_t *reader,
         {
             {"ts",        unpack_metric_ts},
             {"value",     unpack_metric_value},
+            {"value_type", unpack_metric_value_type},
+            {"value_int64", unpack_metric_value_int64},
+            {"value_uint64", unpack_metric_value_uint64},
             {"labels",    unpack_metric_labels},
             {"summary",   unpack_metric_summary},
             {"histogram", unpack_metric_histogram},
@@ -894,6 +956,7 @@ static int unpack_metric(mpack_reader_t *reader,
     cfl_list_init(&metric->labels);
 
     decode_context->metric = metric;
+    decode_context->metric_value_type_set = CMT_FALSE;
 
     result = cmt_mpack_unpack_map(reader, callbacks, (void *) decode_context);
 
@@ -973,6 +1036,9 @@ static int unpack_metric_array_entry(mpack_reader_t *reader, size_t index, void 
             }
 
             decode_context->map->metric.val = metric->val;
+            decode_context->map->metric.value_type = metric->value_type;
+            decode_context->map->metric.val_int64 = metric->val_int64;
+            decode_context->map->metric.val_uint64 = metric->val_uint64;
             decode_context->map->metric.hash = metric->hash;
             decode_context->map->metric.timestamp = metric->timestamp;
 
