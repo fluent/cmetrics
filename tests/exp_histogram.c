@@ -145,6 +145,60 @@ static struct cmt_exp_histogram *create_test_metric_with_zero_threshold(
     return exp_histogram;
 }
 
+static struct cmt_exp_histogram *create_test_metric_custom(
+    struct cmt *cmt,
+    uint64_t timestamp,
+    int32_t scale,
+    uint64_t zero_count,
+    double zero_threshold,
+    int32_t positive_offset,
+    size_t positive_count,
+    uint64_t *positive_buckets,
+    int32_t negative_offset,
+    size_t negative_count,
+    uint64_t *negative_buckets,
+    int sum_set,
+    double sum,
+    uint64_t count)
+{
+    int result;
+    struct cmt_exp_histogram *exp_histogram;
+
+    exp_histogram = cmt_exp_histogram_create(cmt,
+                                             "cm", "native", "exp_hist", "native exp histogram",
+                                             1, (char *[]) {"endpoint"});
+    TEST_CHECK(exp_histogram != NULL);
+
+    if (exp_histogram == NULL) {
+        return NULL;
+    }
+
+    result = cmt_exp_histogram_set_default(exp_histogram,
+                                           timestamp,
+                                           scale,
+                                           zero_count,
+                                           zero_threshold,
+                                           positive_offset,
+                                           positive_count,
+                                           positive_buckets,
+                                           negative_offset,
+                                           negative_count,
+                                           negative_buckets,
+                                           sum_set,
+                                           sum,
+                                           count,
+                                           1,
+                                           (char *[]) {"api"});
+    TEST_CHECK(result == 0);
+
+    if (result != 0) {
+        cmt_exp_histogram_destroy(exp_histogram);
+        return NULL;
+    }
+
+    return exp_histogram;
+}
+
 static int get_prometheus_bucket_value(cfl_sds_t encoded_prometheus,
                                        const char *le,
                                        double *out_value)
@@ -551,10 +605,121 @@ void test_exp_histogram_cat_filter_smoke()
     cmt_destroy(filter_target);
 }
 
+void test_exp_histogram_cat_sparse_merge()
+{
+    int result;
+    uint64_t positive_a[3] = {3, 5, 7};
+    uint64_t negative_a[2] = {2, 1};
+    uint64_t positive_b[2] = {10, 11};
+    uint64_t negative_b[3] = {4, 5, 6};
+    struct cmt *source_a;
+    struct cmt *source_b;
+    struct cmt *target;
+    struct cmt_exp_histogram *exp_histogram;
+    struct cmt_metric *metric;
+
+    cmt_initialize();
+
+    source_a = cmt_create();
+    source_b = cmt_create();
+    target = cmt_create();
+
+    TEST_CHECK(source_a != NULL);
+    TEST_CHECK(source_b != NULL);
+    TEST_CHECK(target != NULL);
+
+    TEST_CHECK(create_test_metric_custom(source_a, cfl_time_now(),
+                                         2, 4, 0.0,
+                                         -2, 3, positive_a,
+                                         -1, 2, negative_a,
+                                         CMT_TRUE, 42.25, 22) != NULL);
+    TEST_CHECK(create_test_metric_custom(source_b, cfl_time_now(),
+                                         2, 1, 0.0,
+                                         -1, 2, positive_b,
+                                         -3, 3, negative_b,
+                                         CMT_TRUE, 10.5, 31) != NULL);
+
+    result = cmt_cat(target, source_a);
+    TEST_CHECK(result == 0);
+    result = cmt_cat(target, source_b);
+    TEST_CHECK(result == 0);
+
+    TEST_CHECK(cfl_list_size(&target->exp_histograms) == 1);
+
+    exp_histogram = cfl_list_entry_first(&target->exp_histograms,
+                                         struct cmt_exp_histogram, _head);
+    metric = cmt_map_metric_get(&exp_histogram->opts, exp_histogram->map,
+                                1, (char *[]) {"api"}, CMT_FALSE);
+    TEST_CHECK(metric != NULL);
+
+    if (metric != NULL) {
+        TEST_CHECK(metric->exp_hist_scale == 2);
+        TEST_CHECK(metric->exp_hist_zero_threshold == 0.0);
+        TEST_CHECK(metric->exp_hist_zero_count == 5);
+        TEST_CHECK(metric->exp_hist_count == 53);
+        TEST_CHECK(metric->exp_hist_sum_set == CMT_TRUE);
+        TEST_CHECK(fabs(cmt_math_uint64_to_d64(metric->exp_hist_sum) - 52.75) < 0.00001);
+
+        TEST_CHECK(metric->exp_hist_positive_offset == -2);
+        TEST_CHECK(metric->exp_hist_positive_count == 3);
+        TEST_CHECK(metric->exp_hist_positive_buckets != NULL);
+        if (metric->exp_hist_positive_buckets != NULL) {
+            TEST_CHECK(metric->exp_hist_positive_buckets[0] == 3);
+            TEST_CHECK(metric->exp_hist_positive_buckets[1] == 15);
+            TEST_CHECK(metric->exp_hist_positive_buckets[2] == 18);
+        }
+
+        TEST_CHECK(metric->exp_hist_negative_offset == -3);
+        TEST_CHECK(metric->exp_hist_negative_count == 4);
+        TEST_CHECK(metric->exp_hist_negative_buckets != NULL);
+        if (metric->exp_hist_negative_buckets != NULL) {
+            TEST_CHECK(metric->exp_hist_negative_buckets[0] == 4);
+            TEST_CHECK(metric->exp_hist_negative_buckets[1] == 5);
+            TEST_CHECK(metric->exp_hist_negative_buckets[2] == 8);
+            TEST_CHECK(metric->exp_hist_negative_buckets[3] == 1);
+        }
+    }
+
+    cmt_destroy(source_a);
+    cmt_destroy(source_b);
+    cmt_destroy(target);
+}
+
+void test_exp_histogram_prometheus_no_sum()
+{
+    uint64_t positive[3] = {3, 5, 7};
+    uint64_t negative[2] = {2, 1};
+    cfl_sds_t encoded_prometheus;
+    struct cmt *context;
+
+    cmt_initialize();
+
+    context = cmt_create();
+    TEST_CHECK(context != NULL);
+
+    TEST_CHECK(create_test_metric_custom(context, cfl_time_now(),
+                                         2, 11, 0.0,
+                                         -2, 3, positive,
+                                         -1, 2, negative,
+                                         CMT_FALSE, 123.75, 29) != NULL);
+
+    encoded_prometheus = cmt_encode_prometheus_create(context, CMT_TRUE);
+    TEST_CHECK(encoded_prometheus != NULL);
+    if (encoded_prometheus != NULL) {
+        TEST_CHECK(strstr(encoded_prometheus, "cm_native_exp_hist_count{endpoint=\"api\"} 29 ") != NULL);
+        TEST_CHECK(strstr(encoded_prometheus, "cm_native_exp_hist_sum{endpoint=\"api\"}") == NULL);
+    }
+    cmt_encode_prometheus_destroy(encoded_prometheus);
+
+    cmt_destroy(context);
+}
+
 TEST_LIST = {
     {"exp_histogram_msgpack_roundtrip", test_exp_histogram_msgpack_roundtrip},
     {"exp_histogram_encoder_smoke",     test_exp_histogram_encoder_smoke},
     {"exp_histogram_nonzero_zero_threshold", test_exp_histogram_nonzero_zero_threshold},
     {"exp_histogram_cat_filter_smoke",  test_exp_histogram_cat_filter_smoke},
+    {"exp_histogram_cat_sparse_merge",  test_exp_histogram_cat_sparse_merge},
+    {"exp_histogram_prometheus_no_sum", test_exp_histogram_prometheus_no_sum},
     { 0 }
 };
