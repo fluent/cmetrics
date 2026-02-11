@@ -56,15 +56,53 @@ static inline void add(struct cmt_metric *metric, uint64_t timestamp, double val
         result = metric_exchange(metric, timestamp, new, old);
     }
     while(0 == result);
+
+    metric->value_type = CMT_METRIC_VALUE_DOUBLE;
+    metric->val_int64 = (int64_t) new;
+    metric->val_uint64 = (uint64_t) new;
 }
 
 void cmt_metric_set(struct cmt_metric *metric, uint64_t timestamp, double val)
+{
+    cmt_metric_set_double(metric, timestamp, val);
+}
+
+void cmt_metric_set_double(struct cmt_metric *metric, uint64_t timestamp, double val)
 {
     uint64_t tmp;
 
     tmp = cmt_math_d64_to_uint64(val);
 
     cmt_atomic_store(&metric->val, tmp);
+    metric->value_type = CMT_METRIC_VALUE_DOUBLE;
+    metric->val_int64 = (int64_t) val;
+    metric->val_uint64 = (uint64_t) val;
+    cmt_atomic_store(&metric->timestamp, timestamp);
+}
+
+void cmt_metric_set_int64(struct cmt_metric *metric, uint64_t timestamp, int64_t val)
+{
+    uint64_t tmp;
+
+    tmp = cmt_math_d64_to_uint64((double) val);
+
+    cmt_atomic_store(&metric->val, tmp);
+    metric->value_type = CMT_METRIC_VALUE_INT64;
+    metric->val_int64 = val;
+    metric->val_uint64 = (uint64_t) val;
+    cmt_atomic_store(&metric->timestamp, timestamp);
+}
+
+void cmt_metric_set_uint64(struct cmt_metric *metric, uint64_t timestamp, uint64_t val)
+{
+    uint64_t tmp;
+
+    tmp = cmt_math_d64_to_uint64((double) val);
+
+    cmt_atomic_store(&metric->val, tmp);
+    metric->value_type = CMT_METRIC_VALUE_UINT64;
+    metric->val_int64 = (int64_t) val;
+    metric->val_uint64 = val;
     cmt_atomic_store(&metric->timestamp, timestamp);
 }
 
@@ -130,6 +168,37 @@ double cmt_metric_get_value(struct cmt_metric *metric)
     val = cmt_atomic_load(&metric->val);
 
     return cmt_math_uint64_to_d64(val);
+}
+
+int cmt_metric_get_value_type(struct cmt_metric *metric)
+{
+    return metric->value_type;
+}
+
+int64_t cmt_metric_get_int64_value(struct cmt_metric *metric)
+{
+    if (metric->value_type == CMT_METRIC_VALUE_INT64) {
+        return metric->val_int64;
+    }
+
+    if (metric->value_type == CMT_METRIC_VALUE_UINT64) {
+        return (int64_t) metric->val_uint64;
+    }
+
+    return (int64_t) cmt_metric_get_value(metric);
+}
+
+uint64_t cmt_metric_get_uint64_value(struct cmt_metric *metric)
+{
+    if (metric->value_type == CMT_METRIC_VALUE_UINT64) {
+        return metric->val_uint64;
+    }
+
+    if (metric->value_type == CMT_METRIC_VALUE_INT64) {
+        return (uint64_t) metric->val_int64;
+    }
+
+    return (uint64_t) cmt_metric_get_value(metric);
 }
 
 uint64_t cmt_metric_get_timestamp(struct cmt_metric *metric)

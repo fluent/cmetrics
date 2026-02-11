@@ -375,12 +375,30 @@ static inline int cat_exp_histogram_values(struct cmt_metric *metric_dst,
     return 0;
 }
 
+static inline void cat_scalar_value(struct cmt_metric *metric_dst,
+                                    struct cmt_metric *metric_src)
+{
+    uint64_t ts;
+    double val;
+
+    ts = cmt_metric_get_timestamp(metric_src);
+
+    if (cmt_metric_get_value_type(metric_src) == CMT_METRIC_VALUE_INT64) {
+        cmt_metric_set_int64(metric_dst, ts, cmt_metric_get_int64_value(metric_src));
+    }
+    else if (cmt_metric_get_value_type(metric_src) == CMT_METRIC_VALUE_UINT64) {
+        cmt_metric_set_uint64(metric_dst, ts, cmt_metric_get_uint64_value(metric_src));
+    }
+    else {
+        val = cmt_metric_get_value(metric_src);
+        cmt_metric_set_double(metric_dst, ts, val);
+    }
+}
+
 int cmt_cat_copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map *src)
 {
     int c;
     int ret;
-    uint64_t ts;
-    double val;
     char **labels = NULL;
     struct cfl_list *head;
     struct cmt_metric *metric_dst;
@@ -419,10 +437,7 @@ int cmt_cat_copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map 
             }
         }
 
-        ts  = cmt_metric_get_timestamp(metric_src);
-        val = cmt_metric_get_value(metric_src);
-
-        cmt_metric_set(metric_dst, ts, val);
+        cat_scalar_value(metric_dst, metric_src);
     }
 
     /* Process map dynamic metrics */
@@ -464,10 +479,7 @@ int cmt_cat_copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map 
             }
         }
 
-        ts  = cmt_metric_get_timestamp(metric_src);
-        val = cmt_metric_get_value(metric_src);
-
-        cmt_metric_set(metric_dst, ts, val);
+        cat_scalar_value(metric_dst, metric_src);
     }
 
     return 0;
