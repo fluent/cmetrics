@@ -22,9 +22,18 @@
 
 #include <cmetrics/cmetrics.h>
 
+enum cmt_metric_value_type {
+    CMT_METRIC_VALUE_DOUBLE = 0,
+    CMT_METRIC_VALUE_INT64  = 1,
+    CMT_METRIC_VALUE_UINT64 = 2
+};
+
 struct cmt_metric {
     /* counters and gauges */
     uint64_t val;
+    int value_type;
+    int64_t val_int64;
+    uint64_t val_uint64;
 
     /* histogram */
     uint64_t *hist_buckets;
@@ -60,11 +69,17 @@ struct cmt_metric {
 };
 
 void cmt_metric_set(struct cmt_metric *metric, uint64_t timestamp, double val);
+void cmt_metric_set_double(struct cmt_metric *metric, uint64_t timestamp, double val);
+void cmt_metric_set_int64(struct cmt_metric *metric, uint64_t timestamp, int64_t val);
+void cmt_metric_set_uint64(struct cmt_metric *metric, uint64_t timestamp, uint64_t val);
 void cmt_metric_inc(struct cmt_metric *metric, uint64_t timestamp);
 void cmt_metric_dec(struct cmt_metric *metric, uint64_t timestamp);
 void cmt_metric_add(struct cmt_metric *metric, uint64_t timestamp, double val);
 void cmt_metric_sub(struct cmt_metric *metric, uint64_t timestamp, double val);
 double cmt_metric_get_value(struct cmt_metric *metric);
+int cmt_metric_get_value_type(struct cmt_metric *metric);
+int64_t cmt_metric_get_int64_value(struct cmt_metric *metric);
+uint64_t cmt_metric_get_uint64_value(struct cmt_metric *metric);
 uint64_t cmt_metric_get_timestamp(struct cmt_metric *metric);
 
 void cmt_metric_hist_inc(struct cmt_metric *metric, uint64_t timestamp,

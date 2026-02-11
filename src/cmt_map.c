@@ -109,7 +109,7 @@ static struct cmt_metric *map_metric_create(uint64_t hash,
         return NULL;
     }
     cfl_list_init(&metric->labels);
-    metric->val = 0.0;
+    cmt_metric_set_double(metric, 0, 0.0);
     metric->hash = hash;
 
     for (i = 0; i < labels_count; i++) {
