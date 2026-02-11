@@ -8,6 +8,7 @@ set(UNIT_TESTS_FILES
   atomic_operations.c
   encoding.c
   decoding.c
+  opentelemetry.c
   cat.c
   issues.c
   null_label.c
