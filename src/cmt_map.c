@@ -152,6 +152,12 @@ void cmt_map_metric_destroy(struct cmt_metric *metric)
     if (metric->hist_buckets) {
         free(metric->hist_buckets);
     }
+    if (metric->exp_hist_positive_buckets) {
+        free(metric->exp_hist_positive_buckets);
+    }
+    if (metric->exp_hist_negative_buckets) {
+        free(metric->exp_hist_negative_buckets);
+    }
     if (metric->sum_quantiles) {
         free(metric->sum_quantiles);
     }
@@ -282,6 +288,14 @@ void cmt_map_destroy(struct cmt_map *map)
                 free(metric->hist_buckets);
             }
         }
+        else if (map->type == CMT_EXP_HISTOGRAM) {
+            if (metric->exp_hist_positive_buckets) {
+                free(metric->exp_hist_positive_buckets);
+            }
+            if (metric->exp_hist_negative_buckets) {
+                free(metric->exp_hist_negative_buckets);
+            }
+        }
         else if (map->type == CMT_SUMMARY) {
             if (metric->sum_quantiles) {
                 free(metric->sum_quantiles);
@@ -315,4 +329,3 @@ void destroy_label_list(struct cfl_list *label_list)
         free(label);
     }
 }
-
