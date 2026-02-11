@@ -303,6 +303,10 @@ void cmt_map_destroy(struct cmt_map *map)
         }
     }
 
+    if (map->unit != NULL) {
+        cfl_sds_destroy(map->unit);
+    }
+
     free(map);
 }
 
