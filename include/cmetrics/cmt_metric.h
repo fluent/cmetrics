@@ -31,6 +31,20 @@ struct cmt_metric {
     uint64_t hist_count;
     uint64_t hist_sum;
 
+    /* exponential histogram */
+    int exp_hist_sum_set;
+    int32_t exp_hist_scale;
+    uint64_t exp_hist_zero_count;
+    double exp_hist_zero_threshold;
+    int32_t exp_hist_positive_offset;
+    uint64_t *exp_hist_positive_buckets;
+    size_t exp_hist_positive_count;
+    int32_t exp_hist_negative_offset;
+    uint64_t *exp_hist_negative_buckets;
+    size_t exp_hist_negative_count;
+    uint64_t exp_hist_count;
+    uint64_t exp_hist_sum;
+
     /* summary */
     int sum_quantiles_set;     /* specify if quantive values has been set */
     uint64_t *sum_quantiles;   /* 0, 0.25, 0.5, 0.75 and 1 */

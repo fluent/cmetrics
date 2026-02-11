@@ -24,9 +24,12 @@
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_summary.h>
 #include <cmetrics/cmt_histogram.h>
+#include <cmetrics/cmt_exp_histogram.h>
 #include <cmetrics/cmt_untyped.h>
 #include <cmetrics/cmt_compat.h>
 #include <cmetrics/cmt_decode_opentelemetry.h>
+
+#include <math.h>
 
 static struct cfl_variant *clone_variant(Opentelemetry__Proto__Common__V1__AnyValue *source);
 
@@ -826,6 +829,163 @@ static int decode_histogram_entry(struct cmt *cmt,
     return result;
 }
 
+static int decode_exponential_histogram_data_point(struct cmt *cmt,
+                                                   struct cmt_map *map,
+                                                   Opentelemetry__Proto__Metrics__V1__ExponentialHistogramDataPoint *data_point)
+{
+    Opentelemetry__Proto__Metrics__V1__ExponentialHistogramDataPoint__Buckets *positive;
+    Opentelemetry__Proto__Metrics__V1__ExponentialHistogramDataPoint__Buckets *negative;
+    struct cmt_metric *sample;
+    int                static_metric_detected;
+    int                result;
+    size_t             index;
+
+    result = CMT_DECODE_OPENTELEMETRY_SUCCESS;
+    positive = data_point->positive;
+    negative = data_point->negative;
+
+    static_metric_detected = CMT_FALSE;
+
+    if (data_point->n_attributes == 0) {
+        if (map->metric_static_set == CMT_FALSE) {
+            static_metric_detected = CMT_TRUE;
+        }
+    }
+
+    if (static_metric_detected == CMT_FALSE) {
+        sample = calloc(1, sizeof(struct cmt_metric));
+
+        if (sample == NULL) {
+            return CMT_DECODE_OPENTELEMETRY_ALLOCATION_ERROR;
+        }
+
+        cfl_list_init(&sample->labels);
+
+        result = decode_data_point_labels(cmt,
+                                          map,
+                                          sample,
+                                          data_point->n_attributes,
+                                          data_point->attributes);
+
+        if (result != 0) {
+            destroy_label_list(&sample->labels);
+            free(sample);
+            return result;
+        }
+        else {
+            cfl_list_add(&sample->_head, &map->metrics);
+        }
+    }
+    else {
+        sample = &map->metric;
+        map->metric_static_set = CMT_TRUE;
+    }
+
+    if (sample->exp_hist_positive_buckets != NULL) {
+        free(sample->exp_hist_positive_buckets);
+        sample->exp_hist_positive_buckets = NULL;
+        sample->exp_hist_positive_count = 0;
+    }
+
+    if (sample->exp_hist_negative_buckets != NULL) {
+        free(sample->exp_hist_negative_buckets);
+        sample->exp_hist_negative_buckets = NULL;
+        sample->exp_hist_negative_count = 0;
+    }
+
+    if (positive != NULL && positive->n_bucket_counts > 0) {
+        sample->exp_hist_positive_buckets = calloc(positive->n_bucket_counts, sizeof(uint64_t));
+        if (sample->exp_hist_positive_buckets == NULL) {
+            return CMT_DECODE_OPENTELEMETRY_ALLOCATION_ERROR;
+        }
+        for (index = 0 ; index < positive->n_bucket_counts ; index++) {
+            sample->exp_hist_positive_buckets[index] = positive->bucket_counts[index];
+        }
+        sample->exp_hist_positive_count = positive->n_bucket_counts;
+        sample->exp_hist_positive_offset = positive->offset;
+    }
+    else {
+        sample->exp_hist_positive_offset = 0;
+    }
+
+    if (negative != NULL && negative->n_bucket_counts > 0) {
+        sample->exp_hist_negative_buckets = calloc(negative->n_bucket_counts, sizeof(uint64_t));
+        if (sample->exp_hist_negative_buckets == NULL) {
+            return CMT_DECODE_OPENTELEMETRY_ALLOCATION_ERROR;
+        }
+        for (index = 0 ; index < negative->n_bucket_counts ; index++) {
+            sample->exp_hist_negative_buckets[index] = negative->bucket_counts[index];
+        }
+        sample->exp_hist_negative_count = negative->n_bucket_counts;
+        sample->exp_hist_negative_offset = negative->offset;
+    }
+    else {
+        sample->exp_hist_negative_offset = 0;
+    }
+
+    sample->exp_hist_scale = data_point->scale;
+    sample->exp_hist_zero_count = data_point->zero_count;
+    sample->exp_hist_zero_threshold = data_point->zero_threshold;
+    sample->exp_hist_count = data_point->count;
+    sample->exp_hist_sum_set = data_point->has_sum ? CMT_TRUE : CMT_FALSE;
+    sample->exp_hist_sum = cmt_math_d64_to_uint64(data_point->sum);
+    sample->timestamp = data_point->time_unix_nano;
+
+    return result;
+}
+
+static int decode_exponential_histogram_data_point_list(
+    struct cmt *cmt,
+    struct cmt_map *map,
+    size_t data_point_count,
+    Opentelemetry__Proto__Metrics__V1__ExponentialHistogramDataPoint **data_point_list)
+{
+    size_t index;
+    int    result;
+
+    result = CMT_DECODE_OPENTELEMETRY_SUCCESS;
+
+    for (index = 0 ;
+         result == CMT_DECODE_OPENTELEMETRY_SUCCESS &&
+         index < data_point_count ;
+         index++) {
+        result = decode_exponential_histogram_data_point(cmt, map, data_point_list[index]);
+    }
+
+    return result;
+}
+
+static int decode_exponential_histogram_entry(struct cmt *cmt,
+    void *instance,
+    Opentelemetry__Proto__Metrics__V1__ExponentialHistogram *metric)
+{
+    struct cmt_exp_histogram *exp_histogram;
+    int                       result;
+
+    exp_histogram = (struct cmt_exp_histogram *) instance;
+
+    exp_histogram->map->metric_static_set = 0;
+
+    result = decode_exponential_histogram_data_point_list(cmt,
+                                                          exp_histogram->map,
+                                                          metric->n_data_points,
+                                                          metric->data_points);
+
+    if (result == CMT_DECODE_OPENTELEMETRY_SUCCESS) {
+        if (metric->aggregation_temporality == OPENTELEMETRY__PROTO__METRICS__V1__AGGREGATION_TEMPORALITY__AGGREGATION_TEMPORALITY_DELTA) {
+            exp_histogram->aggregation_type = CMT_AGGREGATION_TYPE_DELTA;
+        }
+        else  if (metric->aggregation_temporality == OPENTELEMETRY__PROTO__METRICS__V1__AGGREGATION_TEMPORALITY__AGGREGATION_TEMPORALITY_CUMULATIVE) {
+            exp_histogram->aggregation_type = CMT_AGGREGATION_TYPE_CUMULATIVE;
+        }
+        else {
+            exp_histogram->aggregation_type = CMT_AGGREGATION_TYPE_UNSPECIFIED;
+        }
+    }
+
+    return result;
+}
+
 static int decode_metrics_entry(struct cmt *cmt,
     Opentelemetry__Proto__Metrics__V1__Metric *metric)
 {
@@ -926,6 +1086,26 @@ static int decode_metrics_entry(struct cmt *cmt,
 
         if (result) {
             cmt_histogram_destroy(instance);
+        }
+    }
+    else if (metric->data_case == OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_EXPONENTIAL_HISTOGRAM) {
+        instance = cmt_exp_histogram_create(cmt,
+                                            metric_namespace,
+                                            metric_subsystem,
+                                            metric_name,
+                                            metric_description,
+                                            0, NULL);
+
+        if (instance == NULL) {
+            return CMT_DECODE_OPENTELEMETRY_ALLOCATION_ERROR;
+        }
+
+        result = decode_exponential_histogram_entry(cmt,
+                                                    instance,
+                                                    metric->exponential_histogram);
+
+        if (result) {
+            cmt_exp_histogram_destroy(instance);
         }
     }
 
