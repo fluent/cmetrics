@@ -177,7 +177,26 @@ static inline int cat_summary_values(struct cmt_metric *metric_dst, struct cmt_s
 static inline int cat_exp_histogram_values(struct cmt_metric *metric_dst,
                                            struct cmt_metric *metric_src)
 {
+    int64_t dst_start;
+    int64_t dst_end;
+    int64_t src_start;
+    int64_t src_end;
+    int64_t merged_start;
+    int64_t merged_end;
     size_t index;
+    size_t merged_count;
+    uint64_t *merged_buckets;
+    uint64_t *tmp_buckets;
+
+    if (metric_dst->exp_hist_positive_count > 0 &&
+        metric_dst->exp_hist_positive_buckets == NULL) {
+        return -1;
+    }
+
+    if (metric_dst->exp_hist_negative_count > 0 &&
+        metric_dst->exp_hist_negative_buckets == NULL) {
+        return -1;
+    }
 
     if (metric_src->exp_hist_positive_count > 0 &&
         metric_src->exp_hist_positive_buckets == NULL) {
@@ -242,20 +261,102 @@ static inline int cat_exp_histogram_values(struct cmt_metric *metric_dst,
     }
 
     if (metric_dst->exp_hist_scale != metric_src->exp_hist_scale ||
-        metric_dst->exp_hist_zero_threshold != metric_src->exp_hist_zero_threshold ||
-        metric_dst->exp_hist_positive_offset != metric_src->exp_hist_positive_offset ||
-        metric_dst->exp_hist_negative_offset != metric_src->exp_hist_negative_offset ||
-        metric_dst->exp_hist_positive_count != metric_src->exp_hist_positive_count ||
-        metric_dst->exp_hist_negative_count != metric_src->exp_hist_negative_count) {
+        metric_dst->exp_hist_zero_threshold != metric_src->exp_hist_zero_threshold) {
         return -1;
     }
 
-    for (index = 0; index < metric_dst->exp_hist_positive_count; index++) {
-        metric_dst->exp_hist_positive_buckets[index] += metric_src->exp_hist_positive_buckets[index];
+    if (metric_src->exp_hist_positive_count > 0) {
+        if (metric_dst->exp_hist_positive_count == 0) {
+            metric_dst->exp_hist_positive_buckets = calloc(metric_src->exp_hist_positive_count,
+                                                           sizeof(uint64_t));
+            if (metric_dst->exp_hist_positive_buckets == NULL) {
+                return -1;
+            }
+
+            memcpy(metric_dst->exp_hist_positive_buckets,
+                   metric_src->exp_hist_positive_buckets,
+                   sizeof(uint64_t) * metric_src->exp_hist_positive_count);
+            metric_dst->exp_hist_positive_offset = metric_src->exp_hist_positive_offset;
+            metric_dst->exp_hist_positive_count = metric_src->exp_hist_positive_count;
+        }
+        else {
+            dst_start = metric_dst->exp_hist_positive_offset;
+            dst_end = dst_start + metric_dst->exp_hist_positive_count;
+            src_start = metric_src->exp_hist_positive_offset;
+            src_end = src_start + metric_src->exp_hist_positive_count;
+
+            merged_start = dst_start < src_start ? dst_start : src_start;
+            merged_end = dst_end > src_end ? dst_end : src_end;
+            merged_count = (size_t) (merged_end - merged_start);
+
+            merged_buckets = calloc(merged_count, sizeof(uint64_t));
+            if (merged_buckets == NULL) {
+                return -1;
+            }
+
+            for (index = 0; index < metric_dst->exp_hist_positive_count; index++) {
+                merged_buckets[(size_t) (dst_start + index - merged_start)] +=
+                    metric_dst->exp_hist_positive_buckets[index];
+            }
+
+            for (index = 0; index < metric_src->exp_hist_positive_count; index++) {
+                merged_buckets[(size_t) (src_start + index - merged_start)] +=
+                    metric_src->exp_hist_positive_buckets[index];
+            }
+
+            tmp_buckets = metric_dst->exp_hist_positive_buckets;
+            metric_dst->exp_hist_positive_buckets = merged_buckets;
+            metric_dst->exp_hist_positive_offset = (int32_t) merged_start;
+            metric_dst->exp_hist_positive_count = merged_count;
+            free(tmp_buckets);
+        }
     }
 
-    for (index = 0; index < metric_dst->exp_hist_negative_count; index++) {
-        metric_dst->exp_hist_negative_buckets[index] += metric_src->exp_hist_negative_buckets[index];
+    if (metric_src->exp_hist_negative_count > 0) {
+        if (metric_dst->exp_hist_negative_count == 0) {
+            metric_dst->exp_hist_negative_buckets = calloc(metric_src->exp_hist_negative_count,
+                                                           sizeof(uint64_t));
+            if (metric_dst->exp_hist_negative_buckets == NULL) {
+                return -1;
+            }
+
+            memcpy(metric_dst->exp_hist_negative_buckets,
+                   metric_src->exp_hist_negative_buckets,
+                   sizeof(uint64_t) * metric_src->exp_hist_negative_count);
+            metric_dst->exp_hist_negative_offset = metric_src->exp_hist_negative_offset;
+            metric_dst->exp_hist_negative_count = metric_src->exp_hist_negative_count;
+        }
+        else {
+            dst_start = metric_dst->exp_hist_negative_offset;
+            dst_end = dst_start + metric_dst->exp_hist_negative_count;
+            src_start = metric_src->exp_hist_negative_offset;
+            src_end = src_start + metric_src->exp_hist_negative_count;
+
+            merged_start = dst_start < src_start ? dst_start : src_start;
+            merged_end = dst_end > src_end ? dst_end : src_end;
+            merged_count = (size_t) (merged_end - merged_start);
+
+            merged_buckets = calloc(merged_count, sizeof(uint64_t));
+            if (merged_buckets == NULL) {
+                return -1;
+            }
+
+            for (index = 0; index < metric_dst->exp_hist_negative_count; index++) {
+                merged_buckets[(size_t) (dst_start + index - merged_start)] +=
+                    metric_dst->exp_hist_negative_buckets[index];
+            }
+
+            for (index = 0; index < metric_src->exp_hist_negative_count; index++) {
+                merged_buckets[(size_t) (src_start + index - merged_start)] +=
+                    metric_src->exp_hist_negative_buckets[index];
+            }
+
+            tmp_buckets = metric_dst->exp_hist_negative_buckets;
+            metric_dst->exp_hist_negative_buckets = merged_buckets;
+            metric_dst->exp_hist_negative_offset = (int32_t) merged_start;
+            metric_dst->exp_hist_negative_count = merged_count;
+            free(tmp_buckets);
+        }
     }
 
     metric_dst->exp_hist_zero_count += metric_src->exp_hist_zero_count;
