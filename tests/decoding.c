@@ -182,6 +182,190 @@ void test_opentelemetry()
     cmt_destroy(cmt);
 }
 
+static cfl_sds_t generate_exponential_histogram_otlp_payload()
+{
+    Opentelemetry__Proto__Collector__Metrics__V1__ExportMetricsServiceRequest   request;
+    Opentelemetry__Proto__Metrics__V1__ResourceMetrics                           resource_metrics;
+    Opentelemetry__Proto__Metrics__V1__ScopeMetrics                              scope_metrics;
+    Opentelemetry__Proto__Metrics__V1__Metric                                    metric;
+    Opentelemetry__Proto__Metrics__V1__ExponentialHistogram                      exponential_histogram;
+    Opentelemetry__Proto__Metrics__V1__ExponentialHistogramDataPoint             data_point;
+    Opentelemetry__Proto__Metrics__V1__ExponentialHistogramDataPoint__Buckets    positive_buckets;
+    Opentelemetry__Proto__Metrics__V1__ExponentialHistogramDataPoint__Buckets    negative_buckets;
+    Opentelemetry__Proto__Metrics__V1__ResourceMetrics                          *resource_metrics_list[1];
+    Opentelemetry__Proto__Metrics__V1__ScopeMetrics                             *scope_metrics_list[1];
+    Opentelemetry__Proto__Metrics__V1__Metric                                   *metric_list[1];
+    Opentelemetry__Proto__Metrics__V1__ExponentialHistogramDataPoint            *data_point_list[1];
+    uint64_t                                                                      positive_bucket_counts[2];
+    uint64_t                                                                      negative_bucket_counts[1];
+    size_t                                                                        payload_size;
+    unsigned char                                                                *packed_payload;
+    cfl_sds_t                                                                     payload;
+
+    opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__init(&request);
+    opentelemetry__proto__metrics__v1__resource_metrics__init(&resource_metrics);
+    opentelemetry__proto__metrics__v1__scope_metrics__init(&scope_metrics);
+    opentelemetry__proto__metrics__v1__metric__init(&metric);
+    opentelemetry__proto__metrics__v1__exponential_histogram__init(&exponential_histogram);
+    opentelemetry__proto__metrics__v1__exponential_histogram_data_point__init(&data_point);
+    opentelemetry__proto__metrics__v1__exponential_histogram_data_point__buckets__init(&positive_buckets);
+    opentelemetry__proto__metrics__v1__exponential_histogram_data_point__buckets__init(&negative_buckets);
+
+    positive_bucket_counts[0] = 3;
+    positive_bucket_counts[1] = 2;
+    negative_bucket_counts[0] = 1;
+
+    positive_buckets.offset = 0;
+    positive_buckets.n_bucket_counts = 2;
+    positive_buckets.bucket_counts = positive_bucket_counts;
+
+    negative_buckets.offset = 0;
+    negative_buckets.n_bucket_counts = 1;
+    negative_buckets.bucket_counts = negative_bucket_counts;
+
+    data_point.time_unix_nano = 1;
+    data_point.start_time_unix_nano = 0;
+    data_point.count = 7;
+    data_point.has_sum = CMT_TRUE;
+    data_point.sum = 8.0;
+    data_point.scale = 0;
+    data_point.zero_count = 1;
+    data_point.zero_threshold = 0.0;
+    data_point.positive = &positive_buckets;
+    data_point.negative = &negative_buckets;
+
+    data_point_list[0] = &data_point;
+    exponential_histogram.n_data_points = 1;
+    exponential_histogram.data_points = data_point_list;
+    exponential_histogram.aggregation_temporality =
+        OPENTELEMETRY__PROTO__METRICS__V1__AGGREGATION_TEMPORALITY__AGGREGATION_TEMPORALITY_CUMULATIVE;
+
+    metric.name = "exp_hist";
+    metric.data_case = OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_EXPONENTIAL_HISTOGRAM;
+    metric.exponential_histogram = &exponential_histogram;
+
+    metric_list[0] = &metric;
+    scope_metrics.n_metrics = 1;
+    scope_metrics.metrics = metric_list;
+
+    scope_metrics_list[0] = &scope_metrics;
+    resource_metrics.n_scope_metrics = 1;
+    resource_metrics.scope_metrics = scope_metrics_list;
+
+    resource_metrics_list[0] = &resource_metrics;
+    request.n_resource_metrics = 1;
+    request.resource_metrics = resource_metrics_list;
+
+    payload_size = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__get_packed_size(&request);
+    packed_payload = calloc(1, payload_size);
+    if (packed_payload == NULL) {
+        return NULL;
+    }
+
+    opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__pack(&request,
+                                                                                         packed_payload);
+
+    payload = cfl_sds_create_len((char *) packed_payload, payload_size);
+    free(packed_payload);
+
+    return payload;
+}
+
+void test_opentelemetry_exponential_histogram()
+{
+    cfl_sds_t       payload;
+    cfl_sds_t       first_prometheus_context;
+    cfl_sds_t       second_payload;
+    cfl_sds_t       second_prometheus_context;
+    struct cfl_list first_decoded_context_list;
+    struct cfl_list second_decoded_context_list;
+    struct cmt     *first_decoded_context;
+    struct cmt     *second_decoded_context;
+    size_t          offset;
+    int             result;
+
+    cmt_initialize();
+
+    payload = generate_exponential_histogram_otlp_payload();
+    TEST_CHECK(payload != NULL);
+
+    if (payload == NULL) {
+        return;
+    }
+
+    offset = 0;
+    result = cmt_decode_opentelemetry_create(&first_decoded_context_list,
+                                             payload,
+                                             cfl_sds_len(payload),
+                                             &offset);
+    TEST_CHECK(result == CMT_DECODE_OPENTELEMETRY_SUCCESS);
+
+    if (result != CMT_DECODE_OPENTELEMETRY_SUCCESS) {
+        cfl_sds_destroy(payload);
+        return;
+    }
+
+    first_decoded_context = cfl_list_entry_first(&first_decoded_context_list, struct cmt, _head);
+    TEST_CHECK(first_decoded_context != NULL);
+
+    if (first_decoded_context == NULL) {
+        cmt_decode_opentelemetry_destroy(&first_decoded_context_list);
+        cfl_sds_destroy(payload);
+        return;
+    }
+
+    first_prometheus_context = cmt_encode_prometheus_create(first_decoded_context, CMT_TRUE);
+    TEST_CHECK(first_prometheus_context != NULL);
+
+    if (first_prometheus_context != NULL) {
+        TEST_CHECK(strstr(first_prometheus_context, "exp_hist_bucket{le=\"-1.0\"} 1 0") != NULL);
+        TEST_CHECK(strstr(first_prometheus_context, "exp_hist_bucket{le=\"0.0\"} 2 0") != NULL);
+        TEST_CHECK(strstr(first_prometheus_context, "exp_hist_bucket{le=\"2.0\"} 5 0") != NULL);
+        TEST_CHECK(strstr(first_prometheus_context, "exp_hist_bucket{le=\"4.0\"} 7 0") != NULL);
+        TEST_CHECK(strstr(first_prometheus_context, "exp_hist_bucket{le=\"+Inf\"} 7 0") != NULL);
+        TEST_CHECK(strstr(first_prometheus_context, "exp_hist_sum 8 0") != NULL);
+        TEST_CHECK(strstr(first_prometheus_context, "exp_hist_count 7 0") != NULL);
+    }
+
+    second_payload = cmt_encode_opentelemetry_create(first_decoded_context);
+    TEST_CHECK(second_payload != NULL);
+
+    if (second_payload != NULL) {
+        offset = 0;
+        result = cmt_decode_opentelemetry_create(&second_decoded_context_list,
+                                                 second_payload,
+                                                 cfl_sds_len(second_payload),
+                                                 &offset);
+        TEST_CHECK(result == CMT_DECODE_OPENTELEMETRY_SUCCESS);
+
+        if (result == CMT_DECODE_OPENTELEMETRY_SUCCESS) {
+            second_decoded_context = cfl_list_entry_first(&second_decoded_context_list, struct cmt, _head);
+            TEST_CHECK(second_decoded_context != NULL);
+
+            if (second_decoded_context != NULL) {
+                second_prometheus_context = cmt_encode_prometheus_create(second_decoded_context, CMT_TRUE);
+                TEST_CHECK(second_prometheus_context != NULL);
+
+                if (second_prometheus_context != NULL && first_prometheus_context != NULL) {
+                    TEST_CHECK(strcmp(first_prometheus_context, second_prometheus_context) == 0);
+                    cmt_encode_prometheus_destroy(second_prometheus_context);
+                }
+            }
+
+            cmt_decode_opentelemetry_destroy(&second_decoded_context_list);
+        }
+
+        cmt_encode_opentelemetry_destroy(second_payload);
+    }
+
+    if (first_prometheus_context != NULL) {
+        cmt_encode_prometheus_destroy(first_prometheus_context);
+    }
+
+    cmt_decode_opentelemetry_destroy(&first_decoded_context_list);
+    cfl_sds_destroy(payload);
+}
+
 void test_prometheus_remote_write()
 {
     int ret;
@@ -231,6 +415,7 @@ void test_statsd()
 
 TEST_LIST = {
     {"opentelemetry", test_opentelemetry},
+    {"opentelemetry_exponential_histogram", test_opentelemetry_exponential_histogram},
     {"prometheus_remote_write", test_prometheus_remote_write},
     {"statsd", test_statsd},
     { 0 }

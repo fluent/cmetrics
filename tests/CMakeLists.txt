@@ -12,6 +12,7 @@ set(UNIT_TESTS_FILES
   issues.c
   null_label.c
   filter.c
+  exp_histogram.c
   )
 
 if (CMT_BUILD_PROMETHEUS_TEXT_DECODER)
