@@ -706,11 +706,17 @@ static int decode_numerical_data_point(struct cmt *cmt,
 
     if (result == CMT_DECODE_OPENTELEMETRY_SUCCESS) {
         struct cfl_kvlist *point_metadata;
+        int number_value_case;
 
         value = 0;
+        number_value_case = -1;
 
         if (data_point->value_case == OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_INT) {
-            if (map->type == CMT_COUNTER && data_point->as_int < 0) {
+            number_value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_INT;
+
+            if (map->type == CMT_COUNTER &&
+                ((struct cmt_counter *) map->parent)->allow_reset == CMT_FALSE &&
+                data_point->as_int < 0) {
                 value = 0;
             }
             else {
@@ -718,7 +724,11 @@ static int decode_numerical_data_point(struct cmt *cmt,
             }
         }
         else if (data_point->value_case == OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_DOUBLE) {
+            number_value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_DOUBLE;
             value = data_point->as_double;
+        }
+        else {
+            return CMT_DECODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
         }
 
         cmt_metric_set(sample, data_point->time_unix_nano, value);
@@ -727,6 +737,12 @@ static int decode_numerical_data_point(struct cmt *cmt,
         if (point_metadata != NULL) {
             cfl_kvlist_insert_uint64(point_metadata, "start_time_unix_nano", data_point->start_time_unix_nano);
             cfl_kvlist_insert_uint64(point_metadata, "flags", data_point->flags);
+            if (number_value_case == OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_INT) {
+                cfl_kvlist_insert_string(point_metadata, "number_value_case", "int");
+            }
+            else {
+                cfl_kvlist_insert_string(point_metadata, "number_value_case", "double");
+            }
             clone_exemplars_to_kvlist(point_metadata, data_point->exemplars, data_point->n_exemplars);
         }
     }
@@ -1018,6 +1034,7 @@ static int decode_counter_entry(struct cmt *cmt,
     counter = (struct cmt_counter *) instance;
 
     counter->map->metric_static_set = 0;
+    counter->allow_reset = !metric->is_monotonic;
 
     result = decode_numerical_data_point_list(cmt,
                                               counter->map,
@@ -1035,7 +1052,6 @@ static int decode_counter_entry(struct cmt *cmt,
             counter->aggregation_type = CMT_AGGREGATION_TYPE_UNSPECIFIED;
         }
 
-        counter->allow_reset = !metric->is_monotonic;
     }
 
     return result;
