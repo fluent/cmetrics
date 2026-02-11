@@ -21,6 +21,8 @@
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_map.h>
 #include <cmetrics/cmt_metric.h>
+#include <cmetrics/cmt_summary.h>
+#include <cmetrics/cmt_histogram.h>
 #include <cmetrics/cmt_encode_msgpack.h>
 #include <cmetrics/cmt_decode_msgpack.h>
 #include <string.h>
@@ -44,6 +46,64 @@ static int contains_bytes(const char *buffer, size_t buffer_length,
     }
 
     return CMT_FALSE;
+}
+
+static int patch_nth_key_array_size(char *buffer, size_t buffer_size,
+                                    const char *key, int occurrence,
+                                    uint8_t new_array_tag)
+{
+    size_t index;
+    size_t key_len;
+    int found_count;
+
+    if (buffer == NULL || key == NULL || occurrence <= 0) {
+        return -1;
+    }
+
+    key_len = strlen(key);
+    found_count = 0;
+
+    for (index = 0; index + key_len < buffer_size; index++) {
+        if (memcmp(&buffer[index], key, key_len) == 0) {
+            int is_key_token = CMT_FALSE;
+
+            if (index >= 1 &&
+                (unsigned char) buffer[index - 1] == (0xa0 | key_len)) {
+                is_key_token = CMT_TRUE;
+            }
+            else if (index >= 2 &&
+                     (unsigned char) buffer[index - 2] == 0xd9 &&
+                     (unsigned char) buffer[index - 1] == key_len) {
+                is_key_token = CMT_TRUE;
+            }
+            else if (index >= 3 &&
+                     (unsigned char) buffer[index - 3] == 0xda &&
+                     (((unsigned char) buffer[index - 2] << 8) |
+                      (unsigned char) buffer[index - 1]) == key_len) {
+                is_key_token = CMT_TRUE;
+            }
+
+            if (!is_key_token) {
+                continue;
+            }
+
+            found_count++;
+            if (found_count == occurrence) {
+                if (index + key_len >= buffer_size) {
+                    return -1;
+                }
+
+                if (((unsigned char) buffer[index + key_len] & 0xf0) != 0x90) {
+                    return -1;
+                }
+
+                buffer[index + key_len] = (char) new_array_tag;
+                return 0;
+            }
+        }
+    }
+
+    return -1;
 }
 
 void test_msgpack_abi_legacy_value_only_decode()
@@ -176,8 +236,121 @@ void test_msgpack_abi_typed_int64_decode()
     cmt_encode_msgpack_destroy(payload);
 }
 
+void test_msgpack_abi_summary_quantiles_reject_mismatch()
+{
+    int ret;
+    size_t offset;
+    char *payload;
+    size_t payload_size;
+    double quantiles[2];
+    struct cmt *cmt;
+    struct cmt_summary *summary;
+    struct cmt *decoded_cmt;
+
+    cmt_initialize();
+
+    cmt = cmt_create();
+    TEST_CHECK(cmt != NULL);
+    if (cmt == NULL) {
+        return;
+    }
+
+    quantiles[0] = 0.5;
+    quantiles[1] = 0.9;
+
+    summary = cmt_summary_create(cmt, "ns", "sub", "sum", "summary", 2, quantiles, 0, NULL);
+    TEST_CHECK(summary != NULL);
+    if (summary == NULL) {
+        cmt_destroy(cmt);
+        return;
+    }
+
+    cmt_summary_set_default(summary, 123, quantiles, 1.4, 2, 0, NULL);
+
+    ret = cmt_encode_msgpack_create(cmt, &payload, &payload_size);
+    TEST_CHECK(ret == 0);
+    if (ret != 0) {
+        cmt_destroy(cmt);
+        return;
+    }
+
+    ret = patch_nth_key_array_size(payload, payload_size, "quantiles", 2, 0x93);
+    if (ret != 0) {
+        ret = patch_nth_key_array_size(payload, payload_size, "quantiles", 1, 0x93);
+    }
+    TEST_CHECK(ret == 0);
+
+    offset = 0;
+    decoded_cmt = NULL;
+    ret = cmt_decode_msgpack_create(&decoded_cmt, payload, payload_size, &offset);
+    TEST_CHECK(ret != CMT_DECODE_MSGPACK_SUCCESS);
+    TEST_CHECK(decoded_cmt == NULL);
+
+    cmt_encode_msgpack_destroy(payload);
+    cmt_destroy(cmt);
+}
+
+void test_msgpack_abi_histogram_buckets_reject_mismatch()
+{
+    int ret;
+    size_t offset;
+    char *payload;
+    size_t payload_size;
+    struct cmt *cmt;
+    struct cmt_histogram_buckets *buckets;
+    struct cmt_histogram *histogram;
+    struct cmt *decoded_cmt;
+
+    cmt_initialize();
+
+    cmt = cmt_create();
+    TEST_CHECK(cmt != NULL);
+    if (cmt == NULL) {
+        return;
+    }
+
+    buckets = cmt_histogram_buckets_create(2, 1.0, 2.0);
+    TEST_CHECK(buckets != NULL);
+    if (buckets == NULL) {
+        cmt_destroy(cmt);
+        return;
+    }
+
+    histogram = cmt_histogram_create(cmt, "ns", "sub", "hist", "hist", buckets, 0, NULL);
+    TEST_CHECK(histogram != NULL);
+    if (histogram == NULL) {
+        cmt_destroy(cmt);
+        return;
+    }
+
+    cmt_histogram_observe(histogram, 100, 0.5, 0, NULL);
+    cmt_histogram_observe(histogram, 100, 1.5, 0, NULL);
+    cmt_histogram_observe(histogram, 100, 3.0, 0, NULL);
+
+    ret = cmt_encode_msgpack_create(cmt, &payload, &payload_size);
+    TEST_CHECK(ret == 0);
+    if (ret != 0) {
+        cmt_destroy(cmt);
+        return;
+    }
+
+    ret = patch_nth_key_array_size(payload, payload_size, "buckets", 2, 0x94);
+    TEST_CHECK(ret == 0);
+
+    offset = 0;
+    decoded_cmt = NULL;
+    ret = cmt_decode_msgpack_create(&decoded_cmt, payload, payload_size, &offset);
+    TEST_CHECK(ret != CMT_DECODE_MSGPACK_SUCCESS);
+    TEST_CHECK(decoded_cmt == NULL);
+
+    cmt_encode_msgpack_destroy(payload);
+    cmt_destroy(cmt);
+}
+
 TEST_LIST = {
     {"msgpack_abi_legacy_value_only_decode", test_msgpack_abi_legacy_value_only_decode},
     {"msgpack_abi_typed_int64_decode",        test_msgpack_abi_typed_int64_decode},
+    {"msgpack_abi_summary_quantiles_reject_mismatch", test_msgpack_abi_summary_quantiles_reject_mismatch},
+    {"msgpack_abi_histogram_buckets_reject_mismatch", test_msgpack_abi_histogram_buckets_reject_mismatch},
     {0}
 };
