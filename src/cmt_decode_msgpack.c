@@ -31,6 +31,7 @@
 #include <cmetrics/cmt_decode_msgpack.h>
 #include <cmetrics/cmt_variant_utils.h>
 #include <cmetrics/cmt_mpack_utils.h>
+#include <cmetrics/cmt_atomic.h>
 
 
 static int create_counter_instance(struct cmt_map *map)
@@ -455,7 +456,7 @@ static int unpack_metric_value_type(mpack_reader_t *reader, size_t index, void *
         if (value == CMT_METRIC_VALUE_INT64 ||
             value == CMT_METRIC_VALUE_UINT64 ||
             value == CMT_METRIC_VALUE_DOUBLE) {
-            decode_context->metric->value_type = (int) value;
+            cmt_atomic_store(&decode_context->metric->value_type, value);
         }
     }
 
