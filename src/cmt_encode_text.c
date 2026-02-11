@@ -29,6 +29,247 @@
 #include <cmetrics/cmt_time.h>
 #include <cmetrics/cmt_compat.h>
 
+static const char *map_type_to_otlp_key(int map_type)
+{
+    switch (map_type) {
+    case CMT_COUNTER:
+        return "counter";
+    case CMT_GAUGE:
+        return "gauge";
+    case CMT_UNTYPED:
+        return "untyped";
+    case CMT_SUMMARY:
+        return "summary";
+    case CMT_HISTOGRAM:
+        return "histogram";
+    case CMT_EXP_HISTOGRAM:
+        return "exp_histogram";
+    default:
+        return NULL;
+    }
+}
+
+static struct cfl_kvlist *fetch_metadata_kvlist_key(struct cfl_kvlist *kvlist, const char *key)
+{
+    struct cfl_variant *entry_variant;
+
+    if (kvlist == NULL) {
+        return NULL;
+    }
+
+    entry_variant = cfl_kvlist_fetch(kvlist, (char *) key);
+    if (entry_variant == NULL || entry_variant->type != CFL_VARIANT_KVLIST) {
+        return NULL;
+    }
+
+    return entry_variant->data.as_kvlist;
+}
+
+static void append_variant_value(cfl_sds_t *buf, struct cfl_variant *value);
+
+static void append_kvlist_value(cfl_sds_t *buf, struct cfl_kvlist *kvlist)
+{
+    int count;
+    struct cfl_list *head;
+    struct cfl_kvpair *kvpair;
+
+    cfl_sds_cat_safe(buf, "{", 1);
+
+    count = 0;
+    cfl_list_foreach(head, &kvlist->list) {
+        kvpair = cfl_list_entry(head, struct cfl_kvpair, _head);
+
+        if (count > 0) {
+            cfl_sds_cat_safe(buf, ", ", 2);
+        }
+
+        cfl_sds_cat_safe(buf, kvpair->key, cfl_sds_len(kvpair->key));
+        cfl_sds_cat_safe(buf, "=", 1);
+        append_variant_value(buf, kvpair->val);
+
+        count++;
+    }
+
+    cfl_sds_cat_safe(buf, "}", 1);
+}
+
+static void append_array_value(cfl_sds_t *buf, struct cfl_array *array)
+{
+    size_t index;
+    struct cfl_variant *entry;
+
+    cfl_sds_cat_safe(buf, "[", 1);
+
+    for (index = 0; index < array->entry_count; index++) {
+        entry = cfl_array_fetch_by_index(array, index);
+        if (entry == NULL) {
+            continue;
+        }
+
+        if (index > 0) {
+            cfl_sds_cat_safe(buf, ", ", 2);
+        }
+
+        append_variant_value(buf, entry);
+    }
+
+    cfl_sds_cat_safe(buf, "]", 1);
+}
+
+static void append_bytes_value(cfl_sds_t *buf, char *bytes)
+{
+    size_t index;
+    size_t length;
+    char tmp[4];
+    int len;
+
+    length = cfl_sds_len(bytes);
+
+    for (index = 0; index < length; index++) {
+        len = snprintf(tmp, sizeof(tmp), "%02x", (unsigned char) bytes[index]);
+        cfl_sds_cat_safe(buf, tmp, len);
+    }
+}
+
+static void append_variant_value(cfl_sds_t *buf, struct cfl_variant *value)
+{
+    char tmp[128];
+    int len;
+
+    if (value == NULL) {
+        cfl_sds_cat_safe(buf, "null", 4);
+        return;
+    }
+
+    if (value->type == CFL_VARIANT_STRING || value->type == CFL_VARIANT_REFERENCE) {
+        cfl_sds_cat_safe(buf, "\"", 1);
+        cfl_sds_cat_safe(buf, value->data.as_string, cfl_sds_len(value->data.as_string));
+        cfl_sds_cat_safe(buf, "\"", 1);
+    }
+    else if (value->type == CFL_VARIANT_BOOL) {
+        cfl_sds_cat_safe(buf, value->data.as_bool ? "true" : "false",
+                         value->data.as_bool ? 4 : 5);
+    }
+    else if (value->type == CFL_VARIANT_INT) {
+        len = snprintf(tmp, sizeof(tmp), "%" PRId64, value->data.as_int64);
+        cfl_sds_cat_safe(buf, tmp, len);
+    }
+    else if (value->type == CFL_VARIANT_UINT) {
+        len = snprintf(tmp, sizeof(tmp), "%" PRIu64, value->data.as_uint64);
+        cfl_sds_cat_safe(buf, tmp, len);
+    }
+    else if (value->type == CFL_VARIANT_DOUBLE) {
+        len = snprintf(tmp, sizeof(tmp), "%.17g", value->data.as_double);
+        cfl_sds_cat_safe(buf, tmp, len);
+    }
+    else if (value->type == CFL_VARIANT_BYTES) {
+        append_bytes_value(buf, value->data.as_bytes);
+    }
+    else if (value->type == CFL_VARIANT_ARRAY) {
+        append_array_value(buf, value->data.as_array);
+    }
+    else if (value->type == CFL_VARIANT_KVLIST) {
+        append_kvlist_value(buf, value->data.as_kvlist);
+    }
+    else {
+        cfl_sds_cat_safe(buf, "<unsupported>", 13);
+    }
+}
+
+static struct cfl_kvlist *get_data_point_metadata_context(struct cmt *cmt,
+                                                          struct cmt_map *map,
+                                                          struct cmt_metric *metric)
+{
+    struct cfl_kvlist *otlp_root;
+    struct cfl_kvlist *metrics_root;
+    struct cfl_kvlist *type_root;
+    struct cfl_kvlist *metric_context;
+    struct cfl_kvlist *datapoints_context;
+    const char *type_key;
+    char key[128];
+
+    type_key = map_type_to_otlp_key(map->type);
+    if (type_key == NULL) {
+        return NULL;
+    }
+
+    otlp_root = fetch_metadata_kvlist_key(cmt->external_metadata, "otlp");
+    if (otlp_root == NULL) {
+        return NULL;
+    }
+
+    metrics_root = fetch_metadata_kvlist_key(otlp_root, "metrics");
+    if (metrics_root == NULL) {
+        return NULL;
+    }
+
+    type_root = fetch_metadata_kvlist_key(metrics_root, type_key);
+    if (type_root == NULL) {
+        return NULL;
+    }
+
+    metric_context = fetch_metadata_kvlist_key(type_root, map->opts->fqname);
+    if (metric_context == NULL) {
+        return NULL;
+    }
+
+    datapoints_context = fetch_metadata_kvlist_key(metric_context, "datapoints");
+    if (datapoints_context == NULL) {
+        return NULL;
+    }
+
+    snprintf(key, sizeof(key) - 1, "%" PRIx64 ":%" PRIu64,
+             metric != NULL ? metric->hash : 0,
+             metric != NULL ? cmt_metric_get_timestamp(metric) : 0);
+
+    return fetch_metadata_kvlist_key(datapoints_context, key);
+}
+
+static void append_metric_exemplars(struct cmt *cmt,
+                                    cfl_sds_t *buf,
+                                    struct cmt_map *map,
+                                    struct cmt_metric *metric)
+{
+    struct cfl_kvlist *point_metadata;
+    struct cfl_variant *exemplars_variant;
+    struct cfl_array *exemplars;
+    struct cfl_variant *entry;
+    size_t index;
+
+    point_metadata = get_data_point_metadata_context(cmt, map, metric);
+    if (point_metadata == NULL) {
+        return;
+    }
+
+    exemplars_variant = cfl_kvlist_fetch(point_metadata, "exemplars");
+    if (exemplars_variant == NULL || exemplars_variant->type != CFL_VARIANT_ARRAY) {
+        return;
+    }
+
+    exemplars = exemplars_variant->data.as_array;
+    if (exemplars == NULL || exemplars->entry_count == 0) {
+        return;
+    }
+
+    cfl_sds_cat_safe(buf, "  exemplars=[", 13);
+
+    for (index = 0; index < exemplars->entry_count; index++) {
+        entry = cfl_array_fetch_by_index(exemplars, index);
+
+        if (entry == NULL || entry->type != CFL_VARIANT_KVLIST) {
+            continue;
+        }
+
+        if (index > 0) {
+            cfl_sds_cat_safe(buf, ", ", 2);
+        }
+
+        append_kvlist_value(buf, entry->data.as_kvlist);
+    }
+
+    cfl_sds_cat_safe(buf, "]\n", 2);
+}
+
 static void append_histogram_metric_value(cfl_sds_t *buf,
                                           struct cmt_map *map,
                                           struct cmt_metric *metric)
@@ -328,12 +569,14 @@ static void format_metric(struct cmt *cmt, cfl_sds_t *buf, struct cmt_map *map,
         cfl_sds_cat_safe(buf, "}", 1);
 
         append_metric_value(buf, map, metric);
+        append_metric_exemplars(cmt, buf, map, metric);
     }
     else {
         if (static_labels > 0) {
             cfl_sds_cat_safe(buf, "}", 1);
         }
         append_metric_value(buf, map, metric);
+        append_metric_exemplars(cmt, buf, map, metric);
     }
 }
 
