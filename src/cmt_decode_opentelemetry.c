@@ -928,7 +928,12 @@ static int decode_exponential_histogram_data_point(struct cmt *cmt,
     sample->exp_hist_zero_threshold = data_point->zero_threshold;
     sample->exp_hist_count = data_point->count;
     sample->exp_hist_sum_set = data_point->has_sum ? CMT_TRUE : CMT_FALSE;
-    sample->exp_hist_sum = cmt_math_d64_to_uint64(data_point->sum);
+    if (sample->exp_hist_sum_set == CMT_TRUE) {
+        sample->exp_hist_sum = cmt_math_d64_to_uint64(data_point->sum);
+    }
+    else {
+        sample->exp_hist_sum = 0;
+    }
     sample->timestamp = data_point->time_unix_nano;
 
     return result;
