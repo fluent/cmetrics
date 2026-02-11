@@ -662,7 +662,6 @@ static int decode_numerical_data_point(struct cmt *cmt,
     int                static_metric_detected;
     struct cmt_metric *sample;
     int                result;
-    double             value;
 
     static_metric_detected = CMT_FALSE;
 
@@ -708,7 +707,6 @@ static int decode_numerical_data_point(struct cmt *cmt,
         struct cfl_kvlist *point_metadata;
         int number_value_case;
 
-        value = 0;
         number_value_case = -1;
 
         if (data_point->value_case == OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_INT) {
@@ -717,21 +715,19 @@ static int decode_numerical_data_point(struct cmt *cmt,
             if (map->type == CMT_COUNTER &&
                 ((struct cmt_counter *) map->parent)->allow_reset == CMT_FALSE &&
                 data_point->as_int < 0) {
-                value = 0;
+                cmt_metric_set_double(sample, data_point->time_unix_nano, 0.0);
             }
             else {
-                value = data_point->as_int;
+                cmt_metric_set_int64(sample, data_point->time_unix_nano, data_point->as_int);
             }
         }
         else if (data_point->value_case == OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_DOUBLE) {
             number_value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_DOUBLE;
-            value = data_point->as_double;
+            cmt_metric_set_double(sample, data_point->time_unix_nano, data_point->as_double);
         }
         else {
             return CMT_DECODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
         }
-
-        cmt_metric_set(sample, data_point->time_unix_nano, value);
 
         point_metadata = get_or_create_data_point_metadata_context(cmt, map, sample, data_point->time_unix_nano);
         if (point_metadata != NULL) {
