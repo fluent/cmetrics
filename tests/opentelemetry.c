@@ -509,6 +509,69 @@ static cfl_sds_t generate_sum_non_monotonic_int_otlp_payload()
     return payload;
 }
 
+static cfl_sds_t generate_gauge_large_int_otlp_payload()
+{
+    Opentelemetry__Proto__Collector__Metrics__V1__ExportMetricsServiceRequest request;
+    Opentelemetry__Proto__Metrics__V1__ResourceMetrics resource_metrics;
+    Opentelemetry__Proto__Metrics__V1__ScopeMetrics scope_metrics;
+    Opentelemetry__Proto__Metrics__V1__Metric metric;
+    Opentelemetry__Proto__Metrics__V1__Gauge gauge;
+    Opentelemetry__Proto__Metrics__V1__NumberDataPoint data_point;
+    Opentelemetry__Proto__Metrics__V1__ResourceMetrics *resource_metrics_list[1];
+    Opentelemetry__Proto__Metrics__V1__ScopeMetrics *scope_metrics_list[1];
+    Opentelemetry__Proto__Metrics__V1__Metric *metric_list[1];
+    Opentelemetry__Proto__Metrics__V1__NumberDataPoint *data_point_list[1];
+    size_t payload_size;
+    unsigned char *packed_payload;
+    cfl_sds_t payload;
+
+    opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__init(&request);
+    opentelemetry__proto__metrics__v1__resource_metrics__init(&resource_metrics);
+    opentelemetry__proto__metrics__v1__scope_metrics__init(&scope_metrics);
+    opentelemetry__proto__metrics__v1__metric__init(&metric);
+    opentelemetry__proto__metrics__v1__gauge__init(&gauge);
+    opentelemetry__proto__metrics__v1__number_data_point__init(&data_point);
+
+    data_point.time_unix_nano = 456;
+    data_point.start_time_unix_nano = 0;
+    data_point.value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_INT;
+    data_point.as_int = 9007199254740993LL;
+
+    data_point_list[0] = &data_point;
+    gauge.n_data_points = 1;
+    gauge.data_points = data_point_list;
+
+    metric.name = "g_int_large";
+    metric.data_case = OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_GAUGE;
+    metric.gauge = &gauge;
+
+    metric_list[0] = &metric;
+    scope_metrics.n_metrics = 1;
+    scope_metrics.metrics = metric_list;
+
+    scope_metrics_list[0] = &scope_metrics;
+    resource_metrics.n_scope_metrics = 1;
+    resource_metrics.scope_metrics = scope_metrics_list;
+
+    resource_metrics_list[0] = &resource_metrics;
+    request.n_resource_metrics = 1;
+    request.resource_metrics = resource_metrics_list;
+
+    payload_size = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__get_packed_size(&request);
+    packed_payload = calloc(1, payload_size);
+    if (packed_payload == NULL) {
+        return NULL;
+    }
+
+    opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__pack(&request,
+                                                                                         packed_payload);
+
+    payload = cfl_sds_create_len((char *) packed_payload, payload_size);
+    free(packed_payload);
+
+    return payload;
+}
+
 void test_opentelemetry_encode_multi_resource_scope_containers()
 {
     struct cmt *cmt;
@@ -1038,11 +1101,110 @@ void test_opentelemetry_sum_non_monotonic_int_roundtrip()
     cfl_sds_destroy(payload);
 }
 
+void test_opentelemetry_large_int_roundtrip_with_msgpack()
+{
+    cfl_sds_t payload;
+    cfl_sds_t encoded_payload;
+    char *msgpack_buffer;
+    size_t msgpack_size;
+    size_t offset;
+    size_t msgpack_offset;
+    int result;
+    struct cfl_list decoded_context_list;
+    struct cmt *decoded_context;
+    struct cmt *msgpack_context;
+    Opentelemetry__Proto__Collector__Metrics__V1__ExportMetricsServiceRequest *service_request;
+    Opentelemetry__Proto__Metrics__V1__Metric *roundtrip_metric;
+    Opentelemetry__Proto__Metrics__V1__NumberDataPoint *roundtrip_dp;
+
+    cmt_initialize();
+
+    payload = generate_gauge_large_int_otlp_payload();
+    TEST_CHECK(payload != NULL);
+    if (payload == NULL) {
+        return;
+    }
+
+    offset = 0;
+    result = cmt_decode_opentelemetry_create(&decoded_context_list,
+                                             payload,
+                                             cfl_sds_len(payload),
+                                             &offset);
+    TEST_CHECK(result == CMT_DECODE_OPENTELEMETRY_SUCCESS);
+    if (result != CMT_DECODE_OPENTELEMETRY_SUCCESS) {
+        cfl_sds_destroy(payload);
+        return;
+    }
+
+    decoded_context = cfl_list_entry_first(&decoded_context_list, struct cmt, _head);
+    TEST_CHECK(decoded_context != NULL);
+    if (decoded_context == NULL) {
+        cmt_decode_opentelemetry_destroy(&decoded_context_list);
+        cfl_sds_destroy(payload);
+        return;
+    }
+
+    result = cmt_encode_msgpack_create(decoded_context, &msgpack_buffer, &msgpack_size);
+    TEST_CHECK(result == 0);
+    if (result != 0) {
+        cmt_decode_opentelemetry_destroy(&decoded_context_list);
+        cfl_sds_destroy(payload);
+        return;
+    }
+
+    msgpack_offset = 0;
+    msgpack_context = NULL;
+    result = cmt_decode_msgpack_create(&msgpack_context, msgpack_buffer, msgpack_size, &msgpack_offset);
+    TEST_CHECK(result == 0);
+    if (result != 0 || msgpack_context == NULL) {
+        cmt_encode_msgpack_destroy(msgpack_buffer);
+        cmt_decode_opentelemetry_destroy(&decoded_context_list);
+        cfl_sds_destroy(payload);
+        return;
+    }
+
+    encoded_payload = cmt_encode_opentelemetry_create(msgpack_context);
+    TEST_CHECK(encoded_payload != NULL);
+    if (encoded_payload != NULL) {
+        service_request = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__unpack(
+            NULL, cfl_sds_len(encoded_payload), (uint8_t *) encoded_payload);
+        TEST_CHECK(service_request != NULL);
+
+        if (service_request != NULL &&
+            service_request->n_resource_metrics == 1 &&
+            service_request->resource_metrics[0]->n_scope_metrics == 1 &&
+            service_request->resource_metrics[0]->scope_metrics[0]->n_metrics == 1) {
+            roundtrip_metric = service_request->resource_metrics[0]->scope_metrics[0]->metrics[0];
+            TEST_CHECK(roundtrip_metric->data_case ==
+                       OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_GAUGE);
+            if (roundtrip_metric->data_case ==
+                OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_GAUGE &&
+                roundtrip_metric->gauge->n_data_points == 1) {
+                roundtrip_dp = roundtrip_metric->gauge->data_points[0];
+                TEST_CHECK(roundtrip_dp->value_case ==
+                           OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_INT);
+                TEST_CHECK(roundtrip_dp->as_int == 9007199254740993LL);
+            }
+        }
+
+        if (service_request != NULL) {
+            opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__free_unpacked(service_request, NULL);
+        }
+        cmt_encode_opentelemetry_destroy(encoded_payload);
+    }
+
+    cmt_decode_msgpack_destroy(msgpack_context);
+    cmt_encode_msgpack_destroy(msgpack_buffer);
+    cmt_decode_opentelemetry_destroy(&decoded_context_list);
+    cfl_sds_destroy(payload);
+}
+
 TEST_LIST = {
     {"opentelemetry_api_full_roundtrip_with_msgpack", test_opentelemetry_api_full_roundtrip_with_msgpack},
     {"opentelemetry_encode_multi_resource_scope_containers", test_opentelemetry_encode_multi_resource_scope_containers},
     {"opentelemetry_exponential_histogram",           test_opentelemetry_exponential_histogram},
     {"opentelemetry_gauge_int_and_unit_decode",       test_opentelemetry_gauge_int_and_unit_decode},
     {"opentelemetry_sum_non_monotonic_int_roundtrip", test_opentelemetry_sum_non_monotonic_int_roundtrip},
+    {"opentelemetry_large_int_roundtrip_with_msgpack", test_opentelemetry_large_int_roundtrip_with_msgpack},
     { 0 }
 };
