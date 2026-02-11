@@ -478,10 +478,8 @@ static void apply_data_point_metadata_from_otlp_context(struct cmt *cmt,
         map->type == CMT_UNTYPED) {
         Opentelemetry__Proto__Metrics__V1__NumberDataPoint *number_data_point;
         char *number_value_case;
-        double sample_value;
 
         number_data_point = (Opentelemetry__Proto__Metrics__V1__NumberDataPoint *) data_point;
-        sample_value = cmt_metric_get_value(sample);
         number_value_case = NULL;
 
         result = kvlist_fetch_uint64(point_metadata, "start_time_unix_nano", &uint64_value);
@@ -494,14 +492,35 @@ static void apply_data_point_metadata_from_otlp_context(struct cmt *cmt,
             number_data_point->flags = (uint32_t) uint64_value;
         }
 
-        result = kvlist_fetch_string(point_metadata, "number_value_case", &number_value_case);
-        if (result == 0 && strcmp(number_value_case, "int") == 0) {
+        if (cmt_metric_get_value_type(sample) == CMT_METRIC_VALUE_INT64) {
             number_data_point->value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_INT;
-            number_data_point->as_int = (int64_t) sample_value;
+            number_data_point->as_int = cmt_metric_get_int64_value(sample);
         }
-        else if (result == 0 && strcmp(number_value_case, "double") == 0) {
+        else if (cmt_metric_get_value_type(sample) == CMT_METRIC_VALUE_UINT64) {
+            if (cmt_metric_get_uint64_value(sample) <= INT64_MAX) {
+                number_data_point->value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_INT;
+                number_data_point->as_int = (int64_t) cmt_metric_get_uint64_value(sample);
+            }
+            else {
+                number_data_point->value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_DOUBLE;
+                number_data_point->as_double = (double) cmt_metric_get_uint64_value(sample);
+            }
+        }
+        else {
+            result = kvlist_fetch_string(point_metadata, "number_value_case", &number_value_case);
+            if (result == 0 && strcmp(number_value_case, "int") == 0) {
+                number_data_point->value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_INT;
+                number_data_point->as_int = cmt_metric_get_int64_value(sample);
+            }
+            else {
+                number_data_point->value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_DOUBLE;
+                number_data_point->as_double = cmt_metric_get_value(sample);
+            }
+        }
+
+        if (number_data_point->value_case == OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_DOUBLE) {
             number_data_point->value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_DOUBLE;
-            number_data_point->as_double = sample_value;
+            number_data_point->as_double = cmt_metric_get_value(sample);
         }
 
         result = initialize_exemplars_from_metadata(point_metadata, &exemplars, &exemplar_count);
@@ -728,7 +747,7 @@ static Opentelemetry__Proto__Metrics__V1__NumberDataPoint *
     initialize_numerical_data_point(
     uint64_t start_time,
     uint64_t timestamp,
-    double value,
+    struct cmt_metric *sample,
     Opentelemetry__Proto__Common__V1__KeyValue **attribute_list,
     size_t attribute_count);
 
@@ -2072,7 +2091,7 @@ static Opentelemetry__Proto__Metrics__V1__NumberDataPoint *
     initialize_numerical_data_point(
     uint64_t start_time,
     uint64_t timestamp,
-    double value,
+    struct cmt_metric *sample,
     Opentelemetry__Proto__Common__V1__KeyValue **attribute_list,
     size_t attribute_count)
 {
@@ -2089,8 +2108,24 @@ static Opentelemetry__Proto__Metrics__V1__NumberDataPoint *
 
     data_point->start_time_unix_nano = start_time;
     data_point->time_unix_nano = timestamp;
-    data_point->value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_DOUBLE;
-    data_point->as_double = value;
+    if (sample != NULL && cmt_metric_get_value_type(sample) == CMT_METRIC_VALUE_INT64) {
+        data_point->value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_INT;
+        data_point->as_int = cmt_metric_get_int64_value(sample);
+    }
+    else if (sample != NULL && cmt_metric_get_value_type(sample) == CMT_METRIC_VALUE_UINT64) {
+        if (cmt_metric_get_uint64_value(sample) <= INT64_MAX) {
+            data_point->value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_INT;
+            data_point->as_int = (int64_t) cmt_metric_get_uint64_value(sample);
+        }
+        else {
+            data_point->value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_DOUBLE;
+            data_point->as_double = (double) cmt_metric_get_uint64_value(sample);
+        }
+    }
+    else {
+        data_point->value_case = OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_DOUBLE;
+        data_point->as_double = sample != NULL ? cmt_metric_get_value(sample) : 0;
+    }
     data_point->attributes = attribute_list;
     data_point->n_attributes = attribute_count;
 
@@ -3070,7 +3105,7 @@ int append_sample_to_metric(struct cmt_opentelemetry_context *context,
         map->type == CMT_UNTYPED   ) {
         data_point = initialize_numerical_data_point(0,
                                                      cmt_metric_get_timestamp(sample),
-                                                     cmt_metric_get_value(sample),
+                                                     sample,
                                                      attribute_list,
                                                      attribute_count);
     }
