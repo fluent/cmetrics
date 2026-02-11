@@ -21,6 +21,7 @@
 #define CMT_METRIC_H
 
 #include <cmetrics/cmetrics.h>
+#include <stdint.h>
 
 enum cmt_metric_value_type {
     CMT_METRIC_VALUE_DOUBLE = 0,
@@ -31,8 +32,8 @@ enum cmt_metric_value_type {
 struct cmt_metric {
     /* counters and gauges */
     uint64_t val;
-    int value_type;
-    int64_t val_int64;
+    uint64_t value_type;
+    uint64_t val_int64;
     uint64_t val_uint64;
 
     /* histogram */
@@ -80,6 +81,10 @@ double cmt_metric_get_value(struct cmt_metric *metric);
 int cmt_metric_get_value_type(struct cmt_metric *metric);
 int64_t cmt_metric_get_int64_value(struct cmt_metric *metric);
 uint64_t cmt_metric_get_uint64_value(struct cmt_metric *metric);
+void cmt_metric_get_value_snapshot(struct cmt_metric *metric,
+                                   int *out_type,
+                                   int64_t *out_int64,
+                                   uint64_t *out_uint64);
 uint64_t cmt_metric_get_timestamp(struct cmt_metric *metric);
 
 void cmt_metric_hist_inc(struct cmt_metric *metric, uint64_t timestamp,
