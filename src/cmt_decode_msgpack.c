@@ -543,14 +543,38 @@ static int unpack_summary_quantile(mpack_reader_t *reader, size_t index, void *c
     }
 
     decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    if (decode_context->metric == NULL ||
+        decode_context->metric->sum_quantiles == NULL ||
+        index >= decode_context->metric->sum_quantiles_count) {
+        return CMT_DECODE_MSGPACK_CORRUPT_INPUT_DATA_ERROR;
+    }
+
     return cmt_mpack_consume_uint_tag(reader, &decode_context->metric->sum_quantiles[index]);
 }
 
 static int unpack_summary_quantiles(mpack_reader_t *reader, size_t index, void *context)
 {
+    size_t expected_count;
+    size_t entry_count;
+    struct cmt_msgpack_decode_context *decode_context;
+
     if (NULL == reader  ||
         NULL == context ) {
         return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
+    }
+
+    decode_context = (struct cmt_msgpack_decode_context *) context;
+    expected_count = 0;
+
+    if (decode_context->metric != NULL) {
+        expected_count = decode_context->metric->sum_quantiles_count;
+    }
+
+    entry_count = cmt_mpack_peek_array_length(reader);
+
+    if (entry_count != expected_count) {
+        return CMT_DECODE_MSGPACK_CORRUPT_INPUT_DATA_ERROR;
     }
 
     return cmt_mpack_unpack_array(reader, unpack_summary_quantile, context);
@@ -649,6 +673,8 @@ static int unpack_histogram_count(mpack_reader_t *reader, size_t index, void *co
 static int unpack_histogram_bucket(mpack_reader_t *reader, size_t index, void *context)
 {
     struct cmt_msgpack_decode_context *decode_context;
+    struct cmt_histogram *histogram;
+    size_t expected_count;
 
     if (NULL == reader ||
         NULL == context) {
@@ -657,12 +683,32 @@ static int unpack_histogram_bucket(mpack_reader_t *reader, size_t index, void *c
 
     decode_context = (struct cmt_msgpack_decode_context *) context;
 
+    if (decode_context->map == NULL ||
+        decode_context->metric == NULL ||
+        decode_context->metric->hist_buckets == NULL ||
+        decode_context->map->parent == NULL) {
+        return CMT_DECODE_MSGPACK_CORRUPT_INPUT_DATA_ERROR;
+    }
+
+    histogram = (struct cmt_histogram *) decode_context->map->parent;
+    if (histogram->buckets == NULL) {
+        return CMT_DECODE_MSGPACK_CORRUPT_INPUT_DATA_ERROR;
+    }
+
+    expected_count = histogram->buckets->count + 1;
+    if (index >= expected_count) {
+        return CMT_DECODE_MSGPACK_CORRUPT_INPUT_DATA_ERROR;
+    }
+
     return cmt_mpack_consume_uint_tag(reader, &decode_context->metric->hist_buckets[index]);
 }
 
 static int unpack_histogram_buckets(mpack_reader_t *reader, size_t index, void *context)
 {
     struct cmt_msgpack_decode_context *decode_context;
+    struct cmt_histogram *histogram;
+    size_t expected_count;
+    size_t entry_count;
 
     if (NULL == reader  ||
         NULL == context ) {
@@ -670,6 +716,22 @@ static int unpack_histogram_buckets(mpack_reader_t *reader, size_t index, void *
     }
 
     decode_context = (struct cmt_msgpack_decode_context *) context;
+
+    if (decode_context->map == NULL ||
+        decode_context->map->parent == NULL) {
+        return CMT_DECODE_MSGPACK_CORRUPT_INPUT_DATA_ERROR;
+    }
+
+    histogram = (struct cmt_histogram *) decode_context->map->parent;
+    if (histogram->buckets == NULL) {
+        return CMT_DECODE_MSGPACK_CORRUPT_INPUT_DATA_ERROR;
+    }
+
+    entry_count = cmt_mpack_peek_array_length(reader);
+    expected_count = histogram->buckets->count + 1;
+    if (entry_count != expected_count) {
+        return CMT_DECODE_MSGPACK_CORRUPT_INPUT_DATA_ERROR;
+    }
 
     return cmt_mpack_unpack_array(reader, unpack_histogram_bucket, decode_context);
 }
