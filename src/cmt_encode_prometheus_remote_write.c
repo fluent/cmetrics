@@ -667,9 +667,11 @@ int pack_basic_type(struct cmt_prometheus_remote_write_context *context,
     int                result;
     struct cfl_list    *head;
     uint64_t            now;
+    int                 cutoff;
 
     context->sequence_number++;
     add_metadata = CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_ADD_METADATA;
+    cutoff = CMT_FALSE;
 
     now = cfl_time_now();
 
@@ -693,7 +695,8 @@ int pack_basic_type(struct cmt_prometheus_remote_write_context *context,
         if (check_staled_timestamp(metric, now,
                                    CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_CUTOFF_THRESHOLD)) {
             /* Skip processing metrics which are staled over over the threshold */
-            return CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_CUTOFF_ERROR;
+            cutoff = CMT_TRUE;
+            continue;
         }
 
         result = pack_basic_metric_sample(context, map, metric, add_metadata);
@@ -707,7 +710,9 @@ int pack_basic_type(struct cmt_prometheus_remote_write_context *context,
         }
     }
 
-    return CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS;
+    return cutoff == CMT_TRUE ?
+           CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_CUTOFF_ERROR :
+           CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS;
 }
 
 int pack_complex_metric_sample(struct cmt_prometheus_remote_write_context *context,
@@ -1187,7 +1192,8 @@ cfl_sds_t cmt_encode_prometheus_remote_write_create(struct cmt *cmt)
         }
     }
 
-    if (result == CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS) {
+    if (result == CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS ||
+        result == CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_CUTOFF_ERROR) {
         /* Gauges */
         cfl_list_foreach(head, &cmt->gauges) {
             gauge = cfl_list_entry(head, struct cmt_gauge, _head);
@@ -1203,7 +1209,8 @@ cfl_sds_t cmt_encode_prometheus_remote_write_create(struct cmt *cmt)
         }
     }
 
-    if (result == CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS) {
+    if (result == CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS ||
+        result == CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_CUTOFF_ERROR) {
         /* Untyped */
         cfl_list_foreach(head, &cmt->untypeds) {
             untyped = cfl_list_entry(head, struct cmt_untyped, _head);
@@ -1215,7 +1222,8 @@ cfl_sds_t cmt_encode_prometheus_remote_write_create(struct cmt *cmt)
         }
     }
 
-    if (result == CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS) {
+    if (result == CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS ||
+        result == CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_CUTOFF_ERROR) {
         /* Summaries */
         cfl_list_foreach(head, &cmt->summaries) {
             summary = cfl_list_entry(head, struct cmt_summary, _head);
@@ -1231,7 +1239,8 @@ cfl_sds_t cmt_encode_prometheus_remote_write_create(struct cmt *cmt)
         }
     }
 
-    if (result == CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS) {
+    if (result == CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS ||
+        result == CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_CUTOFF_ERROR) {
         /* Histograms */
         cfl_list_foreach(head, &cmt->histograms) {
             histogram = cfl_list_entry(head, struct cmt_histogram, _head);
