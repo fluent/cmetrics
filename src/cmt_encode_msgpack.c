@@ -169,10 +169,12 @@ static void pack_header(mpack_writer_t *writer, struct cmt *cmt, struct cmt_map 
 static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_metric *metric)
 {
     int c_labels;
+    int has_start_timestamp;
     int has_exp_hist_snapshot;
     int s;
     double val;
     size_t index;
+    uint64_t start_timestamp;
     struct cfl_list *head;
     struct cmt_map_label *label;
     struct cmt_summary *summary;
@@ -194,8 +196,13 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
         s += 2;
     }
 
-    if (cmt_metric_has_start_timestamp(metric)) {
+    has_start_timestamp = cmt_metric_has_start_timestamp(metric);
+    if (has_start_timestamp) {
+        start_timestamp = cmt_metric_get_start_timestamp(metric);
         s++;
+    }
+    else {
+        start_timestamp = 0;
     }
 
     has_exp_hist_snapshot = CMT_FALSE;
@@ -212,9 +219,9 @@ static int pack_metric(mpack_writer_t *writer, struct cmt_map *map, struct cmt_m
     mpack_write_cstr(writer, "ts");
     mpack_write_uint(writer, cmt_metric_get_timestamp(metric));
 
-    if (cmt_metric_has_start_timestamp(metric)) {
+    if (has_start_timestamp) {
         mpack_write_cstr(writer, "start_ts");
-        mpack_write_uint(writer, cmt_metric_get_start_timestamp(metric));
+        mpack_write_uint(writer, start_timestamp);
     }
 
     if (map->type == CMT_HISTOGRAM) {
