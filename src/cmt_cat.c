@@ -465,6 +465,9 @@ static inline void cat_scalar_value(struct cmt_metric *metric_dst,
         cmt_metric_set_start_timestamp(metric_dst,
                                        cmt_metric_get_start_timestamp(metric_src));
     }
+    else {
+        cmt_metric_unset_start_timestamp(metric_dst);
+    }
 }
 
 int cmt_cat_copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map *src)
