@@ -543,7 +543,8 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
                     /* probably last bucket, which has "Inf" */
                     break;
                 }
-                if (!sample->label_values[le_label_index]) {
+                if (!sample->label_values[le_label_index] ||
+                    sample->label_values[le_label_index][0] == '\0') {
                     ret = report_error(context,
                             CMT_DECODE_PROMETHEUS_SYNTAX_ERROR,
                             "missing histogram bucket \"le\" value");
