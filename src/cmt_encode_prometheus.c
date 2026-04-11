@@ -18,6 +18,7 @@
  */
 
 #include <stdbool.h>
+#include <math.h>
 
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_metric.h>
@@ -373,7 +374,11 @@ static cfl_sds_t bucket_value_to_string(double val)
     len = snprintf(str, 64, "%g", val);
     cfl_sds_len_set(str, len);
 
-    if (!strchr(str, '.')) {
+    /*
+     * Append .0 only when there is no decimal point and the number
+     * is finite and not in scientific notation.
+     */
+    if (isfinite(val) && !strchr(str, '.') && !strchr(str, 'e')) {
         cfl_sds_cat_safe(&str, ".0", 2);
     }
 
