@@ -1279,6 +1279,38 @@ void test_opentelemetry_large_int_roundtrip_with_msgpack()
     cfl_sds_destroy(payload);
 }
 
+/* Regression: decoding a histogram with an unrecognised AnyValue type must not crash.
+ *
+ * An attribute with AnyValue.value_case = NOT_SET (or any unrecognised value) caused
+ * decode_data_point_labels to pass NULL to append_new_metric_label_value, leaving
+ * label->name as NULL; compute_metric_hash then called cfl_sds_len(NULL) and segfaulted.
+ *
+ * otlp_null_label_histogram.bin: single-resource ExportMetricsServiceRequest with one
+ * Histogram data point whose sole attribute has value_case = NOT_SET.
+ */
+static void test_opentelemetry_histogram_null_label_no_crash(void)
+{
+    struct cfl_list result_list;
+    cfl_sds_t       payload;
+    size_t          offset;
+    int             ret;
+
+    payload = read_file(CMT_TESTS_DATA_PATH "/otlp_null_label_histogram.bin");
+    TEST_CHECK(payload != NULL);
+    if (payload != NULL) {
+        offset = 0;
+        ret = cmt_decode_opentelemetry_create(&result_list,
+                                              payload, cfl_sds_len(payload),
+                                              &offset);
+        TEST_CHECK(ret == CMT_DECODE_OPENTELEMETRY_SUCCESS);
+
+        if (ret == CMT_DECODE_OPENTELEMETRY_SUCCESS) {
+            cmt_decode_opentelemetry_destroy(&result_list);
+        }
+        cfl_sds_destroy(payload);
+    }
+}
+
 TEST_LIST = {
     {"opentelemetry_api_full_roundtrip_with_msgpack", test_opentelemetry_api_full_roundtrip_with_msgpack},
     {"opentelemetry_encode_multi_resource_scope_containers", test_opentelemetry_encode_multi_resource_scope_containers},
@@ -1286,5 +1318,6 @@ TEST_LIST = {
     {"opentelemetry_gauge_int_and_unit_decode",       test_opentelemetry_gauge_int_and_unit_decode},
     {"opentelemetry_sum_non_monotonic_int_roundtrip", test_opentelemetry_sum_non_monotonic_int_roundtrip},
     {"opentelemetry_large_int_roundtrip_with_msgpack", test_opentelemetry_large_int_roundtrip_with_msgpack},
+    {"opentelemetry_histogram_null_label_no_crash",   test_opentelemetry_histogram_null_label_no_crash},
     { 0 }
 };
