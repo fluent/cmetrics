@@ -109,6 +109,55 @@ static void prometheus_encode_test(struct cmt *cmt)
     cmt_encode_prometheus_destroy(buf);
 }
 
+void test_histogram_special_bucket_labels()
+{
+    /* Cover scientific notation and non-finite %g outputs like inf/nan. */
+    uint64_t ts;
+    cfl_sds_t buf;
+    struct cmt *cmt;
+    struct cmt_histogram *h;
+    struct cmt_histogram_buckets *buckets;
+
+    cmt_initialize();
+
+    ts = 0;
+    cmt = cmt_create();
+    TEST_CHECK(cmt != NULL);
+
+    buckets = cmt_histogram_buckets_create(4, -INFINITY, 100000000.0, NAN, INFINITY);
+    TEST_CHECK(buckets != NULL);
+
+    h = cmt_histogram_create(cmt,
+                             "cm", "encoding", "scientific_bucket",
+                             "Histogram scientific bucket label",
+                             buckets,
+                             0, NULL);
+    TEST_CHECK(h != NULL);
+
+    cmt_histogram_observe(h, ts, 42.0, 0, NULL);
+
+    buf = cmt_encode_prometheus_create(cmt, CMT_TRUE);
+    TEST_CHECK(buf != NULL);
+    if (buf != NULL) {
+        TEST_CHECK(strstr(buf,
+                          "cm_encoding_scientific_bucket_bucket{le=\"-inf\"} 0 0") != NULL);
+        TEST_CHECK(strstr(buf,
+                          "cm_encoding_scientific_bucket_bucket{le=\"1e+08\"} 1 0") != NULL);
+        TEST_CHECK(strstr(buf,
+                          "cm_encoding_scientific_bucket_bucket{le=\"1e+08.0\"}") == NULL);
+        TEST_CHECK(strstr(buf,
+                          "cm_encoding_scientific_bucket_bucket{le=\"nan\"} 1 0") != NULL);
+        TEST_CHECK(strstr(buf,
+                          "cm_encoding_scientific_bucket_bucket{le=\"inf\"} 1 0") != NULL);
+        TEST_CHECK(strstr(buf, "le=\"-inf.0\"") == NULL);
+        TEST_CHECK(strstr(buf, "le=\"nan.0\"") == NULL);
+        TEST_CHECK(strstr(buf, "le=\"inf.0\"") == NULL);
+        cmt_encode_prometheus_destroy(buf);
+    }
+
+    cmt_destroy(cmt);
+}
+
 
 void test_histogram()
 {
@@ -206,6 +255,7 @@ void test_set_defaults()
 }
 
 TEST_LIST = {
+    {"special_bucket_labels", test_histogram_special_bucket_labels},
     {"histogram"   , test_histogram},
     {"set_defaults", test_set_defaults},
     { 0 }
