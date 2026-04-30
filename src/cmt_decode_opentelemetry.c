@@ -315,7 +315,8 @@ static uint64_t compute_metric_hash(struct cmt_map *map, struct cmt_metric *samp
     struct cmt_map_label *label_value;
     cfl_hash_state_t state;
 
-    if (sample == NULL || map == NULL) {
+    if (sample == NULL || map == NULL ||
+        map->opts == NULL || map->opts->fqname == NULL) {
         return 0;
     }
 
@@ -328,6 +329,9 @@ static uint64_t compute_metric_hash(struct cmt_map *map, struct cmt_metric *samp
 
     cfl_list_foreach(head, &sample->labels) {
         label_value = cfl_list_entry(head, struct cmt_map_label, _head);
+        if (label_value->name == NULL) {
+            continue;
+        }
         cfl_hash_64bits_update(&state, label_value->name, cfl_sds_len(label_value->name));
     }
 
@@ -667,7 +671,7 @@ static int decode_data_point_labels(struct cmt *cmt,
                 result = append_new_metric_label_value(metric, dummy_label_value, 0);
             }
             else {
-                result = append_new_metric_label_value(metric, NULL, 0);
+                result = append_new_metric_label_value(metric, "", 0);
             }
         }
     }
