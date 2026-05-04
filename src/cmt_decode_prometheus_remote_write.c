@@ -46,9 +46,23 @@ static char *cmt_metric_name_from_labels(Prometheus__TimeSeries *ts)
     int i;
     int count;
 
+    if (ts == NULL || ts->labels == NULL) {
+        return NULL;
+    }
+
     count = ts->n_labels;
     for (i = 0; i < count; i++) {
+        if (ts->labels[i] == NULL ||
+            ts->labels[i]->name == NULL ||
+            ts->labels[i]->name[0] == '\0') {
+            continue;
+        }
+
         if (strncmp("__name__", ts->labels[i]->name, 8) == 0) {
+            if (ts->labels[i]->value == NULL) {
+                return NULL;
+            }
+
             return strdup(ts->labels[i]->value);
         }
     }
@@ -60,26 +74,28 @@ static struct cmt_map_label *create_map_label(char *caption, size_t length)
 {
     struct cmt_map_label *map_label;
 
+    if (caption == NULL) {
+        return NULL;
+    }
+
     map_label = calloc(1, sizeof(struct cmt_map_label));
     if (!map_label) {
         return NULL;
     }
 
     if (map_label != NULL) {
-        if (caption != NULL) {
-            if (length == 0) {
-                length = strlen(caption);
-            }
+        if (length == 0) {
+            length = strlen(caption);
+        }
 
-            map_label->name = cfl_sds_create_len(caption, length);
+        map_label->name = cfl_sds_create_len(caption, length);
 
-            if (map_label->name == NULL) {
-                cmt_errno();
+        if (map_label->name == NULL) {
+            cmt_errno();
 
-                free(map_label);
+            free(map_label);
 
-                map_label = NULL;
-            }
+            map_label = NULL;
         }
     }
 
@@ -156,6 +172,10 @@ static int decode_labels(struct cmt *cmt,
          prom_label_index++) {
 
         label = labels[prom_label_index];
+        if (label == NULL || label->name == NULL || label->name[0] == '\0') {
+            result = CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+            break;
+        }
 
         label_found = CMT_FALSE;
         label_index = 0;
@@ -163,7 +183,8 @@ static int decode_labels(struct cmt *cmt,
         cfl_list_foreach(label_iterator, &map->label_keys) {
             current_label = cfl_list_entry(label_iterator, struct cmt_map_label, _head);
 
-            if (strcmp(current_label->name, label->name) == 0) {
+            if (current_label->name != NULL &&
+                strcmp(current_label->name, label->name) == 0) {
                 label_found = CMT_TRUE;
 
                 break;
@@ -190,7 +211,12 @@ static int decode_labels(struct cmt *cmt,
 
         if (value_index_list[map_label_index] != NULL) {
             label = (Prometheus__Label *) value_index_list[map_label_index];
-            result = append_new_metric_label_value(metric, label->value, 0);
+            result = append_new_metric_label_value(metric,
+                                                   label->value != NULL ? label->value : "",
+                                                   0);
+        }
+        else {
+            result = append_new_metric_label_value(metric, "", 0);
         }
     }
 
@@ -542,9 +568,14 @@ static int decode_metrics_entry(struct cmt *cmt,
     ts_count = write->n_timeseries;
     for (i = 0; i < ts_count; i++) {
         ts = write->timeseries[i];
+        if (ts == NULL) {
+            return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_DECODE_ERROR;
+        }
+
         meta_count = write->n_metadata;
         hist_count = ts->n_histograms;
-        if (meta_count > 0) {
+        metadata = NULL;
+        if (meta_count > i) {
             metadata = write->metadata[i];
         }
         if (metadata == NULL) {
