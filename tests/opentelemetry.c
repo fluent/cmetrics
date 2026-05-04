@@ -489,6 +489,87 @@ static cfl_sds_t generate_gauge_int_otlp_payload_with_unit()
     return payload;
 }
 
+static cfl_sds_t generate_gauge_int_otlp_payload_with_attribute(char *attribute_key,
+                                                                int include_value)
+{
+    Opentelemetry__Proto__Collector__Metrics__V1__ExportMetricsServiceRequest request;
+    Opentelemetry__Proto__Metrics__V1__ResourceMetrics resource_metrics;
+    Opentelemetry__Proto__Metrics__V1__ScopeMetrics scope_metrics;
+    Opentelemetry__Proto__Metrics__V1__Metric metric;
+    Opentelemetry__Proto__Metrics__V1__Gauge gauge;
+    Opentelemetry__Proto__Metrics__V1__NumberDataPoint data_point;
+    Opentelemetry__Proto__Common__V1__KeyValue attribute;
+    Opentelemetry__Proto__Common__V1__AnyValue attribute_value;
+    Opentelemetry__Proto__Metrics__V1__ResourceMetrics *resource_metrics_list[1];
+    Opentelemetry__Proto__Metrics__V1__ScopeMetrics *scope_metrics_list[1];
+    Opentelemetry__Proto__Metrics__V1__Metric *metric_list[1];
+    Opentelemetry__Proto__Metrics__V1__NumberDataPoint *data_point_list[1];
+    Opentelemetry__Proto__Common__V1__KeyValue *attribute_list[1];
+    size_t payload_size;
+    unsigned char *packed_payload;
+    cfl_sds_t payload;
+
+    opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__init(&request);
+    opentelemetry__proto__metrics__v1__resource_metrics__init(&resource_metrics);
+    opentelemetry__proto__metrics__v1__scope_metrics__init(&scope_metrics);
+    opentelemetry__proto__metrics__v1__metric__init(&metric);
+    opentelemetry__proto__metrics__v1__gauge__init(&gauge);
+    opentelemetry__proto__metrics__v1__number_data_point__init(&data_point);
+    opentelemetry__proto__common__v1__key_value__init(&attribute);
+    opentelemetry__proto__common__v1__any_value__init(&attribute_value);
+
+    if (include_value) {
+        attribute_value.value_case =
+            OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_STRING_VALUE;
+        attribute_value.string_value = "value";
+        attribute.value = &attribute_value;
+    }
+
+    attribute.key = attribute_key;
+    attribute_list[0] = &attribute;
+
+    data_point.time_unix_nano = 123;
+    data_point.value_case =
+        OPENTELEMETRY__PROTO__METRICS__V1__NUMBER_DATA_POINT__VALUE_AS_INT;
+    data_point.as_int = 1;
+    data_point.n_attributes = 1;
+    data_point.attributes = attribute_list;
+
+    data_point_list[0] = &data_point;
+    gauge.n_data_points = 1;
+    gauge.data_points = data_point_list;
+
+    metric.name = "g_attr";
+    metric.data_case = OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_GAUGE;
+    metric.gauge = &gauge;
+
+    metric_list[0] = &metric;
+    scope_metrics.n_metrics = 1;
+    scope_metrics.metrics = metric_list;
+
+    scope_metrics_list[0] = &scope_metrics;
+    resource_metrics.n_scope_metrics = 1;
+    resource_metrics.scope_metrics = scope_metrics_list;
+
+    resource_metrics_list[0] = &resource_metrics;
+    request.n_resource_metrics = 1;
+    request.resource_metrics = resource_metrics_list;
+
+    payload_size = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__get_packed_size(&request);
+    packed_payload = calloc(1, payload_size);
+    if (packed_payload == NULL) {
+        return NULL;
+    }
+
+    opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__pack(&request,
+                                                                                         packed_payload);
+
+    payload = cfl_sds_create_len((char *) packed_payload, payload_size);
+    free(packed_payload);
+
+    return payload;
+}
+
 static cfl_sds_t generate_sum_non_monotonic_int_otlp_payload()
 {
     Opentelemetry__Proto__Collector__Metrics__V1__ExportMetricsServiceRequest request;
@@ -1311,6 +1392,47 @@ static void test_opentelemetry_histogram_null_label_no_crash(void)
     }
 }
 
+static void test_opentelemetry_missing_attribute_key_rejected(void)
+{
+    struct cfl_list result_list;
+    cfl_sds_t       payload;
+    size_t          offset;
+    int             ret;
+
+    payload = generate_gauge_int_otlp_payload_with_attribute(NULL, CMT_TRUE);
+    TEST_CHECK(payload != NULL);
+    if (payload != NULL) {
+        offset = 0;
+        ret = cmt_decode_opentelemetry_create(&result_list,
+                                              payload, cfl_sds_len(payload),
+                                              &offset);
+        TEST_CHECK(ret != CMT_DECODE_OPENTELEMETRY_SUCCESS);
+        cfl_sds_destroy(payload);
+    }
+}
+
+static void test_opentelemetry_missing_attribute_value_no_crash(void)
+{
+    struct cfl_list result_list;
+    cfl_sds_t       payload;
+    size_t          offset;
+    int             ret;
+
+    payload = generate_gauge_int_otlp_payload_with_attribute("missing_value", CMT_FALSE);
+    TEST_CHECK(payload != NULL);
+    if (payload != NULL) {
+        offset = 0;
+        ret = cmt_decode_opentelemetry_create(&result_list,
+                                              payload, cfl_sds_len(payload),
+                                              &offset);
+        TEST_CHECK(ret == CMT_DECODE_OPENTELEMETRY_SUCCESS);
+        if (ret == CMT_DECODE_OPENTELEMETRY_SUCCESS) {
+            cmt_decode_opentelemetry_destroy(&result_list);
+        }
+        cfl_sds_destroy(payload);
+    }
+}
+
 TEST_LIST = {
     {"opentelemetry_api_full_roundtrip_with_msgpack", test_opentelemetry_api_full_roundtrip_with_msgpack},
     {"opentelemetry_encode_multi_resource_scope_containers", test_opentelemetry_encode_multi_resource_scope_containers},
@@ -1319,5 +1441,7 @@ TEST_LIST = {
     {"opentelemetry_sum_non_monotonic_int_roundtrip", test_opentelemetry_sum_non_monotonic_int_roundtrip},
     {"opentelemetry_large_int_roundtrip_with_msgpack", test_opentelemetry_large_int_roundtrip_with_msgpack},
     {"opentelemetry_histogram_null_label_no_crash",   test_opentelemetry_histogram_null_label_no_crash},
+    {"opentelemetry_missing_attribute_key_rejected",   test_opentelemetry_missing_attribute_key_rejected},
+    {"opentelemetry_missing_attribute_value_no_crash", test_opentelemetry_missing_attribute_value_no_crash},
     { 0 }
 };

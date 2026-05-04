@@ -263,23 +263,25 @@ static struct cmt_map_label *create_label(char *caption, size_t length)
 {
     struct cmt_map_label *instance;
 
+    if (caption == NULL) {
+        return NULL;
+    }
+
     instance = calloc(1, sizeof(struct cmt_map_label));
 
     if (instance != NULL) {
-        if (caption != NULL) {
-            if (length == 0) {
-                length = strlen(caption);
-            }
+        if (length == 0) {
+            length = strlen(caption);
+        }
 
-            instance->name = cfl_sds_create_len(caption, length);
+        instance->name = cfl_sds_create_len(caption, length);
 
-            if (instance->name == NULL) {
-                cmt_errno();
+        if (instance->name == NULL) {
+            cmt_errno();
 
-                free(instance);
+            free(instance);
 
-                instance = NULL;
-            }
+            instance = NULL;
         }
     }
 
@@ -603,6 +605,10 @@ static int decode_data_point_labels(struct cmt *cmt,
          attribute_index++) {
 
         attribute = attribute_list[attribute_index];
+        if (attribute == NULL || attribute->key == NULL || attribute->key[0] == '\0') {
+            result = CMT_DECODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
+            break;
+        }
 
         label_found = CMT_FALSE;
         label_index = 0;
@@ -610,7 +616,8 @@ static int decode_data_point_labels(struct cmt *cmt,
         cfl_list_foreach(label_iterator, &map->label_keys) {
             current_label = cfl_list_entry(label_iterator, struct cmt_map_label, _head);
 
-            if (strcmp(current_label->name, attribute->key) == 0) {
+            if (current_label->name != NULL &&
+                strcmp(current_label->name, attribute->key) == 0) {
                 label_found = CMT_TRUE;
 
                 break;
@@ -640,20 +647,31 @@ static int decode_data_point_labels(struct cmt *cmt,
                             value_index_list[map_label_index];
 
             if (attribute->value == NULL) {
+                result = append_new_metric_label_value(metric, "", 0);
                 continue;
             }
 
             if (attribute->value->value_case == OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_STRING_VALUE) {
-                result = append_new_metric_label_value(metric, attribute->value->string_value, 0);
+                result = append_new_metric_label_value(metric,
+                                                       attribute->value->string_value != NULL ?
+                                                       attribute->value->string_value : "",
+                                                       0);
             }
             else if (attribute->value->value_case ==
                      OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_STRING_VALUE_STRINDEX) {
                 result = append_new_metric_label_value(metric, "", 0);
             }
             else if (attribute->value->value_case == OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_BYTES_VALUE) {
-                result = append_new_metric_label_value(metric,
-                                                       (char *) attribute->value->bytes_value.data,
-                                                       attribute->value->bytes_value.len);
+                if (attribute->value->bytes_value.data == NULL &&
+                    attribute->value->bytes_value.len > 0) {
+                    result = CMT_DECODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
+                }
+                else {
+                    result = append_new_metric_label_value(metric,
+                                                           attribute->value->bytes_value.data != NULL ?
+                                                           (char *) attribute->value->bytes_value.data : "",
+                                                           attribute->value->bytes_value.len);
+                }
             }
             else if (attribute->value->value_case == OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_BOOL_VALUE) {
                 snprintf(dummy_label_value, sizeof(dummy_label_value) - 1, "%d", attribute->value->bool_value);
@@ -673,6 +691,9 @@ static int decode_data_point_labels(struct cmt *cmt,
             else {
                 result = append_new_metric_label_value(metric, "", 0);
             }
+        }
+        else {
+            result = append_new_metric_label_value(metric, "", 0);
         }
     }
 
