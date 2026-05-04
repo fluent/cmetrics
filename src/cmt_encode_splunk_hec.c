@@ -270,6 +270,8 @@ static void format_metric_labels(struct cmt_splunk_hec_context *context, cfl_sds
     int n;
     int count = 0;
     int static_labels = 0;
+    int label_key_count;
+    int label_index;
 
     struct cmt_map_label *label_k;
     struct cmt_map_label *label_v;
@@ -296,13 +298,26 @@ static void format_metric_labels(struct cmt_splunk_hec_context *context, cfl_sds
     }
 
     n = cfl_list_size(&metric->labels);
-    if (n > 0) {
+    label_key_count = map->label_count;
+    if (n > 0 && label_key_count > 0) {
         cfl_sds_cat_safe(buf, ",", 1);
         label_k = cfl_list_entry_first(&map->label_keys, struct cmt_map_label, _head);
 
         i = 0;
+        label_index = 0;
         cfl_list_foreach(head, &metric->labels) {
+            if (label_index >= label_key_count) {
+                break;
+            }
+
             label_v = cfl_list_entry(head, struct cmt_map_label, _head);
+
+            if (label_k->name == NULL || label_v->name == NULL) {
+                label_index++;
+                label_k = cfl_list_entry_next(&label_k->_head, struct cmt_map_label,
+                                              _head, &map->label_keys);
+                continue;
+            }
 
             cfl_sds_cat_safe(buf, "\"", 1);
             cfl_sds_cat_safe(buf, label_k->name, cfl_sds_len(label_k->name));
@@ -311,8 +326,9 @@ static void format_metric_labels(struct cmt_splunk_hec_context *context, cfl_sds
             cfl_sds_cat_safe(buf, "\"", 1);
             i++;
 
+            label_index++;
             label_k = cfl_list_entry_next(&label_k->_head, struct cmt_map_label,
-                                         _head, &map->label_keys);
+                                          _head, &map->label_keys);
             if (i < n) {
                 cfl_sds_cat_safe(buf, ",", 1);
             }
