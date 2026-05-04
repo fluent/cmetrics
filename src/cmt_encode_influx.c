@@ -271,6 +271,8 @@ static void format_metric(struct cmt *cmt, cfl_sds_t *buf, struct cmt_map *map,
     int static_count = 0;
     int static_labels = 0;
     int has_namespace = CMT_FALSE;
+    int label_key_count;
+    int label_index;
     struct cmt_map_label *label_k;
     struct cmt_map_label *label_v;
     struct cfl_list *head;
@@ -323,7 +325,8 @@ static void format_metric(struct cmt *cmt, cfl_sds_t *buf, struct cmt_map *map,
 
     /* Labels / Tags */
     n = cfl_list_size(&metric->labels);
-    if (n > 0) {
+    label_key_count = map->label_count;
+    if (n > 0 && label_key_count > 0) {
         if (static_labels > 0 || has_namespace == CMT_TRUE) {
             cfl_sds_cat_safe(buf, ",", 1);
         }
@@ -331,8 +334,20 @@ static void format_metric(struct cmt *cmt, cfl_sds_t *buf, struct cmt_map *map,
         label_k = cfl_list_entry_first(&map->label_keys, struct cmt_map_label, _head);
 
         i = 1;
+        label_index = 0;
         cfl_list_foreach(head, &metric->labels) {
+            if (label_index >= label_key_count) {
+                break;
+            }
+
             label_v = cfl_list_entry(head, struct cmt_map_label, _head);
+
+            if (label_k->name == NULL || label_v->name == NULL) {
+                label_index++;
+                label_k = cfl_list_entry_next(&label_k->_head, struct cmt_map_label,
+                                              _head, &map->label_keys);
+                continue;
+            }
 
             /* key */
             append_string(buf, label_k->name);
@@ -344,8 +359,9 @@ static void format_metric(struct cmt *cmt, cfl_sds_t *buf, struct cmt_map *map,
             }
             i++;
 
+            label_index++;
             label_k = cfl_list_entry_next(&label_k->_head, struct cmt_map_label,
-                                         _head, &map->label_keys);
+                                          _head, &map->label_keys);
         }
     }
 
