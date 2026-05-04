@@ -18,6 +18,7 @@
  */
 
 #include <stdbool.h>
+#include <stdlib.h>
 
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_metric.h>
@@ -388,6 +389,7 @@ static void format_metric(struct cmt *cmt,
 static cfl_sds_t bucket_value_to_string(double val)
 {
     int len;
+    double parsed;
     cfl_sds_t str;
 
     str = cfl_sds_create_size(64);
@@ -396,9 +398,13 @@ static cfl_sds_t bucket_value_to_string(double val)
     }
 
     len = snprintf(str, 64, "%g", val);
+    parsed = strtod(str, NULL);
+    if (parsed != val) {
+        len = snprintf(str, 64, "%.15g", val);
+    }
     cfl_sds_len_set(str, len);
 
-    if (!strchr(str, '.')) {
+    if (!strchr(str, '.') && !strchr(str, 'e') && !strchr(str, 'E')) {
         cfl_sds_cat_safe(&str, ".0", 2);
     }
 
