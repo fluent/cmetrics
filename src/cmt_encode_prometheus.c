@@ -295,6 +295,8 @@ static void format_metric(struct cmt *cmt,
     int i;
     int static_labels = 0;
     int defined_labels = 0;
+    int label_key_count;
+    int label_index;
     struct cmt_map_label *label_k;
     struct cmt_map_label *label_v;
     struct cfl_list *head;
@@ -309,11 +311,26 @@ static void format_metric(struct cmt *cmt,
 
     /* Static labels */
     static_labels = cmt_labels_count(cmt->static_labels);
+    label_key_count = map->label_count;
+    label_index = 0;
+    if (label_key_count > 0) {
+        label_k = cfl_list_entry_first(&map->label_keys, struct cmt_map_label, _head);
+    }
     cfl_list_foreach(head, &metric->labels) {
+        if (label_index >= label_key_count) {
+            break;
+        }
+
         label_v = cfl_list_entry(head, struct cmt_map_label, _head);
-        if (strlen(label_v->name)) {
+        if (label_k->name != NULL &&
+            label_v->name != NULL &&
+            strlen(label_v->name)) {
             defined_labels++;
         }
+
+        label_index++;
+        label_k = cfl_list_entry_next(&label_k->_head, struct cmt_map_label,
+                                      _head, &map->label_keys);
     }
 
     if (!fmt->brace_open && (static_labels + defined_labels > 0)) {
@@ -335,11 +352,18 @@ static void format_metric(struct cmt *cmt,
         }
 
         i = 1;
+        label_index = 0;
         label_k = cfl_list_entry_first(&map->label_keys, struct cmt_map_label, _head);
         cfl_list_foreach(head, &metric->labels) {
+            if (label_index >= label_key_count) {
+                break;
+            }
+
             label_v = cfl_list_entry(head, struct cmt_map_label, _head);
 
-            if (strlen(label_v->name)) {
+            if (label_k->name != NULL &&
+                label_v->name != NULL &&
+                strlen(label_v->name)) {
                 fmt->labels_count += add_label(buf, label_k->name, label_v->name);
                 if (i < defined_labels) {
                     cfl_sds_cat_safe(buf, ",", 1);
@@ -348,8 +372,9 @@ static void format_metric(struct cmt *cmt,
                 i++;
             }
 
+            label_index++;
             label_k = cfl_list_entry_next(&label_k->_head, struct cmt_map_label,
-                                         _head, &map->label_keys);
+                                          _head, &map->label_keys);
         }
     }
 
