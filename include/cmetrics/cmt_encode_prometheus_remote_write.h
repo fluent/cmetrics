@@ -42,6 +42,7 @@ struct cmt_prometheus_metric_metadata {
 struct cmt_prometheus_time_series {
     uint64_t               label_set_hash;
     size_t                 entries_set;
+    size_t                 samples_capacity;
     Prometheus__TimeSeries data;
     struct cfl_list _head;
 };
