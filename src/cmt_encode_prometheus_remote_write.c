@@ -34,6 +34,14 @@
 #define SYNTHETIC_METRIC_HISTOGRAM_COUNT_SEQUENCE_DELTA 10000000
 #define SYNTHETIC_METRIC_HISTOGRAM_SUM_SEQUENCE_DELTA   100000000
 
+struct cmt_prometheus_time_series_entry {
+    uint64_t               label_set_hash;
+    size_t                 entries_set;
+    Prometheus__TimeSeries data;
+    struct cfl_list        _head;
+    size_t                 samples_capacity;
+};
+
 static cfl_sds_t render_remote_write_context_to_sds(
     struct cmt_prometheus_remote_write_context *context);
 
@@ -61,13 +69,13 @@ static int set_up_time_series_for_label_set(
                                     struct cmt_prometheus_remote_write_context *context,
                                     struct cmt_map *map,
                                     struct cmt_metric *metric,
-                                    struct cmt_prometheus_time_series **time_series);
+                                    struct cmt_prometheus_time_series_entry **time_series);
 
 static int pack_metric_metadata(struct cmt_prometheus_remote_write_context *context,
                                 struct cmt_map *map,
                                 struct cmt_metric *metric);
 
-static int append_metric_to_timeseries(struct cmt_prometheus_time_series *time_series,
+static int append_metric_to_timeseries(struct cmt_prometheus_time_series_entry *time_series,
                                        struct cmt_metric *metric);
 
 static int pack_basic_type(struct cmt_prometheus_remote_write_context *context,
@@ -111,7 +119,7 @@ cfl_sds_t render_remote_write_context_to_sds(
     struct cmt_prometheus_remote_write_context *context)
 {
     size_t                                 write_request_size;
-    struct cmt_prometheus_time_series     *time_series_entry;
+    struct cmt_prometheus_time_series_entry     *time_series_entry;
     struct cmt_prometheus_metric_metadata *metadata_entry;
     cfl_sds_t                              result_buffer;
     size_t                                 entry_index;
@@ -143,7 +151,7 @@ cfl_sds_t render_remote_write_context_to_sds(
     entry_index = 0;
 
     cfl_list_foreach(head, &context->time_series_entries) {
-        time_series_entry = cfl_list_entry(head, struct cmt_prometheus_time_series, _head);
+        time_series_entry = cfl_list_entry(head, struct cmt_prometheus_time_series_entry, _head);
 
         context->write_request.timeseries[entry_index++] = &time_series_entry->data;
     }
@@ -176,13 +184,13 @@ cfl_sds_t render_remote_write_context_to_sds(
 void cmt_destroy_prometheus_remote_write_context(
     struct cmt_prometheus_remote_write_context *context)
 {
-    struct cmt_prometheus_time_series     *time_series_entry;
+    struct cmt_prometheus_time_series_entry     *time_series_entry;
     struct cmt_prometheus_metric_metadata *metadata_entry;
     struct cfl_list                        *head;
     struct cfl_list                        *tmp;
 
     cfl_list_foreach_safe(head, tmp, &context->time_series_entries) {
-        time_series_entry = cfl_list_entry(head, struct cmt_prometheus_time_series, _head);
+        time_series_entry = cfl_list_entry(head, struct cmt_prometheus_time_series_entry, _head);
 
         if (time_series_entry->data.labels != NULL) {
             destroy_prometheus_label_list(time_series_entry->data.labels,
@@ -355,11 +363,11 @@ void destroy_prometheus_label_list(Prometheus__Label **label_list,
 int set_up_time_series_for_label_set(struct cmt_prometheus_remote_write_context *context,
                                      struct cmt_map *map,
                                      struct cmt_metric *metric,
-                                     struct cmt_prometheus_time_series **time_series)
+                                     struct cmt_prometheus_time_series_entry **time_series)
 {
     uint8_t                            time_series_match_found;
     size_t                             label_set_hash_matches;
-    struct cmt_prometheus_time_series *time_series_entry;
+    struct cmt_prometheus_time_series_entry *time_series_entry;
     uint64_t                           label_set_hash;
     struct cmt_label                  *static_label;
     size_t                             label_index;
@@ -380,7 +388,7 @@ int set_up_time_series_for_label_set(struct cmt_prometheus_remote_write_context 
     time_series_match_found = CMT_FALSE;
 
     cfl_list_foreach(head, &context->time_series_entries) {
-        time_series_entry = cfl_list_entry(head, struct cmt_prometheus_time_series, _head);
+        time_series_entry = cfl_list_entry(head, struct cmt_prometheus_time_series_entry, _head);
 
         if (time_series_entry->label_set_hash == label_set_hash) {
             time_series_match_found = CMT_TRUE;
@@ -414,7 +422,7 @@ int set_up_time_series_for_label_set(struct cmt_prometheus_remote_write_context 
                   1;
 
 
-    time_series_entry = calloc(1, sizeof(struct cmt_prometheus_time_series));
+    time_series_entry = calloc(1, sizeof(struct cmt_prometheus_time_series_entry));
 
     if (time_series_entry == NULL) {
         cmt_errno();
@@ -453,6 +461,7 @@ int set_up_time_series_for_label_set(struct cmt_prometheus_remote_write_context 
 
     time_series_entry->label_set_hash = label_set_hash;
     time_series_entry->entries_set = 0;
+    /* Capacity is initialized to at least one and grows geometrically. */
     time_series_entry->samples_capacity = label_set_hash_matches;
 
     /* Initialize the label list */
@@ -624,7 +633,7 @@ int pack_metric_metadata(struct cmt_prometheus_remote_write_context *context,
     return 0;
 }
 
-int append_metric_to_timeseries(struct cmt_prometheus_time_series *time_series,
+int append_metric_to_timeseries(struct cmt_prometheus_time_series_entry *time_series,
                                 struct cmt_metric *metric)
 {
     uint64_t ts;
@@ -634,9 +643,6 @@ int append_metric_to_timeseries(struct cmt_prometheus_time_series *time_series,
 
     if (time_series->entries_set >= time_series->samples_capacity) {
         new_capacity = time_series->samples_capacity * 2;
-        if (new_capacity == 0) {
-            new_capacity = 1;
-        }
 
         samples = realloc(time_series->data.samples,
                           new_capacity * sizeof(Prometheus__Sample *));
@@ -679,7 +685,7 @@ int pack_basic_metric_sample(struct cmt_prometheus_remote_write_context *context
                              struct cmt_metric *metric,
                              int add_metadata)
 {
-    struct cmt_prometheus_time_series *time_series;
+    struct cmt_prometheus_time_series_entry *time_series;
     int                                result;
 
     result = set_up_time_series_for_label_set(context, map, metric, &time_series);
@@ -774,7 +780,7 @@ int pack_complex_metric_sample(struct cmt_prometheus_remote_write_context *conte
     size_t                             label_key_count;
     struct cmt_map_label              *additional_label;
     struct cmt_metric                  dummy_metric;
-    struct cmt_prometheus_time_series *time_series;
+    struct cmt_prometheus_time_series_entry *time_series;
     struct cmt_map_label              *dummy_label;
     struct cmt_histogram              *histogram = NULL;
     struct cmt_summary                *summary;
