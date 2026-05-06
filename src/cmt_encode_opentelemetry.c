@@ -3197,9 +3197,18 @@ int append_sample_to_metric(struct cmt_opentelemetry_context *context,
     struct cfl_list                                     *head;
     size_t                                              label_name_count;
     size_t                                              label_name_index;
+    size_t                                              sample_label_count;
+
+    sample_label_count = 0;
+    cfl_list_foreach(head, &sample->labels) {
+        label_value = cfl_list_entry(head, struct cmt_map_label, _head);
+        if (label_value->name != NULL) {
+            sample_label_count++;
+        }
+    }
 
     attribute_count = cfl_list_size(&context->cmt->static_labels->list) +
-                      cfl_list_size(&sample->labels);
+                      sample_label_count;
     start_timestamp = 0;
 
     if (cmt_metric_has_start_timestamp(sample)) {
@@ -3364,7 +3373,7 @@ int append_sample_to_metric(struct cmt_opentelemetry_context *context,
     }
 
     label_name_count = map->label_count;
-    if (cfl_list_size(&sample->labels) > label_name_count) {
+    if (sample_label_count > label_name_count) {
         destroy_data_point(data_point, map->type);
 
         return CMT_ENCODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
@@ -3378,32 +3387,39 @@ int append_sample_to_metric(struct cmt_opentelemetry_context *context,
     cfl_list_foreach(head, &sample->labels) {
         label_value = cfl_list_entry(head, struct cmt_map_label, _head);
 
+        if (label_name_index >= label_name_count) {
+            destroy_data_point(data_point, map->type);
+
+            return CMT_ENCODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
+        }
+
         if (label_name->name == NULL) {
             destroy_data_point(data_point, map->type);
 
             return CMT_ENCODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
         }
 
-        attribute = initialize_string_attribute(label_name->name,
-                                                label_value->name != NULL ?
-                                                label_value->name : "");
+        if (label_value->name != NULL) {
+            attribute = initialize_string_attribute(label_name->name,
+                                                    label_value->name);
 
-        if (attribute == NULL) {
-            destroy_data_point(data_point, map->type);
+            if (attribute == NULL) {
+                destroy_data_point(data_point, map->type);
 
-            return CMT_ENCODE_OPENTELEMETRY_ALLOCATION_ERROR;
-        }
+                return CMT_ENCODE_OPENTELEMETRY_ALLOCATION_ERROR;
+            }
 
-        result = append_attribute_to_data_point(data_point,
-                                                map->type,
-                                                attribute,
-                                                attribute_index++);
+            result = append_attribute_to_data_point(data_point,
+                                                    map->type,
+                                                    attribute,
+                                                    attribute_index++);
 
-        if (result != CMT_ENCODE_OPENTELEMETRY_SUCCESS)
-        {
-            destroy_data_point(data_point, map->type);
+            if (result != CMT_ENCODE_OPENTELEMETRY_SUCCESS)
+            {
+                destroy_data_point(data_point, map->type);
 
-            return result;
+                return result;
+            }
         }
 
         label_name_index++;
