@@ -375,6 +375,10 @@ static int decode_histogram_points(struct cmt *cmt,
                                    Prometheus__Label **labels)
 {
     int                   i;
+    int                   bucket_index;
+    size_t                count_index;
+    size_t                count_size;
+    size_t                span_index;
     int                   static_metric_detected;
     struct cmt_histogram *histogram;
     struct cmt_metric    *metric;
@@ -389,23 +393,53 @@ static int decode_histogram_points(struct cmt *cmt,
 
     if (histogram->buckets == NULL) {
         if (hist->n_negative_spans > 0) {
-            spans = calloc(1, sizeof(double) * hist->n_negative_spans);
-
-            for (i = 0; i < hist->n_negative_spans; i++) {
-                spans[i] = (double) hist->negative_spans[i]->offset;
+            count_size = hist->n_negative_counts;
+            spans = calloc(1, sizeof(double) * count_size);
+            if (spans == NULL) {
+                return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
             }
+
+            bucket_index = 0;
+            count_index = 0;
+            for (span_index = 0; span_index < hist->n_negative_spans; span_index++) {
+                bucket_index += hist->negative_spans[span_index]->offset;
+
+                for (i = 0; i < hist->negative_spans[span_index]->length; i++) {
+                    if (count_index >= count_size) {
+                        break;
+                    }
+
+                    spans[count_index++] = (double) bucket_index++;
+                }
+            }
+
             histogram->buckets = cmt_histogram_buckets_create_size(spans,
-                                                                   hist->n_negative_spans);
+                                                                   count_index);
             free(spans);
         }
         else if (hist->n_positive_spans > 0) {
-            spans = calloc(1, sizeof(double) * hist->n_positive_spans);
-
-            for (i = 0; i < hist->n_positive_spans; i++) {
-                spans[i] = (double) hist->positive_spans[i]->offset;
+            count_size = hist->n_positive_counts;
+            spans = calloc(1, sizeof(double) * count_size);
+            if (spans == NULL) {
+                return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
             }
+
+            bucket_index = 0;
+            count_index = 0;
+            for (span_index = 0; span_index < hist->n_positive_spans; span_index++) {
+                bucket_index += hist->positive_spans[span_index]->offset;
+
+                for (i = 0; i < hist->positive_spans[span_index]->length; i++) {
+                    if (count_index >= count_size) {
+                        break;
+                    }
+
+                    spans[count_index++] = (double) bucket_index++;
+                }
+            }
+
             histogram->buckets = cmt_histogram_buckets_create_size(spans,
-                                                                   hist->n_positive_spans);
+                                                                   count_index);
             free(spans);
         }
 
@@ -452,6 +486,26 @@ static int decode_histogram_points(struct cmt *cmt,
         map->metric_static_set = CMT_TRUE;
     }
 
+    if (metric->hist_buckets == NULL) {
+        metric->hist_buckets = calloc(1, sizeof(uint64_t) *
+                                      (histogram->buckets->count + 1));
+        if (metric->hist_buckets == NULL) {
+            if (static_metric_detected == CMT_FALSE) {
+                if (metric->hist_buckets != NULL) {
+                    free(metric->hist_buckets);
+                }
+
+                destroy_label_list(&metric->labels);
+
+                cfl_list_del(&metric->_head);
+
+                free(metric);
+            }
+
+            return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
+        }
+    }
+
     if (result == CMT_DECODE_PROMETHEUS_REMOTE_WRITE_SUCCESS) {
         if (hist->n_negative_spans > 0) {
             for (i = 0; i < hist->n_negative_counts; i++) {
@@ -467,6 +521,10 @@ static int decode_histogram_points(struct cmt *cmt,
         }
         else {
             if (static_metric_detected == CMT_FALSE) {
+                if (metric->hist_buckets != NULL) {
+                    free(metric->hist_buckets);
+                }
+
                 destroy_label_list(&metric->labels);
 
                 cfl_list_del(&metric->_head);
@@ -489,6 +547,10 @@ static int decode_histogram_points(struct cmt *cmt,
     }
     else {
         if (static_metric_detected == CMT_FALSE) {
+            if (metric->hist_buckets != NULL) {
+                free(metric->hist_buckets);
+            }
+
             destroy_label_list(&metric->labels);
 
             cfl_list_del(&metric->_head);
@@ -578,12 +640,12 @@ static int decode_metrics_entry(struct cmt *cmt,
         if (meta_count > i) {
             metadata = write->metadata[i];
         }
-        if (metadata == NULL) {
-            type = PROMETHEUS__METRIC_METADATA__METRIC_TYPE__GAUGE;
+        if (hist_count > 0) {
+            type = PROMETHEUS__METRIC_METADATA__METRIC_TYPE__HISTOGRAM;
             metric_description = "-";
         }
-        else if (hist_count > 0) {
-            type = PROMETHEUS__METRIC_METADATA__METRIC_TYPE__HISTOGRAM;
+        else if (metadata == NULL) {
+            type = PROMETHEUS__METRIC_METADATA__METRIC_TYPE__GAUGE;
             metric_description = "-";
         }
         else {
@@ -666,13 +728,16 @@ static int decode_metrics_entry(struct cmt *cmt,
                                             metric_subsystem,
                                             metric_name,
                                             metric_description,
-                                            (struct cmt_histogram_buckets *) cmt,
+                                            NULL,
                                             0, NULL);
 
             if (instance == NULL) {
                 free(metric_name);
                 return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
             }
+
+            cmt_histogram_buckets_destroy(((struct cmt_histogram *) instance)->buckets);
+            ((struct cmt_histogram *) instance)->buckets = NULL;
 
             result = decode_histogram_entry(cmt, instance, ts);
 

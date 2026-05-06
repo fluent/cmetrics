@@ -19,7 +19,9 @@
 
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_counter.h>
+#include <cmetrics/cmt_encode_influx.h>
 #include <cmetrics/cmt_encode_prometheus.h>
+#include <cmetrics/cmt_encode_splunk_hec.h>
 
 #include "cmt_tests.h"
 
@@ -156,6 +158,24 @@ void test_encoding()
         "test_dummy_labels{A=\"a\",B=\"b\",C=\"c\",D=\"d\",E=\"e\",F=\"f\"} 1 0\n"
         ) == 0);
     cfl_sds_destroy(result);
+
+    result = cmt_encode_influx_create(cmt);
+    TEST_CHECK(result != NULL);
+    if (result != NULL) {
+        TEST_CHECK(strstr(result, ", ") == NULL);
+        TEST_CHECK(strstr(result, ",,") == NULL);
+        TEST_CHECK(strstr(result, "B=b") != NULL);
+        cmt_encode_influx_destroy(result);
+    }
+
+    result = cmt_encode_splunk_hec_create(cmt, "localhost", "main", NULL, NULL);
+    TEST_CHECK(result != NULL);
+    if (result != NULL) {
+        TEST_CHECK(strstr(result, ",,") == NULL);
+        TEST_CHECK(strstr(result, ",}") == NULL);
+        TEST_CHECK(strstr(result, "\"B\":\"b\"") != NULL);
+        cmt_encode_splunk_hec_destroy(result);
+    }
 
     cmt_destroy(cmt);
 }
