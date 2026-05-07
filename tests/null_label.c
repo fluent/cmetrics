@@ -123,6 +123,12 @@ void test_encoding()
     cfl_sds_destroy(result);
 
 
+    cmt_counter_inc(c, 0, 6, (char *[]) {NULL,"",NULL,NULL,NULL,NULL});
+    result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
+    TEST_CHECK(strstr(result, "test_dummy_labels{B=\"\"} 1 0\n") != NULL);
+    cfl_sds_destroy(result);
+
+
     cmt_counter_set(c, 0, 5, 6, (char *[]) {NULL,NULL,NULL,"d",NULL,NULL});
     result = cmt_encode_prometheus_create(cmt, CMT_TRUE);
     TEST_CHECK(strcmp(result,
@@ -130,6 +136,7 @@ void test_encoding()
         "# TYPE test_dummy_labels counter\n"
         "test_dummy_labels 2 0\n"
         "test_dummy_labels{B=\"b\"} 2 0\n"
+        "test_dummy_labels{B=\"\"} 1 0\n"
         "test_dummy_labels{D=\"d\"} 5 0\n"
         ) == 0);
     cfl_sds_destroy(result);
@@ -141,6 +148,7 @@ void test_encoding()
         "# TYPE test_dummy_labels counter\n"
         "test_dummy_labels 2 0\n"
         "test_dummy_labels{B=\"b\"} 2 0\n"
+        "test_dummy_labels{B=\"\"} 1 0\n"
         "test_dummy_labels{D=\"d\"} 5 0\n"
         "test_dummy_labels{B=\"b\",D=\"d\",F=\"f\"} 50 0\n"
         ) == 0);
@@ -153,6 +161,7 @@ void test_encoding()
         "# TYPE test_dummy_labels counter\n"
         "test_dummy_labels 2 0\n"
         "test_dummy_labels{B=\"b\"} 2 0\n"
+        "test_dummy_labels{B=\"\"} 1 0\n"
         "test_dummy_labels{D=\"d\"} 5 0\n"
         "test_dummy_labels{B=\"b\",D=\"d\",F=\"f\"} 50 0\n"
         "test_dummy_labels{A=\"a\",B=\"b\",C=\"c\",D=\"d\",E=\"e\",F=\"f\"} 1 0\n"
