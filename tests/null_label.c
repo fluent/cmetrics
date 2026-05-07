@@ -20,6 +20,8 @@
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_encode_influx.h>
+#include <cmetrics/cmt_map.h>
+#include <cmetrics/cmt_metric.h>
 #include <cmetrics/cmt_encode_prometheus.h>
 #include <cmetrics/cmt_encode_splunk_hec.h>
 
@@ -87,6 +89,8 @@ void test_encoding()
     cfl_sds_t result;
     struct cmt *cmt;
     struct cmt_counter *c;
+    struct cmt_metric *metric;
+    struct cmt_map_label *label;
 
     cmt = cmt_create();
     c = cmt_counter_create(cmt, "test", "dummy", "labels", "testing labels",
@@ -184,6 +188,37 @@ void test_encoding()
         TEST_CHECK(strstr(result, ",}") == NULL);
         TEST_CHECK(strstr(result, "\"B\":\"b\"") != NULL);
         cmt_encode_splunk_hec_destroy(result);
+    }
+
+    cmt_destroy(cmt);
+
+    cmt = cmt_create();
+    c = cmt_counter_create(cmt, "test", "influx", "labels", "testing influx labels",
+                           1, (char *[]) {"A"});
+
+    cmt_counter_inc(c, 0, 1, (char *[]) {"a"});
+    metric = cfl_list_entry_first(&c->map->metrics, struct cmt_metric, _head);
+    TEST_CHECK(metric != NULL);
+    if (metric != NULL) {
+        label = calloc(1, sizeof(struct cmt_map_label));
+        TEST_CHECK(label != NULL);
+        if (label != NULL) {
+            label->name = cfl_sds_create("extra");
+            TEST_CHECK(label->name != NULL);
+            if (label->name != NULL) {
+                cfl_list_add(&label->_head, &metric->labels);
+            }
+            else {
+                free(label);
+            }
+        }
+    }
+
+    result = cmt_encode_influx_create(cmt);
+    TEST_CHECK(result != NULL);
+    if (result != NULL) {
+        TEST_CHECK(cfl_sds_len(result) == 0);
+        cmt_encode_influx_destroy(result);
     }
 
     cmt_destroy(cmt);
