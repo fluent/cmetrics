@@ -402,7 +402,7 @@ static cfl_sds_t bucket_value_to_string(double val)
 
     len = snprintf(str, 64, "%g", val);
     parsed = strtod(str, NULL);
-    if (parsed != val) {
+    if (parsed != val || strchr(str, 'e') || strchr(str, 'E')) {
         len = snprintf(str, 64, "%.17g", val);
     }
     cfl_sds_len_set(str, len);
