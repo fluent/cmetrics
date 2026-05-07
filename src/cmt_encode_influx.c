@@ -283,6 +283,12 @@ static void format_metric(struct cmt *cmt, cfl_sds_t *buf, struct cmt_map *map,
         return;
     }
 
+    n = cfl_list_size(&metric->labels);
+    label_key_count = map->label_count;
+    if (n > label_key_count) {
+        return;
+    }
+
     opts = map->opts;
 
     /* Measurement */
@@ -324,17 +330,11 @@ static void format_metric(struct cmt *cmt, cfl_sds_t *buf, struct cmt_map *map,
     }
 
     /* Labels / Tags */
-    n = cfl_list_size(&metric->labels);
-    label_key_count = map->label_count;
     if (n > 0 && label_key_count > 0) {
         label_k = cfl_list_entry_first(&map->label_keys, struct cmt_map_label, _head);
 
         label_index = 0;
         cfl_list_foreach(head, &metric->labels) {
-            if (label_index >= label_key_count) {
-                break;
-            }
-
             label_v = cfl_list_entry(head, struct cmt_map_label, _head);
 
             if (label_k->name == NULL || label_v->name == NULL) {
