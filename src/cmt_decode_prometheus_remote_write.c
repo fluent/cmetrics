@@ -26,6 +26,9 @@
 #include <cmetrics/cmt_untyped.h>
 #include <cmetrics/cmt_decode_prometheus_remote_write.h>
 
+#include <stdint.h>
+#include <limits.h>
+
 static void *__cmt_allocator_alloc(void *data, size_t size) {
     return malloc(size);
 }
@@ -140,6 +143,7 @@ static int decode_labels(struct cmt *cmt,
                          Prometheus__Label **labels)
 {
     void                 **value_index_list;
+    size_t                 alloc_count;
     size_t                 prom_label_index;
     size_t                 map_label_index;
     size_t                 map_label_count;
@@ -156,11 +160,17 @@ static int decode_labels(struct cmt *cmt,
         return result;
     }
 
-    if (n_labels > 127) {
+    if (labels == NULL) {
         return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
     }
 
-    value_index_list = calloc(128, sizeof(void *));
+    map_label_count = cfl_list_size(&map->label_keys);
+    if (n_labels > SIZE_MAX - map_label_count) {
+        return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+    }
+
+    alloc_count = map_label_count + n_labels;
+    value_index_list = calloc(alloc_count, sizeof(void *));
 
     if (value_index_list == NULL) {
         return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
@@ -198,6 +208,11 @@ static int decode_labels(struct cmt *cmt,
         }
 
         if (result == CMT_DECODE_PROMETHEUS_REMOTE_WRITE_SUCCESS) {
+            if (label_index >= alloc_count) {
+                result = CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+                break;
+            }
+
             value_index_list[label_index] = (void *) label;
         }
     }
@@ -208,6 +223,11 @@ static int decode_labels(struct cmt *cmt,
          result == CMT_DECODE_PROMETHEUS_REMOTE_WRITE_SUCCESS &&
          map_label_index < map_label_count ;
          map_label_index++) {
+
+        if (map_label_index >= alloc_count) {
+            result = CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+            break;
+        }
 
         if (value_index_list[map_label_index] != NULL) {
             label = (Prometheus__Label *) value_index_list[map_label_index];
@@ -391,10 +411,35 @@ static int decode_histogram_points(struct cmt *cmt,
 
     histogram = (struct cmt_histogram *) map->parent;
 
+    if (hist == NULL) {
+        return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+    }
+
+    if (hist->n_negative_spans > 0 && hist->negative_spans == NULL) {
+        return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+    }
+
+    if (hist->n_positive_spans > 0 && hist->positive_spans == NULL) {
+        return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+    }
+
+    if (hist->n_negative_counts > 0 && hist->negative_counts == NULL) {
+        return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+    }
+
+    if (hist->n_positive_counts > 0 && hist->positive_counts == NULL) {
+        return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+    }
+
+    if (hist->n_negative_counts > INT_MAX ||
+        hist->n_positive_counts > INT_MAX) {
+        return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+    }
+
     if (histogram->buckets == NULL) {
         if (hist->n_negative_spans > 0) {
             count_size = hist->n_negative_counts;
-            spans = calloc(1, sizeof(double) * count_size);
+            spans = calloc(count_size, sizeof(double));
             if (spans == NULL) {
                 return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
             }
@@ -402,6 +447,11 @@ static int decode_histogram_points(struct cmt *cmt,
             bucket_index = 0;
             count_index = 0;
             for (span_index = 0; span_index < hist->n_negative_spans; span_index++) {
+                if (hist->negative_spans[span_index] == NULL) {
+                    free(spans);
+                    return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+                }
+
                 bucket_index += hist->negative_spans[span_index]->offset;
 
                 for (i = 0; i < hist->negative_spans[span_index]->length; i++) {
@@ -419,7 +469,7 @@ static int decode_histogram_points(struct cmt *cmt,
         }
         else if (hist->n_positive_spans > 0) {
             count_size = hist->n_positive_counts;
-            spans = calloc(1, sizeof(double) * count_size);
+            spans = calloc(count_size, sizeof(double));
             if (spans == NULL) {
                 return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_ALLOCATION_ERROR;
             }
@@ -427,6 +477,11 @@ static int decode_histogram_points(struct cmt *cmt,
             bucket_index = 0;
             count_index = 0;
             for (span_index = 0; span_index < hist->n_positive_spans; span_index++) {
+                if (hist->positive_spans[span_index] == NULL) {
+                    free(spans);
+                    return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+                }
+
                 bucket_index += hist->positive_spans[span_index]->offset;
 
                 for (i = 0; i < hist->positive_spans[span_index]->length; i++) {
@@ -487,8 +542,20 @@ static int decode_histogram_points(struct cmt *cmt,
     }
 
     if (metric->hist_buckets == NULL) {
-        metric->hist_buckets = calloc(1, sizeof(uint64_t) *
-                                      (histogram->buckets->count + 1));
+        if (histogram->buckets->count >= INT_MAX) {
+            if (static_metric_detected == CMT_FALSE) {
+                destroy_label_list(&metric->labels);
+
+                cfl_list_del(&metric->_head);
+
+                free(metric);
+            }
+
+            return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+        }
+
+        metric->hist_buckets = calloc(histogram->buckets->count + 1,
+                                      sizeof(uint64_t));
         if (metric->hist_buckets == NULL) {
             if (static_metric_detected == CMT_FALSE) {
                 if (metric->hist_buckets != NULL) {
@@ -575,6 +642,10 @@ static int decode_histogram_time_series(struct cmt *cmt,
 
     result = CMT_DECODE_PROMETHEUS_REMOTE_WRITE_SUCCESS;
 
+    if (hist_count > 0 && ts->histograms == NULL) {
+        return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+    }
+
     for (index = 0; result == 0 && index < hist_count; index++) {
         histogram = ts->histograms[index];
         result = decode_histogram_points(cmt, map,
@@ -612,6 +683,7 @@ static int decode_metrics_entry(struct cmt *cmt,
                                 Prometheus__WriteRequest *write)
 {
     int   i;
+    int   j;
     char *metric_name = NULL;
     char *metric_subsystem   = NULL;
     char *metric_namespace   = NULL;
@@ -628,6 +700,14 @@ static int decode_metrics_entry(struct cmt *cmt,
     result = CMT_DECODE_PROMETHEUS_REMOTE_WRITE_SUCCESS;
 
     ts_count = write->n_timeseries;
+    if (ts_count > 0 && write->timeseries == NULL) {
+        return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+    }
+
+    if (write->n_metadata > 0 && write->metadata == NULL) {
+        return CMT_DECODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+    }
+
     for (i = 0; i < ts_count; i++) {
         ts = write->timeseries[i];
         if (ts == NULL) {
@@ -637,28 +717,41 @@ static int decode_metrics_entry(struct cmt *cmt,
         meta_count = write->n_metadata;
         hist_count = ts->n_histograms;
         metadata = NULL;
-        if (meta_count > i) {
-            metadata = write->metadata[i];
+
+        metric_name = cmt_metric_name_from_labels(ts);
+        if (metric_name == NULL) {
+            continue;
         }
+
+        for (j = 0; j < meta_count; j++) {
+            if (write->metadata[j] == NULL ||
+                write->metadata[j]->metric_family_name == NULL) {
+                continue;
+            }
+
+            if (strcmp(write->metadata[j]->metric_family_name, metric_name) == 0) {
+                metadata = write->metadata[j];
+                break;
+            }
+        }
+
         if (hist_count > 0) {
             type = PROMETHEUS__METRIC_METADATA__METRIC_TYPE__HISTOGRAM;
-            metric_description = "-";
+            metric_description = metadata != NULL ? metadata->help : "-";
+            if (metric_description == NULL) {
+                metric_description = "-";
+            }
         }
         else if (metadata == NULL) {
             type = PROMETHEUS__METRIC_METADATA__METRIC_TYPE__GAUGE;
             metric_description = "-";
         }
         else {
-            type = write->metadata[i]->type;
-            metric_description = write->metadata[i]->help;
+            type = metadata->type;
+            metric_description = metadata->help;
             if (metric_description == NULL) {
                 metric_description = "-";
             }
-        }
-
-        metric_name = cmt_metric_name_from_labels(ts);
-        if (metric_name == NULL) {
-            continue;
         }
 
         metric_namespace = "";

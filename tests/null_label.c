@@ -23,7 +23,10 @@
 #include <cmetrics/cmt_map.h>
 #include <cmetrics/cmt_metric.h>
 #include <cmetrics/cmt_encode_prometheus.h>
+#include <cmetrics/cmt_encode_prometheus_remote_write.h>
 #include <cmetrics/cmt_encode_splunk_hec.h>
+
+#include <prometheus_remote_write/remote.pb-c.h>
 
 #include "cmt_tests.h"
 
@@ -91,6 +94,7 @@ void test_encoding()
     struct cmt_counter *c;
     struct cmt_metric *metric;
     struct cmt_map_label *label;
+    uint64_t ts;
 
     cmt = cmt_create();
     c = cmt_counter_create(cmt, "test", "dummy", "labels", "testing labels",
@@ -219,6 +223,114 @@ void test_encoding()
     if (result != NULL) {
         TEST_CHECK(cfl_sds_len(result) == 0);
         cmt_encode_influx_destroy(result);
+    }
+
+    cmt_destroy(cmt);
+
+    cmt = cmt_create();
+    c = cmt_counter_create(cmt, "test", "remote", "labels", "testing remote-write labels",
+                           3, (char *[]) {"A", "B", "C"});
+    ts = cfl_time_now();
+
+    cmt_counter_inc(c, ts, 3, (char *[]) {NULL, NULL, NULL});
+    cmt_counter_inc(c, ts, 3, (char *[]) {NULL, "", NULL});
+    cmt_counter_inc(c, ts, 3, (char *[]) {NULL, "b", NULL});
+    cmt_counter_inc(c, ts, 3, (char *[]) {"a", "b", "c"});
+
+    result = cmt_encode_prometheus_remote_write_create(cmt);
+    TEST_CHECK(result != NULL);
+    if (result != NULL) {
+        Prometheus__WriteRequest *request;
+        size_t series_index;
+        size_t label_index;
+        size_t label_a_count;
+        size_t label_b_count;
+        size_t label_c_count;
+        size_t label_d_count;
+        size_t label_e_count;
+        size_t label_f_count;
+
+        request = prometheus__write_request__unpack(NULL,
+                                                    cfl_sds_len(result),
+                                                    (uint8_t *) result);
+        TEST_CHECK(request != NULL);
+        if (request != NULL) {
+            label_a_count = 0;
+            label_b_count = 0;
+            label_c_count = 0;
+            label_d_count = 0;
+            label_e_count = 0;
+            label_f_count = 0;
+
+            for (series_index = 0; series_index < request->n_timeseries; series_index++) {
+                for (label_index = 0;
+                     label_index < request->timeseries[series_index]->n_labels;
+                     label_index++) {
+                    if (strcmp(request->timeseries[series_index]->labels[label_index]->name, "A") == 0) {
+                        label_a_count++;
+                    }
+                    else if (strcmp(request->timeseries[series_index]->labels[label_index]->name, "B") == 0) {
+                        label_b_count++;
+                    }
+                    else if (strcmp(request->timeseries[series_index]->labels[label_index]->name, "C") == 0) {
+                        label_c_count++;
+                    }
+                    else if (strcmp(request->timeseries[series_index]->labels[label_index]->name, "D") == 0) {
+                        label_d_count++;
+                    }
+                    else if (strcmp(request->timeseries[series_index]->labels[label_index]->name, "E") == 0) {
+                        label_e_count++;
+                    }
+                    else if (strcmp(request->timeseries[series_index]->labels[label_index]->name, "F") == 0) {
+                        label_f_count++;
+                    }
+                }
+            }
+
+            TEST_CHECK(label_a_count == 1);
+            TEST_CHECK(label_b_count == 3);
+            TEST_CHECK(label_c_count == 1);
+            TEST_CHECK(label_d_count == 0);
+            TEST_CHECK(label_e_count == 0);
+            TEST_CHECK(label_f_count == 0);
+            prometheus__write_request__free_unpacked(request, NULL);
+        }
+        cmt_encode_prometheus_remote_write_destroy(result);
+    }
+
+    cmt_destroy(cmt);
+
+    cmt = cmt_create();
+    c = cmt_counter_create(cmt, "test", "remote_nil", "labels",
+                           "testing remote-write nil labels",
+                           1, (char *[]) {"A"});
+
+    cmt_counter_inc(c, ts, 1, (char *[]) {NULL});
+    label = cfl_list_entry_first(&c->map->label_keys, struct cmt_map_label, _head);
+    TEST_CHECK(label != NULL);
+    if (label != NULL) {
+        cfl_sds_destroy(label->name);
+        label->name = NULL;
+    }
+
+    result = cmt_encode_prometheus_remote_write_create(cmt);
+    TEST_CHECK(result != NULL);
+    if (result != NULL) {
+        Prometheus__WriteRequest *request;
+
+        request = prometheus__write_request__unpack(NULL,
+                                                    cfl_sds_len(result),
+                                                    (uint8_t *) result);
+        TEST_CHECK(request != NULL);
+        if (request != NULL) {
+            TEST_CHECK(request->n_timeseries == 1);
+            if (request->n_timeseries == 1) {
+                TEST_CHECK(request->timeseries[0]->n_labels == 1);
+                TEST_CHECK(strcmp(request->timeseries[0]->labels[0]->name, "__name__") == 0);
+            }
+            prometheus__write_request__free_unpacked(request, NULL);
+        }
+        cmt_encode_prometheus_remote_write_destroy(result);
     }
 
     cmt_destroy(cmt);

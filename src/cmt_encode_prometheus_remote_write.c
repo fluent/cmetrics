@@ -373,6 +373,7 @@ int set_up_time_series_for_label_set(struct cmt_prometheus_remote_write_context 
     size_t                             label_index;
     size_t                             label_count;
     size_t                             metric_label_count;
+    size_t                             metric_label_emit_count;
     struct cmt_map_label              *label_value;
     struct cmt_map_label              *label_name;
     Prometheus__Label                **label_list;
@@ -417,8 +418,16 @@ int set_up_time_series_for_label_set(struct cmt_prometheus_remote_write_context 
      * one for the fixed __name__ label
      */
     metric_label_count = cfl_list_size(&metric->labels);
+    metric_label_emit_count = 0;
+    cfl_list_foreach(head, &metric->labels) {
+        label_value = cfl_list_entry(head, struct cmt_map_label, _head);
+        if (label_value->name != NULL) {
+            metric_label_emit_count++;
+        }
+    }
+
     label_count = cfl_list_size(&context->cmt->static_labels->list) +
-                  metric_label_count +
+                  metric_label_emit_count +
                   1;
 
 
@@ -517,6 +526,22 @@ int set_up_time_series_for_label_set(struct cmt_prometheus_remote_write_context 
 
             label_value = cfl_list_entry(head, struct cmt_map_label, _head);
 
+            if (label_value->name == NULL) {
+                label_name_index++;
+                if (label_name_index < label_name_count) {
+                    label_name = cfl_list_entry_next(&label_name->_head,
+                                                     struct cmt_map_label,
+                                                     _head, &map->label_keys);
+                }
+
+                continue;
+            }
+
+            if (label_name_index >= label_name_count) {
+                result = CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
+                break;
+            }
+
             if (label_name->name == NULL) {
                 result = CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_INVALID_ARGUMENT_ERROR;
                 break;
@@ -525,8 +550,7 @@ int set_up_time_series_for_label_set(struct cmt_prometheus_remote_write_context 
             result = append_entry_to_prometheus_label_list(label_list,
                                                            &label_index,
                                                            label_name->name,
-                                                           label_value->name != NULL ?
-                                                           label_value->name : "");
+                                                           label_value->name);
 
             if (result != CMT_ENCODE_PROMETHEUS_REMOTE_WRITE_SUCCESS)
             {
