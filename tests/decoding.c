@@ -256,7 +256,7 @@ static cfl_sds_t generate_remote_write_sparse_metadata_histogram_payload()
 void test_prometheus_remote_write()
 {
     int ret;
-    struct cmt *decoded_context;
+    struct cmt *decoded_context = NULL;
     cfl_sds_t payload = read_file(CMT_TESTS_DATA_PATH "/remote_write_dump_originally_from_node_exporter.bin");
 
     cmt_initialize();
@@ -264,7 +264,10 @@ void test_prometheus_remote_write()
     ret = cmt_decode_prometheus_remote_write_create(&decoded_context, payload, cfl_sds_len(payload));
     TEST_CHECK(ret == CMT_DECODE_PROMETHEUS_REMOTE_WRITE_SUCCESS);
 
-    cmt_decode_prometheus_remote_write_destroy(decoded_context);
+    if (decoded_context != NULL) {
+        cmt_decode_prometheus_remote_write_destroy(decoded_context);
+        decoded_context = NULL;
+    }
 
     cfl_sds_destroy(payload);
 }
@@ -284,6 +287,10 @@ void test_prometheus_remote_write_missing_label_name_rejected()
                                                         payload,
                                                         cfl_sds_len(payload));
         TEST_CHECK(ret != CMT_DECODE_PROMETHEUS_REMOTE_WRITE_SUCCESS);
+        if (decoded_context != NULL) {
+            cmt_decode_prometheus_remote_write_destroy(decoded_context);
+            decoded_context = NULL;
+        }
         cfl_sds_destroy(payload);
     }
 }
@@ -310,7 +317,10 @@ void test_prometheus_remote_write_missing_label_value_no_crash()
             if (encoded_payload != NULL) {
                 cmt_encode_prometheus_remote_write_destroy(encoded_payload);
             }
+        }
+        if (decoded_context != NULL) {
             cmt_decode_prometheus_remote_write_destroy(decoded_context);
+            decoded_context = NULL;
         }
         cfl_sds_destroy(payload);
     }
@@ -363,7 +373,10 @@ void test_prometheus_remote_write_sparse_metadata_histogram()
                     TEST_CHECK(cmt_metric_hist_get_count_value(metric) == 6);
                 }
             }
+        }
+        if (decoded_context != NULL) {
             cmt_decode_prometheus_remote_write_destroy(decoded_context);
+            decoded_context = NULL;
         }
         cfl_sds_destroy(payload);
     }
@@ -402,7 +415,10 @@ void test_prometheus_remote_write_metadata_matched_by_name()
             if (counter != NULL) {
                 TEST_CHECK(strcmp(counter->opts.name, "rw_counter") == 0);
             }
+        }
+        if (decoded_context != NULL) {
             cmt_decode_prometheus_remote_write_destroy(decoded_context);
+            decoded_context = NULL;
         }
         cfl_sds_destroy(payload);
     }

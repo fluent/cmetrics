@@ -1614,49 +1614,52 @@ static void test_opentelemetry_missing_attribute_value_no_crash(void)
         TEST_CHECK(ret == CMT_DECODE_OPENTELEMETRY_SUCCESS);
         if (ret == CMT_DECODE_OPENTELEMETRY_SUCCESS) {
             decoded_context = cfl_list_entry_first(&result_list, struct cmt, _head);
-            gauge = cfl_list_entry_first(&decoded_context->gauges,
-                                         struct cmt_gauge, _head);
-            TEST_CHECK(gauge != NULL);
-            if (gauge != NULL) {
-                metric = cfl_list_entry_first(&gauge->map->metrics,
-                                              struct cmt_metric, _head);
-                TEST_CHECK(metric != NULL);
-                if (metric != NULL) {
-                    label_value = cfl_list_entry_first(&metric->labels,
-                                                       struct cmt_map_label, _head);
-                    TEST_CHECK(label_value != NULL);
-                    if (label_value != NULL) {
-                        TEST_CHECK(label_value->name == NULL);
-                    }
-                }
-            }
-
-            encoded_payload = cmt_encode_opentelemetry_create(decoded_context);
-            TEST_CHECK(encoded_payload != NULL);
-            if (encoded_payload != NULL) {
-                service_request = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__unpack(
-                    NULL, cfl_sds_len(encoded_payload), (uint8_t *) encoded_payload);
-                TEST_CHECK(service_request != NULL);
-
-                if (service_request != NULL &&
-                    service_request->n_resource_metrics == 1 &&
-                    service_request->resource_metrics[0]->n_scope_metrics == 1 &&
-                    service_request->resource_metrics[0]->scope_metrics[0]->n_metrics == 1) {
-                    roundtrip_metric = service_request->resource_metrics[0]->scope_metrics[0]->metrics[0];
-                    TEST_CHECK(roundtrip_metric->data_case ==
-                               OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_GAUGE);
-                    if (roundtrip_metric->data_case ==
-                        OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_GAUGE) {
-                        TEST_CHECK(roundtrip_metric->gauge->n_data_points == 1);
-                        roundtrip_dp = roundtrip_metric->gauge->data_points[0];
-                        TEST_CHECK(roundtrip_dp->n_attributes == 0);
+            TEST_CHECK(decoded_context != NULL);
+            if (decoded_context != NULL) {
+                gauge = cfl_list_entry_first(&decoded_context->gauges,
+                                             struct cmt_gauge, _head);
+                TEST_CHECK(gauge != NULL);
+                if (gauge != NULL) {
+                    metric = cfl_list_entry_first(&gauge->map->metrics,
+                                                  struct cmt_metric, _head);
+                    TEST_CHECK(metric != NULL);
+                    if (metric != NULL) {
+                        label_value = cfl_list_entry_first(&metric->labels,
+                                                           struct cmt_map_label, _head);
+                        TEST_CHECK(label_value != NULL);
+                        if (label_value != NULL) {
+                            TEST_CHECK(label_value->name == NULL);
+                        }
                     }
                 }
 
-                if (service_request != NULL) {
-                    opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__free_unpacked(service_request, NULL);
+                encoded_payload = cmt_encode_opentelemetry_create(decoded_context);
+                TEST_CHECK(encoded_payload != NULL);
+                if (encoded_payload != NULL) {
+                    service_request = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__unpack(
+                        NULL, cfl_sds_len(encoded_payload), (uint8_t *) encoded_payload);
+                    TEST_CHECK(service_request != NULL);
+
+                    if (service_request != NULL &&
+                        service_request->n_resource_metrics == 1 &&
+                        service_request->resource_metrics[0]->n_scope_metrics == 1 &&
+                        service_request->resource_metrics[0]->scope_metrics[0]->n_metrics == 1) {
+                        roundtrip_metric = service_request->resource_metrics[0]->scope_metrics[0]->metrics[0];
+                        TEST_CHECK(roundtrip_metric->data_case ==
+                                   OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_GAUGE);
+                        if (roundtrip_metric->data_case ==
+                            OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_GAUGE) {
+                            TEST_CHECK(roundtrip_metric->gauge->n_data_points == 1);
+                            roundtrip_dp = roundtrip_metric->gauge->data_points[0];
+                            TEST_CHECK(roundtrip_dp->n_attributes == 0);
+                        }
+                    }
+
+                    if (service_request != NULL) {
+                        opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__free_unpacked(service_request, NULL);
+                    }
+                    cmt_encode_opentelemetry_destroy(encoded_payload);
                 }
-                cmt_encode_opentelemetry_destroy(encoded_payload);
             }
             cmt_decode_opentelemetry_destroy(&result_list);
         }
@@ -1690,64 +1693,67 @@ static void test_opentelemetry_zero_length_bytes_attribute(void)
         TEST_CHECK(ret == CMT_DECODE_OPENTELEMETRY_SUCCESS);
         if (ret == CMT_DECODE_OPENTELEMETRY_SUCCESS) {
             decoded_context = cfl_list_entry_first(&result_list, struct cmt, _head);
-            TEST_CHECK(cfl_list_size(&decoded_context->gauges) == 1);
-            gauge = cfl_list_entry_first(&decoded_context->gauges,
-                                         struct cmt_gauge, _head);
-            TEST_CHECK(gauge != NULL);
-            if (gauge != NULL) {
-                TEST_CHECK(cfl_list_size(&gauge->map->metrics) == 1);
-                metric = cfl_list_entry_first(&gauge->map->metrics,
-                                              struct cmt_metric, _head);
-                TEST_CHECK(metric != NULL);
-                if (metric != NULL) {
-                    label_value = cfl_list_entry_first(&metric->labels,
-                                                       struct cmt_map_label, _head);
-                    TEST_CHECK(label_value != NULL);
-                    if (label_value != NULL) {
-                        TEST_CHECK(label_value->name != NULL);
-                        if (label_value->name != NULL) {
-                            TEST_CHECK(cfl_sds_len(label_value->name) == 0);
-                        }
-                    }
-                }
-            }
-
-            encoded_payload = cmt_encode_opentelemetry_create(decoded_context);
-            TEST_CHECK(encoded_payload != NULL);
-            if (encoded_payload != NULL) {
-                service_request = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__unpack(
-                    NULL, cfl_sds_len(encoded_payload), (uint8_t *) encoded_payload);
-                TEST_CHECK(service_request != NULL);
-
-                if (service_request != NULL &&
-                    service_request->n_resource_metrics == 1 &&
-                    service_request->resource_metrics[0]->n_scope_metrics == 1 &&
-                    service_request->resource_metrics[0]->scope_metrics[0]->n_metrics == 1) {
-                    roundtrip_metric = service_request->resource_metrics[0]->scope_metrics[0]->metrics[0];
-                    TEST_CHECK(roundtrip_metric->data_case ==
-                               OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_GAUGE);
-                    if (roundtrip_metric->data_case ==
-                        OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_GAUGE) {
-                        TEST_CHECK(roundtrip_metric->gauge->n_data_points == 1);
-                        roundtrip_dp = roundtrip_metric->gauge->data_points[0];
-                        TEST_CHECK(roundtrip_dp->n_attributes == 1);
-                        if (roundtrip_dp->n_attributes == 1) {
-                            attribute = roundtrip_dp->attributes[0];
-                            TEST_CHECK(strcmp(attribute->key, "empty_bytes") == 0);
-                            TEST_CHECK(attribute->value->value_case ==
-                                       OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_STRING_VALUE);
-                            TEST_CHECK(attribute->value->string_value != NULL);
-                            if (attribute->value->string_value != NULL) {
-                                TEST_CHECK(attribute->value->string_value[0] == '\0');
+            TEST_CHECK(decoded_context != NULL);
+            if (decoded_context != NULL) {
+                TEST_CHECK(cfl_list_size(&decoded_context->gauges) == 1);
+                gauge = cfl_list_entry_first(&decoded_context->gauges,
+                                             struct cmt_gauge, _head);
+                TEST_CHECK(gauge != NULL);
+                if (gauge != NULL) {
+                    TEST_CHECK(cfl_list_size(&gauge->map->metrics) == 1);
+                    metric = cfl_list_entry_first(&gauge->map->metrics,
+                                                  struct cmt_metric, _head);
+                    TEST_CHECK(metric != NULL);
+                    if (metric != NULL) {
+                        label_value = cfl_list_entry_first(&metric->labels,
+                                                           struct cmt_map_label, _head);
+                        TEST_CHECK(label_value != NULL);
+                        if (label_value != NULL) {
+                            TEST_CHECK(label_value->name != NULL);
+                            if (label_value->name != NULL) {
+                                TEST_CHECK(cfl_sds_len(label_value->name) == 0);
                             }
                         }
                     }
                 }
 
-                if (service_request != NULL) {
-                    opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__free_unpacked(service_request, NULL);
+                encoded_payload = cmt_encode_opentelemetry_create(decoded_context);
+                TEST_CHECK(encoded_payload != NULL);
+                if (encoded_payload != NULL) {
+                    service_request = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__unpack(
+                        NULL, cfl_sds_len(encoded_payload), (uint8_t *) encoded_payload);
+                    TEST_CHECK(service_request != NULL);
+
+                    if (service_request != NULL &&
+                        service_request->n_resource_metrics == 1 &&
+                        service_request->resource_metrics[0]->n_scope_metrics == 1 &&
+                        service_request->resource_metrics[0]->scope_metrics[0]->n_metrics == 1) {
+                        roundtrip_metric = service_request->resource_metrics[0]->scope_metrics[0]->metrics[0];
+                        TEST_CHECK(roundtrip_metric->data_case ==
+                                   OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_GAUGE);
+                        if (roundtrip_metric->data_case ==
+                            OPENTELEMETRY__PROTO__METRICS__V1__METRIC__DATA_GAUGE) {
+                            TEST_CHECK(roundtrip_metric->gauge->n_data_points == 1);
+                            roundtrip_dp = roundtrip_metric->gauge->data_points[0];
+                            TEST_CHECK(roundtrip_dp->n_attributes == 1);
+                            if (roundtrip_dp->n_attributes == 1) {
+                                attribute = roundtrip_dp->attributes[0];
+                                TEST_CHECK(strcmp(attribute->key, "empty_bytes") == 0);
+                                TEST_CHECK(attribute->value->value_case ==
+                                           OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_STRING_VALUE);
+                                TEST_CHECK(attribute->value->string_value != NULL);
+                                if (attribute->value->string_value != NULL) {
+                                    TEST_CHECK(attribute->value->string_value[0] == '\0');
+                                }
+                            }
+                        }
+                    }
+
+                    if (service_request != NULL) {
+                        opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__free_unpacked(service_request, NULL);
+                    }
+                    cmt_encode_opentelemetry_destroy(encoded_payload);
                 }
-                cmt_encode_opentelemetry_destroy(encoded_payload);
             }
             cmt_decode_opentelemetry_destroy(&result_list);
         }
