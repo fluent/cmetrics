@@ -303,7 +303,7 @@ static void format_metric(struct cmt *cmt,
     int defined_labels = 0;
     int label_key_count;
     int label_index;
-    struct cmt_map_label *label_k;
+    struct cmt_map_label *label_k = NULL;
     struct cmt_map_label *label_v;
     struct cfl_list *head;
     struct cmt_opts *opts;
