@@ -89,11 +89,16 @@ static int initialize_temporary_metric(struct cmt_metric *destination,
             return -1;
         }
 
-        destination_label->name = cfl_sds_create(source_label->name);
-        if (destination_label->name == NULL) {
-            free(destination_label);
-            destroy_temporary_metric_labels(destination);
-            return -1;
+        if (source_label->name == NULL) {
+            destination_label->name = NULL;
+        }
+        else {
+            destination_label->name = cfl_sds_create(source_label->name);
+            if (destination_label->name == NULL) {
+                free(destination_label);
+                destroy_temporary_metric_labels(destination);
+                return -1;
+            }
         }
 
         cfl_list_add(&destination_label->_head, &destination->labels);
