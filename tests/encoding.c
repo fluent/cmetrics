@@ -1105,6 +1105,51 @@ void test_prometheus()
     cmt_destroy(cmt);
 }
 
+void test_prometheus_histogram_bucket_decimal_label()
+{
+    uint64_t ts;
+    cfl_sds_t text;
+    struct cmt *cmt;
+    struct cmt_histogram *h;
+    struct cmt_histogram_buckets *buckets;
+
+    cmt_initialize();
+
+    cmt = cmt_create();
+    TEST_CHECK(cmt != NULL);
+    if (cmt == NULL) {
+        return;
+    }
+
+    buckets = cmt_histogram_buckets_create(1, 1000000.0);
+    TEST_CHECK(buckets != NULL);
+    if (buckets == NULL) {
+        cmt_destroy(cmt);
+        return;
+    }
+
+    h = cmt_histogram_create(cmt, "cmt", "labels", "bucket", "Bucket label",
+                             buckets, 0, NULL);
+    TEST_CHECK(h != NULL);
+    if (h == NULL) {
+        cmt_destroy(cmt);
+        return;
+    }
+
+    ts = 0;
+    cmt_histogram_observe(h, ts, 42.0, 0, NULL);
+
+    text = cmt_encode_prometheus_create(cmt, CMT_TRUE);
+    TEST_CHECK(text != NULL);
+    if (text != NULL) {
+        TEST_CHECK(strstr(text, "cmt_labels_bucket_bucket{le=\"1000000.0\"}") != NULL);
+        TEST_CHECK(strstr(text, "cmt_labels_bucket_bucket{le=\"1e+06\"}") == NULL);
+        cmt_encode_prometheus_destroy(text);
+    }
+
+    cmt_destroy(cmt);
+}
+
 void test_text()
 {
     uint64_t ts;
@@ -1578,6 +1623,7 @@ TEST_LIST = {
     {"opentelemetry",                  test_opentelemetry},
     {"cloudwatch_emf",                 test_cloudwatch_emf},
     {"prometheus",                     test_prometheus},
+    {"prometheus_histogram_bucket_decimal_label", test_prometheus_histogram_bucket_decimal_label},
     {"text",                           test_text},
     {"influx",                         test_influx},
     {"influx_without_namespaces",      test_influx_without_namespaces},
