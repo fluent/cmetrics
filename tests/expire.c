@@ -198,8 +198,12 @@ void test_expire_untyped()
     cmt_untyped_set(u, ts, 1.3, 2, (char *[]) {"qwe", "asd"});
     cmt_untyped_set(u, ts-10, 1.3, 2, (char *[]) {"qwe", "asd"});
 
+    TEST_MSG("untyped: size before expiration: %d", 
+             cfl_list_size(&u->map->metrics));
     TEST_CHECK(cfl_list_size(&u->map->metrics) == 2);
     cmt_expire(cmt, ts-1);
+    TEST_MSG("untyped: size after expiration: %d", 
+             cfl_list_size(&u->map->metrics));
     TEST_CHECK(cfl_list_size(&u->map->metrics) == 1);
 
     cmt_destroy(cmt);
