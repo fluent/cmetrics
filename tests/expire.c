@@ -21,6 +21,7 @@
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_histogram.h>
+#include <cmetrics/cmt_untyped.h>
 #include <cmetrics/cmt_summary.h>
 #include <cmetrics/cmt_map.h>
 #include <cmetrics/cmt_encode_prometheus.h>
@@ -176,10 +177,39 @@ void test_expire_summary()
     cmt_destroy(cmt);
 }
 
+void test_expire_untyped()
+{
+    uint64_t ts;
+    struct cmt *cmt;
+    struct cmt_untyped *u;
+
+    cmt_initialize();
+
+    cmt = cmt_create();
+    TEST_CHECK(cmt != NULL);
+
+    u = cmt_untyped_create(cmt, "cmetrics", "test", "cat_untyped", "first untyped",
+                           2, (char *[]) {"label5", "label6"});
+    TEST_CHECK(u != NULL);
+
+    /* Timestamp */
+    ts = cfl_time_now();
+
+    cmt_untyped_set(u, ts, 1.3, 2, (char *[]) {"qwe", "asd"});
+    cmt_untyped_set(u, ts-10, 1.3, 2, (char *[]) {"qwe", "asd"});
+
+    TEST_CHECK(cfl_list_size(&u->map->metrics) == 2);
+    cmt_expire(cmt, ts-1);
+    TEST_CHECK(cfl_list_size(&u->map->metrics) == 1);
+
+    cmt_destroy(cmt);
+}
+
 TEST_LIST = {
-    {"expire_counter" , test_expire_counter},
-    {"expire_gauge" , test_expire_gauge},
-    {"expire_histogram" , test_expire_histogram},
-    {"expire_summary", test_expire_summary},
+    {"expire_counter",   test_expire_counter},
+    {"expire_gauge",     test_expire_gauge},
+    {"expire_histogram", test_expire_histogram},
+    {"expire_summary",   test_expire_summary},
+    {"expire_untyped",   test_expire_untyped},
     { 0 }
 };
