@@ -155,6 +155,10 @@ void cmt_expire(struct cmt *cmt, uint64_t expiration)
     struct cmt_histogram *h;
     struct cmt_untyped *u;
 
+    if (cmt == NULL) {
+        return;
+    }
+
     cfl_list_foreach_safe(head, tmp, &cmt->counters) {
         c = cfl_list_entry(head, struct cmt_counter, _head);
         cmt_map_metrics_expire(c->map, expiration);
