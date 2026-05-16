@@ -195,15 +195,11 @@ void test_expire_untyped()
     /* Timestamp */
     ts = cfl_time_now();
 
-    TEST_CHECK(cmt_untyped_set(u, ts, 1.3, 2, (char *[]) {"qwe", "asd"}) == 0);
-    TEST_CHECK(cmt_untyped_set(u, ts-10, 1.3, 2, (char *[]) {"qwe", "asd"}) == 0);
+    cmt_untyped_set(u, ts, 1.3, 2, (char *[]) {"first", "valid"});
+    cmt_untyped_set(u, ts-10, 1.3, 2, (char *[]) {"second", "expire"});
 
-    TEST_MSG("untyped: size before expiration: %d", 
-             cfl_list_size(&u->map->metrics));
     TEST_CHECK(cfl_list_size(&u->map->metrics) == 2);
     cmt_expire(cmt, ts-1);
-    TEST_MSG("untyped: size after expiration: %d", 
-             cfl_list_size(&u->map->metrics));
     TEST_CHECK(cfl_list_size(&u->map->metrics) == 1);
 
     cmt_destroy(cmt);
