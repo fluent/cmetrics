@@ -195,8 +195,8 @@ void test_expire_untyped()
     /* Timestamp */
     ts = cfl_time_now();
 
-    cmt_untyped_set(u, ts, 1.3, 2, (char *[]) {"qwe", "asd"});
-    cmt_untyped_set(u, ts-10, 1.3, 2, (char *[]) {"qwe", "asd"});
+    TEST_CHECK(cmt_untyped_set(u, ts, 1.3, 2, (char *[]) {"qwe", "asd"}) == 0);
+    TEST_CHECK(cmt_untyped_set(u, ts-10, 1.3, 2, (char *[]) {"qwe", "asd"}) == 0);
 
     TEST_MSG("untyped: size before expiration: %d", 
              cfl_list_size(&u->map->metrics));
