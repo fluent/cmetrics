@@ -21,6 +21,7 @@
 #include <cmetrics/cmt_counter.h>
 #include <cmetrics/cmt_gauge.h>
 #include <cmetrics/cmt_histogram.h>
+#include <cmetrics/cmt_exp_histogram.h>
 #include <cmetrics/cmt_untyped.h>
 #include <cmetrics/cmt_summary.h>
 #include <cmetrics/cmt_map.h>
@@ -205,11 +206,80 @@ void test_expire_untyped()
     cmt_destroy(cmt);
 }
 
+void test_epxire_exp_histogram()
+{
+    uint64_t ts;
+    struct cmt *cmt;
+    uint64_t positive[3] = {3, 5, 7};
+    uint64_t negative[2] = {2, 1};
+    int result;
+    struct cmt_exp_histogram *exp_histogram;
+
+    cmt_initialize();
+
+    cmt = cmt_create();
+    TEST_CHECK(cmt != NULL);
+
+    exp_histogram = cmt_exp_histogram_create(cmt,
+                                             "cm", "native", "exp_hist", "native exp histogram",
+                                             1, (char *[]) {"endpoint"});
+    TEST_CHECK(exp_histogram != NULL);
+
+    if (exp_histogram == NULL) {
+        return;
+    }
+
+    /* Timestamp */
+    ts = cfl_time_now();
+
+    result = cmt_exp_histogram_set_default(exp_histogram,
+                                           ts,
+                                           2,
+                                           11,
+                                           0.0,
+                                           -2,
+                                           3,
+                                           positive,
+                                           -1,
+                                           2,
+                                           negative,
+                                           CMT_TRUE,
+                                           42.25,
+                                           29,
+                                           1,
+                                           (char *[]) {"api"});
+    TEST_CHECK(result == 0);
+    result = cmt_exp_histogram_set_default(exp_histogram,
+                                           ts-10,
+                                           2,
+                                           11,
+                                           0.0,
+                                           -2,
+                                           3,
+                                           positive,
+                                           -1,
+                                           2,
+                                           negative,
+                                           CMT_TRUE,
+                                           42.25,
+                                           29,
+                                           1,
+                                           (char *[]) {"http"});
+    TEST_CHECK(result == 0);
+
+    TEST_CHECK(cfl_list_size(&exp_histogram->map->metrics) == 2);
+    cmt_expire(cmt, ts-1);
+    TEST_CHECK(cfl_list_size(&exp_histogram->map->metrics) == 1);
+
+    cmt_destroy(cmt);
+}
+
 TEST_LIST = {
-    {"expire_counter",   test_expire_counter},
-    {"expire_gauge",     test_expire_gauge},
-    {"expire_histogram", test_expire_histogram},
-    {"expire_summary",   test_expire_summary},
-    {"expire_untyped",   test_expire_untyped},
+    {"expire_counter"    ,   test_expire_counter},
+    {"expire_gauge",         test_expire_gauge},
+    {"expire_histogram",     test_expire_histogram},
+    {"expire_summary",       test_expire_summary},
+    {"expire_untyped",       test_expire_untyped},
+    {"expire_exp_histogram", test_epxire_exp_histogram},
     { 0 }
 };

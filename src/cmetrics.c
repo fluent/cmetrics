@@ -149,39 +149,54 @@ void cmt_expire(struct cmt *cmt, uint64_t expiration)
 {
     struct cfl_list *tmp;
     struct cfl_list *head;
-    struct cmt_counter *c;
-    struct cmt_gauge *g;
-    struct cmt_summary *s;
-    struct cmt_histogram *h;
-    struct cmt_untyped *u;
+    struct cmt_counter *counter;
+    struct cmt_gauge *gauge;
+    struct cmt_summary *summary;
+    struct cmt_histogram *histogram;
+    struct cmt_untyped *untyped;
+    struct cmt_exp_histogram *exp_histogram;
 
     if (cmt == NULL) {
         return;
     }
 
+    /* Do a first pass for all regular metrics: 
+     *  * counters
+     *  * gauges
+     *  * summaries
+     *  * histograms
+     *  * untypeds
+     */
     cfl_list_foreach_safe(head, tmp, &cmt->counters) {
-        c = cfl_list_entry(head, struct cmt_counter, _head);
-        cmt_map_metrics_expire(c->map, expiration);
+        counter = cfl_list_entry(head, struct cmt_counter, _head);
+        cmt_map_metrics_expire(counter->map, expiration);
     }
 
     cfl_list_foreach_safe(head, tmp, &cmt->gauges) {
-        g = cfl_list_entry(head, struct cmt_gauge, _head);
-        cmt_map_metrics_expire(g->map, expiration);
+        gauge = cfl_list_entry(head, struct cmt_gauge, _head);
+        cmt_map_metrics_expire(gauge->map, expiration);
     }
 
     cfl_list_foreach_safe(head, tmp, &cmt->summaries) {
-        s = cfl_list_entry(head, struct cmt_summary, _head);
-        cmt_map_metrics_expire(s->map, expiration);
+        summary = cfl_list_entry(head, struct cmt_summary, _head);
+        cmt_map_metrics_expire(summary->map, expiration);
     }
 
     cfl_list_foreach_safe(head, tmp, &cmt->histograms) {
-        h = cfl_list_entry(head, struct cmt_histogram, _head);
-        cmt_map_metrics_expire(h->map, expiration);
+        histogram = cfl_list_entry(head, struct cmt_histogram, _head);
+        cmt_map_metrics_expire(histogram->map, expiration);
     }
 
     cfl_list_foreach_safe(head, tmp, &cmt->untypeds) {
-        u = cfl_list_entry(head, struct cmt_untyped, _head);
-        cmt_map_metrics_expire(u->map, expiration);
+        untyped = cfl_list_entry(head, struct cmt_untyped, _head);
+        cmt_map_metrics_expire(untyped->map, expiration);
+    }
+
+    /* Here we cover exp_histograms separetely.
+     */
+    cfl_list_foreach_safe(head, tmp, &cmt->exp_histograms) {
+        exp_histogram = cfl_list_entry(head, struct cmt_exp_histogram, _head);
+        cmt_map_metrics_expire(exp_histogram->map, expiration);
     }
 }
 
