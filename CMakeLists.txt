@@ -24,7 +24,18 @@ if (CMAKE_HOST_SYSTEM_NAME MATCHES "Darwin")
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
     if (BREW_BISON EQUAL 0 AND EXISTS "${BREW_BISON_PREFIX}")
-        message(STATUS "Found Bison keg installed by Homebrew at ${BREW_BISON_PREFIX}")
+        message(STATUS "include <ctype.h>
+#include <errno.h>
+#include <math.h>
+#include <stdarg.h>
+#include <stdint.h>
+
+#include <cmetrics/cmetrics.h>
+#include <cmetrics/cmt_gauge.h>
+#include <cmetrics/cmt_untyped.h>
+#include <cmetrics/cmt_histogram.h>
+#include <cmetrics/cmt_summary.h>
+#include <cmetrics/cmt_counter.h>Found Bison keg installed by Homebrew at ${BREW_BISON_PREFIX}")
         set(BISON_EXECUTABLE "${BREW_BISON_PREFIX}/bin/bison")
     endif()
 
