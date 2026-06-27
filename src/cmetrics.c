@@ -30,6 +30,7 @@
 #include <cmetrics/cmt_atomic.h>
 #include <cmetrics/cmt_compat.h>
 #include <cmetrics/cmt_label.h>
+#include <cmetrics/cmt_map.h>
 #include <cmetrics/cmt_version.h>
 
 #include <cfl/cfl_kvlist.h>
