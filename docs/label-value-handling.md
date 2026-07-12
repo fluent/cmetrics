@@ -2,10 +2,10 @@
 
 ## Context
 
-CMetrics currently rejects any string longer than 1024 bytes while decoding
-its internal MessagePack representation. The validation is performed by the
-generic string decoder, so it applies not only to label values, but also to
-metric names, namespaces, subsystems, descriptions, and label names.
+Before this fix, CMetrics rejected any string longer than 1024 bytes while
+decoding its internal MessagePack representation. The validation was performed
+by the generic string decoder, so it applied not only to label values, but also
+to metric names, namespaces, subsystems, descriptions, and label names.
 
 This behavior caused
 [fluent/fluent-bit#9297](https://github.com/fluent/fluent-bit/issues/9297): a
@@ -73,6 +73,12 @@ The internal MessagePack decoder should:
 5. Return a distinct resource-limit error with enough context for callers to
    emit a useful diagnostic.
 6. Never silently truncate metric identifiers or labels.
+
+This fix implements those requirements for data-backed CMetrics MessagePack
+decoding. It verifies that all declared string bytes are present before making
+an allocation, then copies the complete value into CMetrics-owned storage. A
+malicious length field therefore cannot trigger an allocation larger than its
+available input, while valid long strings round-trip without modification.
 
 A configurable safety ceiling may be appropriate for callers that process
 untrusted MessagePack. Such a ceiling should apply to decoder resources, be
