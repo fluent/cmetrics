@@ -132,14 +132,17 @@ void cmt_destroy(struct cmt *cmt)
 
     if (cmt->static_labels) {
         cmt_labels_destroy(cmt->static_labels);
+        cmt->static_labels = NULL;
     }
 
     if (cmt->internal_metadata != NULL) {
         cfl_kvlist_destroy(cmt->internal_metadata);
+        cmt->internal_metadata = NULL;
     }
 
     if (cmt->external_metadata != NULL) {
         cfl_kvlist_destroy(cmt->external_metadata);
+        cmt->external_metadata = NULL;
     }
 
     free(cmt);
