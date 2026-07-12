@@ -21,7 +21,21 @@
 #include <cmetrics/cmt_map.h>
 #include <cmetrics/cmt_log.h>
 #include <cmetrics/cmt_metric.h>
+#include <cmetrics/cmt_atomic.h>
+#include <cmetrics/cmt_histogram.h>
+#include <cmetrics/cmt_summary.h>
 #include <cmetrics/cmt_compat.h>
+
+static void map_lock(struct cmt_map *map)
+{
+    while (cmt_atomic_compare_exchange(&map->metric_lock, 0, 1) == 0) {
+    }
+}
+
+static void map_unlock(struct cmt_map *map)
+{
+    cmt_atomic_store(&map->metric_lock, 0);
+}
 
 struct cmt_map *cmt_map_create(int type, struct cmt_opts *opts, int count, char **labels,
                                void *parent)
@@ -76,7 +90,75 @@ struct cmt_map *cmt_map_create(int type, struct cmt_opts *opts, int count, char 
     return NULL;
 }
 
-static struct cmt_metric *metric_hash_lookup(struct cmt_map *map, uint64_t hash)
+static int metric_labels_match(struct cmt_metric *metric,
+                               int labels_count, char **labels_val)
+{
+    int index = 0;
+    struct cfl_list *head;
+    struct cmt_map_label *label;
+
+    cfl_list_foreach(head, &metric->labels) {
+        if (index >= labels_count) {
+            return CMT_FALSE;
+        }
+
+        label = cfl_list_entry(head, struct cmt_map_label, _head);
+        if ((label->name == NULL) != (labels_val[index] == NULL)) {
+            return CMT_FALSE;
+        }
+        if (label->name != NULL && strcmp(label->name, labels_val[index]) != 0) {
+            return CMT_FALSE;
+        }
+        index++;
+    }
+
+    return index == labels_count;
+}
+
+static struct cmt_metric *metric_prepare_storage(struct cmt_map *map,
+                                                 struct cmt_metric *metric,
+                                                 int write_op)
+{
+    struct cmt_summary *summary;
+    struct cmt_histogram *histogram;
+
+    if (metric == NULL || !write_op) {
+        return metric;
+    }
+
+    if (map->type == CMT_HISTOGRAM && metric->hist_buckets == NULL) {
+        histogram = map->parent;
+        if (histogram == NULL || histogram->buckets == NULL) {
+            return NULL;
+        }
+        metric->hist_buckets = calloc(histogram->buckets->count + 1,
+                                      sizeof(uint64_t));
+        if (metric->hist_buckets == NULL) {
+            cmt_errno();
+            return NULL;
+        }
+    }
+    else if (map->type == CMT_SUMMARY && metric->sum_quantiles == NULL) {
+        summary = map->parent;
+        if (summary == NULL) {
+            return NULL;
+        }
+        if (summary->quantiles_count > 0) {
+            metric->sum_quantiles = calloc(summary->quantiles_count,
+                                           sizeof(uint64_t));
+            if (metric->sum_quantiles == NULL) {
+                cmt_errno();
+                return NULL;
+            }
+        }
+        metric->sum_quantiles_count = summary->quantiles_count;
+    }
+
+    return metric;
+}
+
+static struct cmt_metric *metric_hash_lookup(struct cmt_map *map, uint64_t hash,
+                                             int labels_count, char **labels_val)
 {
     struct cfl_list *head;
     struct cmt_metric *metric;
@@ -87,7 +169,8 @@ static struct cmt_metric *metric_hash_lookup(struct cmt_map *map, uint64_t hash)
 
     cfl_list_foreach(head, &map->metrics) {
         metric = cfl_list_entry(head, struct cmt_metric, _head);
-        if (metric->hash == hash) {
+        if (metric->hash == hash &&
+            metric_labels_match(metric, labels_count, labels_val)) {
             return metric;
         }
     }
@@ -137,6 +220,7 @@ static struct cmt_metric *map_metric_create(uint64_t hash,
     return metric;
 
  error:
+    destroy_label_list(&metric->labels);
     free(metric);
     return NULL;
 }
@@ -171,12 +255,14 @@ void cmt_map_metric_destroy(struct cmt_metric *metric)
     free(metric);
 }
 
-struct cmt_metric *cmt_map_metric_get(struct cmt_opts *opts, struct cmt_map *map,
-                                      int labels_count, char **labels_val,
-                                      int write_op)
+static struct cmt_metric *map_metric_get_unlocked(struct cmt_opts *opts,
+                                                  struct cmt_map *map,
+                                                  int labels_count,
+                                                  char **labels_val,
+                                                  int write_op)
 {
     int i;
-    int len;
+    size_t len;
     char *ptr;
     uint64_t hash;
     cfl_hash_state_t state;
@@ -207,7 +293,7 @@ struct cmt_metric *cmt_map_metric_get(struct cmt_opts *opts, struct cmt_map *map
         }
 
         /* return the proper context or NULL */
-        return metric;
+        return metric_prepare_storage(map, metric, write_op);
     }
 
     /* Lookup the metric */
@@ -225,10 +311,10 @@ struct cmt_metric *cmt_map_metric_get(struct cmt_opts *opts, struct cmt_map *map
     }
 
     hash = cfl_hash_64bits_digest(&state);
-    metric = metric_hash_lookup(map, hash);
+    metric = metric_hash_lookup(map, hash, labels_count, labels_val);
 
     if (metric) {
-        return metric;
+        return metric_prepare_storage(map, metric, write_op);
     }
 
     /*
@@ -245,6 +331,20 @@ struct cmt_metric *cmt_map_metric_get(struct cmt_opts *opts, struct cmt_map *map
         return NULL;
     }
     cfl_list_add(&metric->_head, &map->metrics);
+    return metric_prepare_storage(map, metric, write_op);
+}
+
+struct cmt_metric *cmt_map_metric_get(struct cmt_opts *opts, struct cmt_map *map,
+                                      int labels_count, char **labels_val,
+                                      int write_op)
+{
+    struct cmt_metric *metric;
+
+    map_lock(map);
+    metric = map_metric_get_unlocked(opts, map, labels_count, labels_val,
+                                     write_op);
+    map_unlock(map);
+
     return metric;
 }
 
@@ -347,10 +447,12 @@ void cmt_map_metrics_expire(struct cmt_map *map, uint64_t expiration)
     struct cfl_list *head;
     struct cmt_metric *metric;
 
+    map_lock(map);
     cfl_list_foreach_safe(head, tmp, &map->metrics) {
         metric = cfl_list_entry(head, struct cmt_metric, _head);
         if (metric->timestamp < expiration) {
             cmt_map_metric_destroy(metric);
         }
     }
+    map_unlock(map);
 }
