@@ -56,10 +56,7 @@ static void reset_context(struct cmt_decode_prometheus_context *context,
         cfl_sds_destroy(context->metric.labels[i]);
     }
 
-    if (context->metric.ns) {
-        free(context->metric.ns);
-        free(context->metric.name);
-    }
+    free(context->metric.name_buf);
 
     cfl_sds_destroy(context->strbuf);
     context->strbuf = NULL;
@@ -153,30 +150,35 @@ static int split_metric_name(struct cmt_decode_prometheus_context *context,
         cfl_sds_t metric_name, char **ns,
         char **subsystem, char **name)
 {
+    char *name_buf;
+
     /* split the name */
-    *ns = strdup(metric_name);
-    if (!*ns) {
+    name_buf = strdup(metric_name);
+    if (name_buf == NULL) {
         return report_error(context,
                 CMT_DECODE_PROMETHEUS_ALLOCATION_ERROR,
                 "memory allocation failed");
     }
+
+    context->metric.name_buf = name_buf;
+    *ns = name_buf;
     *subsystem = strchr(*ns, '_');
     if (!(*subsystem)) {
-        *name = strdup(*ns);
-        free(*ns);
-        *ns = strdup("");
+        *name = *ns;
+        *subsystem = "";
+        *ns = "";
     }
     else {
         **subsystem = 0;  /* split */
         (*subsystem)++;
         *name = strchr(*subsystem, '_');
         if (!(*name)) {
-            *name = strdup(*subsystem);
+            *name = *subsystem;
             *subsystem = "";
         }
         else {
-            **name = '\0';
-            *name = strdup((*name)++);
+            **name = 0;
+            (*name)++;
         }
     }
     return 0;
