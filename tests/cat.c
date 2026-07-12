@@ -755,6 +755,37 @@ void test_summary_concatenation_preserves_series()
     cmt_destroy(dst);
 }
 
+void test_summary_concatenation_rejects_mismatched_label_schema()
+{
+    int ret;
+    double quantiles[] = {0.5, 0.9};
+    struct cmt *dst;
+    struct cmt *src;
+    struct cmt_summary *summary;
+
+    dst = cmt_create();
+    src = cmt_create();
+    TEST_ASSERT(dst != NULL);
+    TEST_ASSERT(src != NULL);
+
+    summary = cmt_summary_create(dst, "test", "cat", "schema",
+                                 "schema validation", 2, quantiles, 2,
+                                 (char *[]) {"method", "status"});
+    TEST_ASSERT(summary != NULL);
+
+    summary = cmt_summary_create(src, "test", "cat", "schema",
+                                 "schema validation", 2, quantiles, 2,
+                                 (char *[]) {"status", "method"});
+    TEST_ASSERT(summary != NULL);
+
+    ret = cmt_cat(dst, src);
+    TEST_CHECK(ret == -1);
+    TEST_CHECK(cfl_list_size(&dst->summaries) == 1);
+
+    cmt_destroy(src);
+    cmt_destroy(dst);
+}
+
 TEST_LIST = {
     {"cat", test_cat},
     {"duplicate_metrics", test_duplicate_metrics},
@@ -764,5 +795,7 @@ TEST_LIST = {
     {"histogram_populated_to_empty", test_histogram_populated_to_empty},
     {"exp_histogram_preserves_aggregation_type", test_exp_histogram_preserves_aggregation_type},
     {"summary_concatenation_preserves_series", test_summary_concatenation_preserves_series},
+    {"summary_concatenation_rejects_mismatched_label_schema",
+     test_summary_concatenation_rejects_mismatched_label_schema},
     { 0 }
 };
