@@ -74,6 +74,7 @@ endif()
 option(CMT_DEV                       "Enable development mode"                    No)
 option(CMT_DEBUG                     "Enable debug mode"                          No)
 option(CMT_TESTS                     "Enable unit testing"                        No)
+option(CMT_BENCHMARKS                "Build performance benchmarks"               No)
 option(CMT_INSTALL_TARGETS           "Enable subdirectory library installations" Yes)
 option(CMT_PROMETHEUS_TEXT_DECODER   "Enable prometheus text format decoder (requires Flex/Bison)" Yes)
 
@@ -301,6 +302,10 @@ endif()
 # Source code
 add_subdirectory(include)
 add_subdirectory(src)
+
+if(CMT_BENCHMARKS)
+  add_subdirectory(benchmarks)
+endif()
 
 # Tests
 if(CMT_TESTS)
