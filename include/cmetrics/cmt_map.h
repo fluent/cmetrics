@@ -46,6 +46,11 @@ struct cmt_map {
 
     /* Internal lock. Keep this after the established public fields. */
     uint64_t metric_lock;
+    struct cfl_list *metric_buckets;
+    size_t metric_bucket_count;
+    size_t indexed_metric_count;
+    /* Most recently created metric; only changed with the metric list. */
+    struct cmt_metric *last_metric;
 };
 
 struct cmt_map *cmt_map_create(int type, struct cmt_opts *opts,
