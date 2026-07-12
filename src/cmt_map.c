@@ -26,6 +26,9 @@
 #include <cmetrics/cmt_summary.h>
 #include <cmetrics/cmt_compat.h>
 
+#define CMT_MAP_INITIAL_BUCKET_COUNT 64
+#define CMT_MAP_BUCKET_LOAD_FACTOR   4
+
 static void map_lock(struct cmt_map *map)
 {
     while (cmt_atomic_compare_exchange(&map->metric_lock, 0, 1) == 0) {
@@ -35,6 +38,59 @@ static void map_lock(struct cmt_map *map)
 static void map_unlock(struct cmt_map *map)
 {
     cmt_atomic_store(&map->metric_lock, 0);
+}
+
+static int metric_index_resize(struct cmt_map *map, size_t bucket_count)
+{
+    size_t index;
+    struct cfl_list *head;
+    struct cfl_list *buckets;
+    struct cmt_metric *metric;
+
+    buckets = calloc(bucket_count, sizeof(struct cfl_list));
+    if (buckets == NULL) {
+        return -1;
+    }
+    for (index = 0; index < bucket_count; index++) {
+        cfl_list_init(&buckets[index]);
+    }
+
+    cfl_list_foreach(head, &map->metrics) {
+        metric = cfl_list_entry(head, struct cmt_metric, _head);
+        if (metric->hash_indexed) {
+            cfl_list_del(&metric->_hash_head);
+            cfl_list_add(&metric->_hash_head,
+                         &buckets[metric->hash % bucket_count]);
+        }
+    }
+
+    free(map->metric_buckets);
+    map->metric_buckets = buckets;
+    map->metric_bucket_count = bucket_count;
+    return 0;
+}
+
+static void metric_index_add(struct cmt_map *map, struct cmt_metric *metric)
+{
+    if (metric->hash_indexed) {
+        return;
+    }
+
+    if (map->metric_buckets == NULL &&
+        metric_index_resize(map, CMT_MAP_INITIAL_BUCKET_COUNT) != 0) {
+        return;
+    }
+
+    if (map->indexed_metric_count >=
+        map->metric_bucket_count * CMT_MAP_BUCKET_LOAD_FACTOR) {
+        metric_index_resize(map, map->metric_bucket_count * 2);
+    }
+
+    cfl_list_add(&metric->_hash_head,
+                 &map->metric_buckets[metric->hash % map->metric_bucket_count]);
+    metric->hash_indexed = CMT_TRUE;
+    metric->map = map;
+    map->indexed_metric_count++;
 }
 
 struct cmt_map *cmt_map_create(int type, struct cmt_opts *opts, int count, char **labels,
@@ -61,6 +117,13 @@ struct cmt_map *cmt_map_create(int type, struct cmt_opts *opts, int count, char 
     cfl_list_init(&map->label_keys);
     cfl_list_init(&map->metrics);
     cfl_list_init(&map->metric.labels);
+
+    if (count > 0 &&
+        metric_index_resize(map, CMT_MAP_INITIAL_BUCKET_COUNT) != 0) {
+        cmt_errno();
+        cmt_map_destroy(map);
+        return NULL;
+    }
 
     if (count == 0) {
         map->metric_static_set = 1;
@@ -167,10 +230,30 @@ static struct cmt_metric *metric_hash_lookup(struct cmt_map *map, uint64_t hash,
         return &map->metric;
     }
 
+    metric = map->last_metric;
+    if (metric != NULL && metric->hash == hash &&
+        metric_labels_match(metric, labels_count, labels_val)) {
+        return metric;
+    }
+
+    if (map->metric_buckets != NULL) {
+        cfl_list_foreach(head,
+                         &map->metric_buckets[hash % map->metric_bucket_count]) {
+            metric = cfl_list_entry(head, struct cmt_metric, _hash_head);
+            if (metric->hash == hash &&
+                metric_labels_match(metric, labels_count, labels_val)) {
+                return metric;
+            }
+        }
+    }
+
+    /* Decoders can populate the public metric list directly. Search only
+     * entries that have not yet been indexed, then index a successful match. */
     cfl_list_foreach(head, &map->metrics) {
         metric = cfl_list_entry(head, struct cmt_metric, _head);
-        if (metric->hash == hash &&
+        if (!metric->hash_indexed && metric->hash == hash &&
             metric_labels_match(metric, labels_count, labels_val)) {
+            metric_index_add(map, metric);
             return metric;
         }
     }
@@ -178,7 +261,7 @@ static struct cmt_metric *metric_hash_lookup(struct cmt_map *map, uint64_t hash,
     return NULL;
 }
 
-static struct cmt_metric *map_metric_create(uint64_t hash,
+static struct cmt_metric *map_metric_create(struct cmt_map *map, uint64_t hash,
                                             int labels_count, char **labels_val)
 {
     int i;
@@ -192,8 +275,10 @@ static struct cmt_metric *map_metric_create(uint64_t hash,
         return NULL;
     }
     cfl_list_init(&metric->labels);
+    cfl_list_init(&metric->_hash_head);
     cmt_metric_set_double(metric, 0, 0.0);
     metric->hash = hash;
+    metric->map = map;
 
     for (i = 0; i < labels_count; i++) {
         label = malloc(sizeof(struct cmt_map_label));
@@ -249,6 +334,18 @@ void cmt_map_metric_destroy(struct cmt_metric *metric)
     }
     if (metric->sum_quantiles) {
         free(metric->sum_quantiles);
+    }
+
+    if (metric->hash_indexed) {
+        if (metric->map != NULL) {
+            if (metric->map->last_metric == metric) {
+                metric->map->last_metric = NULL;
+            }
+            if (metric->map->indexed_metric_count > 0) {
+                metric->map->indexed_metric_count--;
+            }
+        }
+        cfl_list_del(&metric->_hash_head);
     }
 
     cfl_list_del(&metric->_head);
@@ -326,11 +423,13 @@ static struct cmt_metric *map_metric_get_unlocked(struct cmt_opts *opts,
     }
 
     /* If the metric has not been found, just create it */
-    metric = map_metric_create(hash, labels_count, labels_val);
+    metric = map_metric_create(map, hash, labels_count, labels_val);
     if (!metric) {
         return NULL;
     }
     cfl_list_add(&metric->_head, &map->metrics);
+    metric_index_add(map, metric);
+    map->last_metric = metric;
     return metric_prepare_storage(map, metric, write_op);
 }
 
@@ -411,6 +510,8 @@ void cmt_map_destroy(struct cmt_map *map)
     if (map->unit != NULL) {
         cfl_sds_destroy(map->unit);
     }
+
+    free(map->metric_buckets);
 
     free(map);
 }
