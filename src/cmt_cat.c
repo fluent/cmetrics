@@ -673,6 +673,35 @@ static struct cmt_summary *summary_lookup(struct cmt *cmt, struct cmt_opts *opts
     return NULL;
 }
 
+static int summary_label_keys_match(struct cmt_map *left,
+                                    struct cmt_map *right)
+{
+    struct cfl_list *left_head;
+    struct cfl_list *right_head;
+    struct cmt_map_label *left_label;
+    struct cmt_map_label *right_label;
+
+    left_head = left->label_keys.next;
+    right_head = right->label_keys.next;
+
+    while (left_head != &left->label_keys &&
+           right_head != &right->label_keys) {
+        left_label = cfl_list_entry(left_head, struct cmt_map_label, _head);
+        right_label = cfl_list_entry(right_head, struct cmt_map_label, _head);
+
+        if (left_label->name == NULL || right_label->name == NULL ||
+            strcmp(left_label->name, right_label->name) != 0) {
+            return CMT_FALSE;
+        }
+
+        left_head = left_head->next;
+        right_head = right_head->next;
+    }
+
+    return left_head == &left->label_keys &&
+           right_head == &right->label_keys;
+}
+
 int cmt_cat_counter(struct cmt *cmt, struct cmt_counter *counter,
                     struct cmt_map *filtered_map)
 {
@@ -888,6 +917,11 @@ int cmt_cat_summary(struct cmt *cmt, struct cmt_summary *summary,
 
     sum = summary_lookup(cmt, opts);
     if (sum != NULL) {
+        if (!summary_label_keys_match(sum->map, map)) {
+            free(labels);
+            return -1;
+        }
+
         if (sum->quantiles_count != summary->quantiles_count) {
             free(labels);
             return -1;
