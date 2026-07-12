@@ -323,11 +323,14 @@ static struct cmt_metric *map_metric_create(struct cmt_map *map, uint64_t hash,
     return NULL;
 }
 
-void cmt_map_metric_destroy(struct cmt_metric *metric)
+static void map_metric_destroy_unlocked(struct cmt_metric *metric)
 {
+    struct cmt_map *map;
     struct cfl_list *tmp;
     struct cfl_list *head;
     struct cmt_map_label *label;
+
+    map = metric->map;
 
     cfl_list_foreach_safe(head, tmp, &metric->labels) {
         label = cfl_list_entry(head, struct cmt_map_label, _head);
@@ -338,13 +341,14 @@ void cmt_map_metric_destroy(struct cmt_metric *metric)
 
     metric_release_storage(metric);
 
+    if (map != NULL && map->last_metric == metric) {
+        map->last_metric = NULL;
+    }
+
     if (metric->hash_indexed) {
-        if (metric->map != NULL) {
-            if (metric->map->last_metric == metric) {
-                metric->map->last_metric = NULL;
-            }
-            if (metric->map->indexed_metric_count > 0) {
-                metric->map->indexed_metric_count--;
+        if (map != NULL) {
+            if (map->indexed_metric_count > 0) {
+                map->indexed_metric_count--;
             }
         }
         cfl_list_del(&metric->_hash_head);
@@ -352,6 +356,22 @@ void cmt_map_metric_destroy(struct cmt_metric *metric)
 
     cfl_list_del(&metric->_head);
     free(metric);
+}
+
+void cmt_map_metric_destroy(struct cmt_metric *metric)
+{
+    struct cmt_map *map;
+
+    map = metric->map;
+    if (map != NULL) {
+        map_lock(map);
+    }
+
+    map_metric_destroy_unlocked(metric);
+
+    if (map != NULL) {
+        map_unlock(map);
+    }
 }
 
 static struct cmt_metric *map_metric_get_unlocked(struct cmt_opts *opts,
@@ -545,7 +565,7 @@ void cmt_map_metrics_expire(struct cmt_map *map, uint64_t expiration)
     cfl_list_foreach_safe(head, tmp, &map->metrics) {
         metric = cfl_list_entry(head, struct cmt_metric, _head);
         if (metric->timestamp < expiration) {
-            cmt_map_metric_destroy(metric);
+            map_metric_destroy_unlocked(metric);
         }
     }
     map_unlock(map);
