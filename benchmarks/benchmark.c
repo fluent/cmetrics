@@ -113,6 +113,10 @@ static int benchmark_lookup(size_t cardinality, size_t operations)
     struct cmt_counter *counter;
 
     cmt = cmt_create();
+    if (cmt == NULL) {
+        return -1;
+    }
+
     counter = create_series(cmt, cardinality);
     if (counter == NULL) {
         cmt_destroy(cmt);
@@ -150,6 +154,10 @@ static int benchmark_update(size_t cardinality, size_t operations)
     struct cmt_counter *counter;
 
     cmt = cmt_create();
+    if (cmt == NULL) {
+        return -1;
+    }
+
     counter = create_series(cmt, cardinality);
     if (counter == NULL) {
         cmt_destroy(cmt);
@@ -185,6 +193,10 @@ static int benchmark_prometheus(size_t cardinality, size_t operations)
     struct cmt *cmt;
 
     cmt = cmt_create();
+    if (cmt == NULL) {
+        return -1;
+    }
+
     if (create_series(cmt, cardinality) == NULL) {
         cmt_destroy(cmt);
         return -1;
@@ -222,6 +234,10 @@ static int benchmark_opentelemetry(size_t cardinality, size_t operations)
 
     bytes = 0;
     cmt = cmt_create();
+    if (cmt == NULL) {
+        return -1;
+    }
+
     if (create_series(cmt, cardinality) == NULL) {
         cmt_destroy(cmt);
         return -1;
