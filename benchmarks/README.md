@@ -22,8 +22,13 @@ REPETITIONS=5 benchmarks/run-perf.sh \
 The executable also accepts individual workloads:
 
 ```text
-cmt-benchmark lookup|update|prometheus CARDINALITY OPERATIONS
+cmt-benchmark lookup|update|prometheus|opentelemetry|opentelemetry-mixed CARDINALITY OPERATIONS
 ```
+
+The `opentelemetry` workload repeatedly encodes a labeled counter with the
+requested number of series. The `opentelemetry-mixed` workload creates that
+many counter, gauge, and histogram series to exercise scalar and aggregate
+protobuf data points in the same request.
 
 Compare medians from at least five alternating before/after runs. Keep CPU
 frequency policy, compiler, flags, machine load, and input parameters fixed.

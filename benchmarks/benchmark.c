@@ -7,7 +7,10 @@
 
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_counter.h>
+#include <cmetrics/cmt_encode_opentelemetry.h>
 #include <cmetrics/cmt_encode_prometheus.h>
+#include <cmetrics/cmt_gauge.h>
+#include <cmetrics/cmt_histogram.h>
 
 static uint64_t monotonic_ns(void)
 {
@@ -56,6 +59,45 @@ static struct cmt_counter *create_series(struct cmt *cmt, size_t cardinality)
     }
 
     return counter;
+}
+
+static int create_mixed_series(struct cmt *cmt, size_t cardinality)
+{
+    size_t index;
+    char label[32];
+    char *values[] = {label};
+    struct cmt_counter *counter;
+    struct cmt_gauge *gauge;
+    struct cmt_histogram *histogram;
+    struct cmt_histogram_buckets *buckets;
+
+    counter = cmt_counter_create(cmt, "bench", "", "requests_total",
+                                 "benchmark counter", 1,
+                                 (char *[]) {"series"});
+    gauge = cmt_gauge_create(cmt, "bench", "", "queue_depth",
+                             "benchmark gauge", 1,
+                             (char *[]) {"series"});
+    buckets = cmt_histogram_buckets_create(4, 0.01, 0.1, 1.0, 10.0);
+    histogram = cmt_histogram_create(cmt, "bench", "", "latency_seconds",
+                                     "benchmark histogram", buckets, 1,
+                                     (char *[]) {"series"});
+    if (counter == NULL || gauge == NULL || buckets == NULL ||
+        histogram == NULL) {
+        return -1;
+    }
+
+    for (index = 0; index < cardinality; index++) {
+        snprintf(label, sizeof(label), "series-%zu", index);
+        if (cmt_counter_set(counter, index + 1, 1.0, 1, values) != 0 ||
+            cmt_gauge_set(gauge, index + 1, (double) index, 1, values) != 0 ||
+            cmt_histogram_observe(histogram, index + 1,
+                                  (double) (index % 100) / 10.0,
+                                  1, values) != 0) {
+            return -1;
+        }
+    }
+
+    return 0;
 }
 
 static int benchmark_lookup(size_t cardinality, size_t operations)
@@ -169,13 +211,91 @@ static int benchmark_prometheus(size_t cardinality, size_t operations)
     return 0;
 }
 
+static int benchmark_opentelemetry(size_t cardinality, size_t operations)
+{
+    size_t index;
+    size_t bytes;
+    uint64_t start;
+    uint64_t elapsed;
+    cfl_sds_t output;
+    struct cmt *cmt;
+
+    bytes = 0;
+    cmt = cmt_create();
+    if (create_series(cmt, cardinality) == NULL) {
+        cmt_destroy(cmt);
+        return -1;
+    }
+
+    start = monotonic_ns();
+    for (index = 0; index < operations; index++) {
+        output = cmt_encode_opentelemetry_create(cmt);
+        if (output == NULL) {
+            cmt_destroy(cmt);
+            return -1;
+        }
+        bytes += cfl_sds_len(output);
+        cmt_encode_opentelemetry_destroy(output);
+    }
+    elapsed = monotonic_ns() - start;
+
+    printf("benchmark=opentelemetry cardinality=%zu operations=%zu bytes=%zu "
+           "elapsed_ns=%" PRIu64 " ns_per_op=%.2f mb_per_second=%.2f\n",
+           cardinality, operations, bytes, elapsed, (double) elapsed / operations,
+           ((double) bytes / (1024.0 * 1024.0)) /
+           ((double) elapsed / 1000000000.0));
+    cmt_destroy(cmt);
+    return 0;
+}
+
+static int benchmark_opentelemetry_mixed(size_t cardinality, size_t operations)
+{
+    size_t index;
+    size_t bytes;
+    uint64_t start;
+    uint64_t elapsed;
+    cfl_sds_t output;
+    struct cmt *cmt;
+
+    bytes = 0;
+    cmt = cmt_create();
+    if (cmt == NULL || create_mixed_series(cmt, cardinality) != 0) {
+        cmt_destroy(cmt);
+        return -1;
+    }
+
+    start = monotonic_ns();
+    for (index = 0; index < operations; index++) {
+        output = cmt_encode_opentelemetry_create(cmt);
+        if (output == NULL) {
+            cmt_destroy(cmt);
+            return -1;
+        }
+        bytes += cfl_sds_len(output);
+        cmt_encode_opentelemetry_destroy(output);
+    }
+    elapsed = monotonic_ns() - start;
+
+    printf("benchmark=opentelemetry-mixed cardinality=%zu operations=%zu "
+           "bytes=%zu elapsed_ns=%" PRIu64 " ns_per_op=%.2f "
+           "mb_per_second=%.2f\n",
+           cardinality, operations, bytes, elapsed,
+           (double) elapsed / operations,
+           ((double) bytes / (1024.0 * 1024.0)) /
+           ((double) elapsed / 1000000000.0));
+    cmt_destroy(cmt);
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     size_t cardinality;
     size_t operations;
 
     if (argc != 4) {
-        fprintf(stderr, "usage: %s lookup|update|prometheus CARDINALITY OPERATIONS\n",
+        fprintf(stderr, "usage: %s lookup|update|prometheus|opentelemetry|"
+                        "opentelemetry-mixed "
+                        "CARDINALITY OPERATIONS\n",
                 argv[0]);
         return EXIT_FAILURE;
     }
@@ -194,6 +314,14 @@ int main(int argc, char **argv)
     }
     if (strcmp(argv[1], "prometheus") == 0) {
         return benchmark_prometheus(cardinality, operations) == 0 ?
+               EXIT_SUCCESS : EXIT_FAILURE;
+    }
+    if (strcmp(argv[1], "opentelemetry") == 0) {
+        return benchmark_opentelemetry(cardinality, operations) == 0 ?
+               EXIT_SUCCESS : EXIT_FAILURE;
+    }
+    if (strcmp(argv[1], "opentelemetry-mixed") == 0) {
+        return benchmark_opentelemetry_mixed(cardinality, operations) == 0 ?
                EXIT_SUCCESS : EXIT_FAILURE;
     }
 
