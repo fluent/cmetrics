@@ -353,6 +353,35 @@ void test_expire_static_metrics()
     cmt_destroy(cmt);
 }
 
+void test_destroy_unindexed_last_metric()
+{
+    struct cmt *cmt;
+    struct cmt_counter *counter;
+    struct cmt_metric *metric;
+
+    cmt = cmt_create();
+    TEST_ASSERT(cmt != NULL);
+    counter = cmt_counter_create(cmt, "test", "map", "unindexed",
+                                 "Unindexed metric destruction", 1,
+                                 (char *[]) {"label"});
+    TEST_ASSERT(counter != NULL);
+
+    metric = calloc(1, sizeof(struct cmt_metric));
+    TEST_ASSERT(metric != NULL);
+    cfl_list_init(&metric->labels);
+    cfl_list_init(&metric->_hash_head);
+    metric->map = counter->map;
+    cfl_list_add(&metric->_head, &counter->map->metrics);
+    counter->map->last_metric = metric;
+
+    cmt_map_metric_destroy(metric);
+
+    TEST_CHECK(counter->map->last_metric == NULL);
+    TEST_CHECK(cfl_list_size(&counter->map->metrics) == 0);
+
+    cmt_destroy(cmt);
+}
+
 TEST_LIST = {
     {"expire_counter"    ,   test_expire_counter},
     {"expire_gauge",         test_expire_gauge},
@@ -362,5 +391,6 @@ TEST_LIST = {
     {"expire_exp_histogram", test_epxire_exp_histogram},
     {"expire_off_by_one",    test_expire_off_by_one},
     {"expire_static_metrics", test_expire_static_metrics},
+    {"destroy_unindexed_last_metric", test_destroy_unindexed_last_metric},
     { 0 }
 };
