@@ -44,8 +44,7 @@ struct cmt_opentelemetry_encoder {
  * objects remain heap-backed and retain their existing ownership rules.
  */
 
-static struct cfl_arena *get_context_arena(
-    struct cmt_opentelemetry_context *context)
+static struct cfl_arena *get_context_arena(struct cmt_opentelemetry_context *context)
 {
     struct cmt_opentelemetry_encoder *encoder;
 
