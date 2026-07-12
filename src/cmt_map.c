@@ -40,6 +40,19 @@ static void map_unlock(struct cmt_map *map)
     cmt_atomic_store(&map->metric_lock, 0);
 }
 
+static void metric_release_storage(struct cmt_metric *metric)
+{
+    free(metric->hist_buckets);
+    free(metric->exp_hist_positive_buckets);
+    free(metric->exp_hist_negative_buckets);
+    free(metric->sum_quantiles);
+
+    metric->hist_buckets = NULL;
+    metric->exp_hist_positive_buckets = NULL;
+    metric->exp_hist_negative_buckets = NULL;
+    metric->sum_quantiles = NULL;
+}
+
 static int metric_index_resize(struct cmt_map *map, size_t bucket_count)
 {
     size_t index;
@@ -323,18 +336,7 @@ void cmt_map_metric_destroy(struct cmt_metric *metric)
         free(label);
     }
 
-    if (metric->hist_buckets) {
-        free(metric->hist_buckets);
-    }
-    if (metric->exp_hist_positive_buckets) {
-        free(metric->exp_hist_positive_buckets);
-    }
-    if (metric->exp_hist_negative_buckets) {
-        free(metric->exp_hist_negative_buckets);
-    }
-    if (metric->sum_quantiles) {
-        free(metric->sum_quantiles);
-    }
+    metric_release_storage(metric);
 
     if (metric->hash_indexed) {
         if (metric->map != NULL) {
@@ -487,24 +489,7 @@ void cmt_map_destroy(struct cmt_map *map)
     if (map->metric_static_set) {
         metric = &map->metric;
 
-        if (map->type == CMT_HISTOGRAM) {
-            if (metric->hist_buckets) {
-                free(metric->hist_buckets);
-            }
-        }
-        else if (map->type == CMT_EXP_HISTOGRAM) {
-            if (metric->exp_hist_positive_buckets) {
-                free(metric->exp_hist_positive_buckets);
-            }
-            if (metric->exp_hist_negative_buckets) {
-                free(metric->exp_hist_negative_buckets);
-            }
-        }
-        else if (map->type == CMT_SUMMARY) {
-            if (metric->sum_quantiles) {
-                free(metric->sum_quantiles);
-            }
-        }
+        metric_release_storage(metric);
     }
 
     if (map->unit != NULL) {
@@ -549,6 +534,14 @@ void cmt_map_metrics_expire(struct cmt_map *map, uint64_t expiration)
     struct cmt_metric *metric;
 
     map_lock(map);
+
+    if (map->metric_static_set && map->metric.timestamp < expiration) {
+        metric_release_storage(&map->metric);
+        memset(&map->metric, 0, sizeof(struct cmt_metric));
+        cfl_list_init(&map->metric.labels);
+        map->metric_static_set = CMT_FALSE;
+    }
+
     cfl_list_foreach_safe(head, tmp, &map->metrics) {
         metric = cfl_list_entry(head, struct cmt_metric, _head);
         if (metric->timestamp < expiration) {
