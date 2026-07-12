@@ -309,6 +309,50 @@ void test_expire_off_by_one()
     cmt_destroy(cmt);
 }
 
+void test_expire_static_metrics()
+{
+    uint64_t                      ts;
+    struct cmt                   *cmt;
+    struct cmt_counter           *counter;
+    struct cmt_histogram         *histogram;
+    struct cmt_histogram_buckets *buckets;
+
+    cmt = cmt_create();
+    TEST_ASSERT(cmt != NULL);
+    ts = cfl_time_now();
+
+    counter = cmt_counter_create(cmt, "test", "expire", "static_counter",
+                                 "Static counter expiration", 0, NULL);
+    TEST_ASSERT(counter != NULL);
+    TEST_ASSERT(cmt_counter_set(counter, ts - 10, 3, 0, NULL) == 0);
+
+    buckets = cmt_histogram_buckets_create(2, 1.0, 5.0);
+    TEST_ASSERT(buckets != NULL);
+    histogram = cmt_histogram_create(cmt, "test", "expire", "static_histogram",
+                                     "Static histogram expiration", buckets,
+                                     0, NULL);
+    TEST_ASSERT(histogram != NULL);
+    TEST_ASSERT(cmt_histogram_observe(histogram, ts - 10, 2.0,
+                                     0, NULL) == 0);
+    TEST_CHECK(histogram->map->metric.hist_buckets != NULL);
+
+    cmt_expire(cmt, ts - 1);
+
+    TEST_CHECK(counter->map->metric_static_set == CMT_FALSE);
+    TEST_CHECK(histogram->map->metric_static_set == CMT_FALSE);
+    TEST_CHECK(histogram->map->metric.hist_buckets == NULL);
+
+    TEST_ASSERT(cmt_counter_set(counter, ts, 4, 0, NULL) == 0);
+    TEST_ASSERT(cmt_histogram_observe(histogram, ts, 2.0, 0, NULL) == 0);
+    TEST_CHECK(counter->map->metric_static_set == CMT_TRUE);
+    TEST_CHECK(histogram->map->metric_static_set == CMT_TRUE);
+    TEST_CHECK(histogram->map->metric.hist_buckets != NULL);
+    TEST_CHECK(cmt_metric_get_timestamp(&counter->map->metric) == ts);
+    TEST_CHECK(cmt_metric_get_timestamp(&histogram->map->metric) == ts);
+
+    cmt_destroy(cmt);
+}
+
 TEST_LIST = {
     {"expire_counter"    ,   test_expire_counter},
     {"expire_gauge",         test_expire_gauge},
@@ -317,5 +361,6 @@ TEST_LIST = {
     {"expire_untyped",       test_expire_untyped},
     {"expire_exp_histogram", test_epxire_exp_histogram},
     {"expire_off_by_one",    test_expire_off_by_one},
+    {"expire_static_metrics", test_expire_static_metrics},
     { 0 }
 };
