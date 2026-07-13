@@ -1760,7 +1760,7 @@ void destroy_instrumentation_scope(Opentelemetry__Proto__Common__V1__Instrumenta
     }
 
     if (scope->attributes != NULL) {
-        destroy_attribute_list(scope->attributes);
+        otlp_kvpair_list_destroy(scope->attributes, scope->n_attributes);
     }
 
     free(scope);
