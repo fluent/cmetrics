@@ -3148,7 +3148,7 @@ int append_sample_to_metric(struct cmt_opentelemetry_context *context,
     Opentelemetry__Proto__Common__V1__KeyValue        **attribute_list;
     struct cmt_label                                   *static_label;
     struct cmt_map_label                               *label_value;
-    struct cmt_map_label                               *label_name;
+    struct cmt_map_label                               *label_name = NULL;
     void                                               *data_point = NULL;
     Opentelemetry__Proto__Common__V1__KeyValue         *attribute;
     struct cmt_histogram                               *histogram;
@@ -3382,7 +3382,7 @@ int append_sample_to_metric(struct cmt_opentelemetry_context *context,
             return CMT_ENCODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
         }
 
-        if (label_name->name == NULL) {
+        if (label_name == NULL || label_name->name == NULL) {
             destroy_data_point(data_point, map->type);
 
             return CMT_ENCODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
