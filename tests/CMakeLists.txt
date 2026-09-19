@@ -1,4 +1,5 @@
 set(UNIT_TESTS_FILES
+  protobuf.c
   basic.c
   gauge.c
   counter.c
