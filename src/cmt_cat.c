@@ -1184,6 +1184,10 @@ static int copy_static_labels(struct cmt *dst, struct cmt *src,
 
     cfl_list_foreach(head, &src->static_labels->list) {
         label = cfl_list_entry(head, struct cmt_label, _head);
+        /* Reject source schema collisions even when dst has the same label. */
+        if (context_has_label_key(src, label->key)) {
+            return -1;
+        }
         existing = find_static_label(dst->static_labels, label->key);
         if (existing == NULL) {
             existing = find_static_label(pending, label->key);
