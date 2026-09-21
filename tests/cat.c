@@ -1003,6 +1003,67 @@ void test_cat_static_labels_dynamic_conflict()
     }
 }
 
+void test_cat_static_labels_source_dynamic_conflict()
+{
+    int shared;
+    int populated;
+    struct cmt *src;
+    struct cmt *dst;
+    struct cmt_gauge *gauge;
+    char *keys[] = {"other", "region"};
+    char *values[] = {"value", "west"};
+    cfl_sds_t src_before;
+    cfl_sds_t dst_before;
+    cfl_sds_t after;
+
+    for (shared = 0; shared <= 1; shared++) {
+        for (populated = 0; populated <= 1; populated++) {
+            src = cmt_create();
+            dst = cmt_create();
+            TEST_ASSERT(src != NULL && dst != NULL);
+            TEST_ASSERT(cmt_label_add(dst, "existing", "preserved") == 0);
+            if (shared) {
+                TEST_ASSERT(cmt_label_add(dst, "region", "east") == 0);
+            }
+            TEST_ASSERT(cmt_label_add(src, "pending", "must not be added") == 0);
+            TEST_ASSERT(cmt_label_add(src, "region", "east") == 0);
+            gauge = cmt_gauge_create(dst, "", "", "existing_metric",
+                                     "existing metric", 0, NULL);
+            TEST_ASSERT(gauge != NULL);
+            TEST_ASSERT(cmt_gauge_set(gauge, 0, 1.0, 0, NULL) == 0);
+            gauge = cmt_gauge_create(src, "", "", "new_metric",
+                                     "new metric", 2, keys);
+            TEST_ASSERT(gauge != NULL);
+            if (populated) {
+                TEST_ASSERT(cmt_gauge_set(gauge, 0, 2.0, 2, values) == 0);
+            }
+
+            src_before = cmt_encode_prometheus_create(src, 0);
+            dst_before = cmt_encode_prometheus_create(dst, 0);
+            TEST_ASSERT(src_before != NULL && dst_before != NULL);
+            TEST_CHECK(cmt_cat(dst, src) == -1);
+            TEST_CHECK(cmt_labels_count(dst->static_labels) == 1 + shared);
+            TEST_CHECK(cmt_labels_count(src->static_labels) == 2);
+            TEST_CHECK(cfl_list_size(&dst->gauges) == 1);
+            TEST_CHECK(cfl_list_size(&src->gauges) == 1);
+
+            /* Rejection must preserve metric identity and label ordering. */
+            after = cmt_encode_prometheus_create(dst, 0);
+            TEST_ASSERT(after != NULL);
+            TEST_CHECK(strcmp(dst_before, after) == 0);
+            cmt_encode_prometheus_destroy(after);
+            after = cmt_encode_prometheus_create(src, 0);
+            TEST_ASSERT(after != NULL);
+            TEST_CHECK(strcmp(src_before, after) == 0);
+            cmt_encode_prometheus_destroy(after);
+            cmt_encode_prometheus_destroy(src_before);
+            cmt_encode_prometheus_destroy(dst_before);
+            cmt_destroy(src);
+            cmt_destroy(dst);
+        }
+    }
+}
+
 void test_cat_static_labels_empty()
 {
     struct cmt *src;
@@ -1023,6 +1084,7 @@ void test_cat_static_labels_empty()
 }
 
 TEST_LIST = {
+    {"cat_static_labels_source_dynamic_conflict", test_cat_static_labels_source_dynamic_conflict},
     {"cat_static_labels_dynamic_conflict", test_cat_static_labels_dynamic_conflict},
     {"cat_static_labels_chain", test_cat_static_labels_chain},
     {"cat_static_labels_merge", test_cat_static_labels_merge},
