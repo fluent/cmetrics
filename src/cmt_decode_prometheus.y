@@ -78,6 +78,11 @@ type:
         if (parse_metric_name(context, $1)) {
             YYABORT;
         }
+        if (context->metric.type != $2) {
+            /* the cached summary/histogram belongs to the previous type of
+             * this metric, it must not be reused as the other kind */
+            context->current.summary = NULL;
+        }
         context->metric.type = $2;
     }
 ;
