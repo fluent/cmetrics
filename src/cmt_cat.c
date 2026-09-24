@@ -114,6 +114,10 @@ static inline int cat_histogram_values(struct cmt_metric *metric_dst, struct cmt
         return 0;
     }
 
+    if (histogram_src->buckets == NULL || histogram_dst->buckets == NULL) {
+        return -1;
+    }
+
     bucket_count_src = histogram_src->buckets->count;
     bucket_count_dst = histogram_dst->buckets->count;
 
@@ -882,6 +886,11 @@ int cmt_cat_histogram(struct cmt *cmt, struct cmt_histogram *histogram,
 
     map = histogram->map;
     opts = map->opts;
+
+    /* a decoded histogram may come without a bucket layout */
+    if (histogram->buckets == NULL) {
+        return -1;
+    }
 
     ret = cmt_cat_copy_label_keys(map, (char **) &labels);
     if (ret == -1) {
