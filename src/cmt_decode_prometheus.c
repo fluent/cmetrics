@@ -1007,8 +1007,6 @@ static int parse_histogram_summary_name(
     bool has_buckets;
     bool is_previous_sum_or_count;
     bool name_matched = false;
-    struct cfl_list *head;
-    struct cfl_list *tmp;
     size_t current_name_len;
     size_t parsed_name_len;
     struct cmt_decode_prometheus_context_sample *sample;
@@ -1029,30 +1027,20 @@ static int parse_histogram_summary_name(
         name_matched = true;
     }
 
-    sum_found = false;
-    count_found = false;
-    has_buckets = false;
+    /* the flags are maintained by sample_start(), walking the whole list of
+     * samples on every line would make the decoding quadratic */
+    sum_found = context->metric.sum_found;
+    count_found = context->metric.count_found;
+    has_buckets = context->metric.has_buckets;
 
-    cfl_list_foreach_safe(head, tmp, &context->metric.samples) {
-        sample = cfl_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
-
-        switch (sample->type) {
-            case CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_SUM:
-                sum_found = true;
-                break;
-            case CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_COUNT:
-                count_found = true;
-                break;
-            default:
-                has_buckets = true;
-                break;
-        }
+    is_previous_sum_or_count = false;
+    if (!cfl_list_is_empty(&context->metric.samples)) {
+        sample = cfl_list_entry_last(&context->metric.samples,
+                struct cmt_decode_prometheus_context_sample, _head);
+        is_previous_sum_or_count =
+            sample->type == CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_SUM ||
+            sample->type == CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_COUNT;
     }
-
-    sample = cfl_list_entry_last(&context->metric.samples,
-            struct cmt_decode_prometheus_context_sample, _head);
-    is_previous_sum_or_count = sample->type == CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_SUM ||
-        sample->type == CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_COUNT;
 
     if (name_matched) {
         if (sum_found && count_found) {
@@ -1208,6 +1196,19 @@ static int sample_start(struct cmt_decode_prometheus_context *context)
     memset(sample, 0, sizeof(*sample));
     sample->type = context->metric.current_sample_type;
     cfl_list_add(&sample->_head, &context->metric.samples);
+
+    switch (sample->type) {
+        case CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_SUM:
+            context->metric.sum_found = true;
+            break;
+        case CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_COUNT:
+            context->metric.count_found = true;
+            break;
+        default:
+            context->metric.has_buckets = true;
+            break;
+    }
+
     return 0;
 }
 
