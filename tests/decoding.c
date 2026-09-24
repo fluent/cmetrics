@@ -27,6 +27,7 @@
 #include <cmetrics/cmt_encode_prometheus_remote_write.h>
 #include <cmetrics/cmt_decode_prometheus_remote_write.h>
 #include <cmetrics/cmt_decode_statsd.h>
+#include <cmetrics/cmt_cat.h>
 
 #include "cmt_tests.h"
 
@@ -424,6 +425,98 @@ void test_prometheus_remote_write_metadata_matched_by_name()
     }
 }
 
+static cfl_sds_t generate_remote_write_histogram_metadata_samples_payload()
+{
+    Prometheus__WriteRequest request;
+    Prometheus__MetricMetadata metadata;
+    Prometheus__TimeSeries series;
+    Prometheus__Label name_label;
+    Prometheus__Sample sample;
+    Prometheus__MetricMetadata *metadata_list[1];
+    Prometheus__TimeSeries *time_series_list[1];
+    Prometheus__Label *label_list[1];
+    Prometheus__Sample *sample_list[1];
+    size_t payload_size;
+    unsigned char *packed_payload;
+    cfl_sds_t payload;
+
+    prometheus__write_request__init(&request);
+    prometheus__metric_metadata__init(&metadata);
+    prometheus__time_series__init(&series);
+    prometheus__label__init(&name_label);
+    prometheus__sample__init(&sample);
+
+    /* histogram metadata for a series which only carries plain samples */
+    metadata.type = PROMETHEUS__METRIC_METADATA__METRIC_TYPE__HISTOGRAM;
+    metadata.metric_family_name = "foo";
+    metadata.help = "h";
+    metadata_list[0] = &metadata;
+    request.n_metadata = 1;
+    request.metadata = metadata_list;
+
+    name_label.name = "__name__";
+    name_label.value = "foo";
+    label_list[0] = &name_label;
+    series.n_labels = 1;
+    series.labels = label_list;
+    sample.value = 3.5;
+    sample.timestamp = 1700000000000;
+    sample_list[0] = &sample;
+    series.n_samples = 1;
+    series.samples = sample_list;
+
+    time_series_list[0] = &series;
+    request.n_timeseries = 1;
+    request.timeseries = time_series_list;
+
+    payload_size = prometheus__write_request__get_packed_size(&request);
+    packed_payload = calloc(1, payload_size);
+    if (packed_payload == NULL) {
+        return NULL;
+    }
+
+    prometheus__write_request__pack(&request, packed_payload);
+    payload = cfl_sds_create_len((char *) packed_payload, payload_size);
+    free(packed_payload);
+
+    return payload;
+}
+
+void test_prometheus_remote_write_histogram_metadata_samples()
+{
+    int ret;
+    struct cmt *decoded_context = NULL;
+    struct cmt *copy;
+    cfl_sds_t payload;
+
+    cmt_initialize();
+
+    payload = generate_remote_write_histogram_metadata_samples_payload();
+    TEST_CHECK(payload != NULL);
+    if (payload == NULL) {
+        return;
+    }
+
+    ret = cmt_decode_prometheus_remote_write_create(&decoded_context,
+                                                    payload,
+                                                    cfl_sds_len(payload));
+    TEST_CHECK(ret == CMT_DECODE_PROMETHEUS_REMOTE_WRITE_SUCCESS);
+    if (ret == CMT_DECODE_PROMETHEUS_REMOTE_WRITE_SUCCESS) {
+        /* no histogram without buckets must be created */
+        TEST_CHECK(cfl_list_size(&decoded_context->histograms) == 0);
+        TEST_CHECK(cfl_list_size(&decoded_context->gauges) == 1);
+
+        copy = cmt_create();
+        TEST_CHECK(copy != NULL);
+        if (copy != NULL) {
+            TEST_CHECK(cmt_cat(copy, decoded_context) == 0);
+            cmt_destroy(copy);
+        }
+        cmt_decode_prometheus_remote_write_destroy(decoded_context);
+    }
+    cfl_sds_destroy(payload);
+}
+
 void test_statsd()
 {
     int ret;
@@ -461,6 +554,8 @@ TEST_LIST = {
     {"prometheus_remote_write_missing_label_value_no_crash", test_prometheus_remote_write_missing_label_value_no_crash},
     {"prometheus_remote_write_sparse_metadata_histogram", test_prometheus_remote_write_sparse_metadata_histogram},
     {"prometheus_remote_write_metadata_matched_by_name", test_prometheus_remote_write_metadata_matched_by_name},
+    {"prometheus_remote_write_histogram_metadata_samples",
+     test_prometheus_remote_write_histogram_metadata_samples},
     {"statsd", test_statsd},
     { 0 }
 };
