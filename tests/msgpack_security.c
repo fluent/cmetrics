@@ -62,16 +62,50 @@ static void write_meta(mpack_writer_t *writer, int type, const char *duplicate)
     mpack_finish_map(writer);
 }
 
-static void write_values(mpack_writer_t *writer)
+
+/* section: 0 = none, 1 = histogram, 2 = summary */
+static void write_sample(mpack_writer_t *writer, int section)
+{
+    mpack_start_map(writer, section == 0 ? 1 : 2);
+    mpack_write_cstr(writer, "ts");
+    mpack_write_uint(writer, 1);
+    if (section == 1) {
+        mpack_write_cstr(writer, "histogram");
+        mpack_start_map(writer, 3);
+        mpack_write_cstr(writer, "buckets");
+        mpack_start_array(writer, 2);
+        mpack_write_uint(writer, 1);
+        mpack_write_uint(writer, 2);
+        mpack_finish_array(writer);
+        mpack_write_cstr(writer, "sum");
+        mpack_write_double(writer, 1.0);
+        mpack_write_cstr(writer, "count");
+        mpack_write_uint(writer, 3);
+        mpack_finish_map(writer);
+    }
+    else if (section == 2) {
+        mpack_write_cstr(writer, "summary");
+        mpack_start_map(writer, 4);
+        mpack_write_cstr(writer, "quantiles_set");
+        mpack_write_uint(writer, 1);
+        mpack_write_cstr(writer, "quantiles");
+        mpack_start_array(writer, 1);
+        mpack_write_uint(writer, 1);
+        mpack_finish_array(writer);
+        mpack_write_cstr(writer, "count");
+        mpack_write_uint(writer, 1);
+        mpack_write_cstr(writer, "sum");
+        mpack_write_uint(writer, 1);
+        mpack_finish_map(writer);
+    }
+    mpack_finish_map(writer);
+}
+
+static void write_values(mpack_writer_t *writer, int type)
 {
     mpack_write_cstr(writer, "values");
     mpack_start_array(writer, 1);
-    mpack_start_map(writer, 2);
-    mpack_write_cstr(writer, "ts");
-    mpack_write_uint(writer, 1);
-    mpack_write_cstr(writer, "value");
-    mpack_write_double(writer, 1.0);
-    mpack_finish_map(writer);
+    write_sample(writer, type == CMT_HISTOGRAM ? 1 : 2);
     mpack_finish_array(writer);
 }
 
@@ -97,11 +131,11 @@ static void check_document(int type, int mode, const char *duplicate)
     mpack_start_array(&writer, 1);
     mpack_start_map(&writer, mode == 1 ? 3 : 2);
     if (mode == 2) {
-        write_values(&writer);
+        write_values(&writer, type);
     }
     write_meta(&writer, type, duplicate);
     if (mode != 2) {
-        write_values(&writer);
+        write_values(&writer, type);
     }
     if (mode == 1) {
         mpack_write_cstr(&writer, "meta");
@@ -228,6 +262,80 @@ static void test_metadata_string_control(void)
                CMT_DECODE_MSGPACK_SUCCESS);
 }
 
+/* one metric of 'type' whose 'values' holds 'count' label-less samples
+ * carrying 'section'
+ */
+static int decode_samples_document(int type, int section, int count)
+{
+    mpack_writer_t writer;
+    char          *data;
+    char          *encoded;
+    size_t         encoded_size;
+    size_t         size;
+    size_t         offset;
+    int            index;
+    int            result;
+    struct cmt    *context;
+
+    data = NULL;
+    size = 0;
+    offset = 0;
+    context = NULL;
+    mpack_writer_init_growable(&writer, &data, &size);
+    mpack_start_map(&writer, 1);
+    mpack_write_cstr(&writer, "metrics");
+    mpack_start_array(&writer, 1);
+    mpack_start_map(&writer, 2);
+    write_meta(&writer, type, NULL);
+    mpack_write_cstr(&writer, "values");
+    mpack_start_array(&writer, count);
+    for (index = 0; index < count; index++) {
+        write_sample(&writer, section);
+    }
+    mpack_finish_array(&writer);
+    mpack_finish_map(&writer);
+    mpack_finish_array(&writer);
+    mpack_finish_map(&writer);
+    TEST_ASSERT(mpack_writer_destroy(&writer) == mpack_ok);
+
+    result = cmt_decode_msgpack_create(&context, data, size, &offset);
+    if (result == CMT_DECODE_MSGPACK_SUCCESS) {
+        TEST_CHECK(cmt_encode_msgpack_create(context, &encoded, &encoded_size) == 0);
+        cmt_encode_msgpack_destroy(encoded);
+        cmt_decode_msgpack_destroy(context);
+    }
+    free(data);
+
+    return result;
+}
+
+static void test_repeated_static_samples(void)
+{
+    TEST_CHECK(decode_samples_document(CMT_HISTOGRAM, 1, 3) ==
+               CMT_DECODE_MSGPACK_SUCCESS);
+    TEST_CHECK(decode_samples_document(CMT_SUMMARY, 2, 3) ==
+               CMT_DECODE_MSGPACK_SUCCESS);
+}
+
+static void test_missing_sample_section(void)
+{
+    /* histogram and summary samples must carry their own data */
+    TEST_CHECK(decode_samples_document(CMT_HISTOGRAM, 0, 1) !=
+               CMT_DECODE_MSGPACK_SUCCESS);
+    TEST_CHECK(decode_samples_document(CMT_SUMMARY, 0, 1) !=
+               CMT_DECODE_MSGPACK_SUCCESS);
+
+    /* and the section must match the metric type */
+    TEST_CHECK(decode_samples_document(CMT_HISTOGRAM, 2, 1) !=
+               CMT_DECODE_MSGPACK_SUCCESS);
+    TEST_CHECK(decode_samples_document(CMT_SUMMARY, 1, 1) !=
+               CMT_DECODE_MSGPACK_SUCCESS);
+    TEST_CHECK(decode_samples_document(CMT_COUNTER, 1, 1) !=
+               CMT_DECODE_MSGPACK_SUCCESS);
+    TEST_CHECK(decode_samples_document(CMT_GAUGE, 2, 1) !=
+               CMT_DECODE_MSGPACK_SUCCESS);
+}
+
 TEST_LIST = {
     {"controls", test_controls},
     {"duplicate_meta", test_duplicate_meta},
@@ -236,5 +344,7 @@ TEST_LIST = {
     {"duplicate_layout", test_duplicate_layout},
     {"truncated_metadata_string", test_truncated_metadata_string},
     {"metadata_string_control", test_metadata_string_control},
+    {"repeated_static_samples", test_repeated_static_samples},
+    {"missing_sample_section", test_missing_sample_section},
     {NULL, NULL}
 };
