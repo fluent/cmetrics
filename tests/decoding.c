@@ -548,6 +548,120 @@ void test_statsd()
 }
 
 
+static int decode_statsd_text(char *text, struct cmt **out_context)
+{
+    int        ret;
+    cfl_sds_t  payload;
+
+    payload = cfl_sds_create(text);
+    if (payload == NULL) {
+        return -1;
+    }
+
+    *out_context = NULL;
+    ret = cmt_decode_statsd_create(out_context, payload, cfl_sds_len(payload),
+                                   CMT_DECODE_STATSD_GAUGE_OBSERVER);
+    cfl_sds_destroy(payload);
+
+    return ret;
+}
+
+static cfl_sds_t create_statsd_tagged_line(size_t tag_count)
+{
+    size_t    index;
+    cfl_sds_t line;
+    cfl_sds_t tmp;
+    char      tag[64];
+
+    line = cfl_sds_create("foo:1|c|#");
+    if (line == NULL) {
+        return NULL;
+    }
+
+    for (index = 0 ; index < tag_count ; index++) {
+        snprintf(tag, sizeof(tag) - 1, "%sk%zu:v%zu", index > 0 ? "," : "",
+                 index, index);
+        tmp = cfl_sds_cat(line, tag, strlen(tag));
+        if (tmp == NULL) {
+            cfl_sds_destroy(line);
+            return NULL;
+        }
+        line = tmp;
+    }
+
+    return line;
+}
+
+void test_statsd_many_tags()
+{
+    int                 ret;
+    struct cmt         *context;
+    struct cmt_counter *counter;
+    struct cmt_metric  *metric;
+    cfl_sds_t           line;
+
+    cmt_initialize();
+
+    /* every distinct tag must be kept */
+    line = create_statsd_tagged_line(17);
+    TEST_ASSERT(line != NULL);
+    ret = decode_statsd_text(line, &context);
+    cfl_sds_destroy(line);
+    TEST_CHECK(ret == CMT_DECODE_STATSD_SUCCESS);
+    if (ret == CMT_DECODE_STATSD_SUCCESS) {
+        counter = cfl_list_entry_first(&context->counters, struct cmt_counter, _head);
+        TEST_CHECK(cfl_list_size(&counter->map->label_keys) == 17);
+        metric = cfl_list_entry_first(&counter->map->metrics, struct cmt_metric, _head);
+        TEST_CHECK(cfl_list_size(&metric->labels) == 17);
+        cmt_decode_statsd_destroy(context);
+    }
+
+    /* the label limit must be enforced without a double free */
+    line = create_statsd_tagged_line(129);
+    TEST_ASSERT(line != NULL);
+    ret = decode_statsd_text(line, &context);
+    cfl_sds_destroy(line);
+    TEST_CHECK(ret != CMT_DECODE_STATSD_SUCCESS);
+    if (ret == CMT_DECODE_STATSD_SUCCESS) {
+        cmt_decode_statsd_destroy(context);
+    }
+
+    /* repeated tag keys must not leak the previous value */
+    ret = decode_statsd_text("foo:1|g|#k:a,k:b", &context);
+    TEST_CHECK(ret == CMT_DECODE_STATSD_SUCCESS);
+    if (ret == CMT_DECODE_STATSD_SUCCESS) {
+        cmt_decode_statsd_destroy(context);
+    }
+}
+
+void test_statsd_malformed_lines()
+{
+    int         index;
+    int         ret;
+    struct cmt *context;
+    char       *lines[] = {
+        "hello",
+        "foo:1|c\n\n",
+        "\nfoo:1|c",
+        "foo:1|c|#bar",
+        "foo:1|c|#bar,k:v",
+        "foo:1|c|#k:v,bar",
+        NULL
+    };
+
+    cmt_initialize();
+
+    /* malformed lines and tags must be skipped, not retried forever */
+    for (index = 0 ; lines[index] != NULL ; index++) {
+        ret = decode_statsd_text(lines[index], &context);
+        TEST_CHECK(ret == CMT_DECODE_STATSD_SUCCESS);
+        TEST_MSG("line %d", index);
+        if (ret == CMT_DECODE_STATSD_SUCCESS) {
+            cmt_decode_statsd_destroy(context);
+        }
+    }
+}
+
 TEST_LIST = {
     {"prometheus_remote_write", test_prometheus_remote_write},
     {"prometheus_remote_write_missing_label_name_rejected", test_prometheus_remote_write_missing_label_name_rejected},
@@ -557,5 +671,7 @@ TEST_LIST = {
     {"prometheus_remote_write_histogram_metadata_samples",
      test_prometheus_remote_write_histogram_metadata_samples},
     {"statsd", test_statsd},
+    {"statsd_many_tags", test_statsd_many_tags},
+    {"statsd_malformed_lines", test_statsd_malformed_lines},
     { 0 }
 };
