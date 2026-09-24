@@ -1303,6 +1303,8 @@ static int unpack_metric_array_entry(mpack_reader_t *reader, size_t index, void 
     int                                result;
     uint64_t                          *old_negative_buckets;
     uint64_t                          *old_positive_buckets;
+    uint64_t                          *old_hist_buckets;
+    uint64_t                          *old_sum_quantiles;
     struct cmt_metric                 *metric;
     struct cmt_msgpack_decode_context *decode_context;
 
@@ -1327,13 +1329,23 @@ static int unpack_metric_array_entry(mpack_reader_t *reader, size_t index, void 
             decode_context->map->metric_static_set = 1;
 
             if (decode_context->map->type == CMT_HISTOGRAM) {
+                /* a previous label-less entry may own the static storage */
+                old_hist_buckets = decode_context->map->metric.hist_buckets;
+
                 decode_context->map->metric.hist_buckets = metric->hist_buckets;
                 cmt_atomic_store(&decode_context->map->metric.hist_count,
                                  cmt_atomic_load(&metric->hist_count));
                 cmt_atomic_store(&decode_context->map->metric.hist_sum,
                                  cmt_atomic_load(&metric->hist_sum));
+
+                if (old_hist_buckets != NULL) {
+                    free(old_hist_buckets);
+                }
             }
             else if (decode_context->map->type == CMT_SUMMARY) {
+                /* a previous label-less entry may own the static storage */
+                old_sum_quantiles = decode_context->map->metric.sum_quantiles;
+
                 cmt_atomic_store(&decode_context->map->metric.sum_quantiles_set, cmt_atomic_load(&metric->sum_quantiles_set));
                 decode_context->map->metric.sum_quantiles = metric->sum_quantiles;
                 decode_context->map->metric.sum_quantiles_count =
@@ -1342,6 +1354,10 @@ static int unpack_metric_array_entry(mpack_reader_t *reader, size_t index, void 
                                  cmt_atomic_load(&metric->sum_count));
                 cmt_atomic_store(&decode_context->map->metric.sum_sum,
                                  cmt_atomic_load(&metric->sum_sum));
+
+                if (old_sum_quantiles != NULL) {
+                    free(old_sum_quantiles);
+                }
             }
             else if (decode_context->map->type == CMT_EXP_HISTOGRAM) {
                 cmt_metric_exp_hist_lock(&decode_context->map->metric);
