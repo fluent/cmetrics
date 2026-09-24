@@ -147,13 +147,13 @@ static int decode_labels(struct cmt *cmt,
         }
 
         cfl_list_foreach(head, kvs) {
-        retry:
             cur = cfl_list_entry(head, struct cfl_split_entry, _head);
             label_kv = cur->value;
 
+            /* skip tags without a value */
             colon = strchr(label_kv, ':');
             if (colon == NULL) {
-                goto retry;
+                continue;
             }
             label_k = cfl_sds_create_len(label_kv, colon - label_kv);
             if (label_k == NULL) {
@@ -586,11 +586,10 @@ static int decode_metrics_lines(struct cmt *cmt,
     }
 
     cfl_list_foreach(head, kvs) {
-retry:
         cur = cfl_list_entry(head, struct cfl_split_entry, _head);
-        /* StatsD format always has | at least one. */
+        /* StatsD format always has | at least one, skip anything else */
         if (strstr(cur->value, "|") == NULL) {
-            goto retry;
+            continue;
         }
 
         ret = statsd_process_line(cmt, cur->value, flags);
