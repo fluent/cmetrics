@@ -1186,6 +1186,10 @@ static int parse_label(
 
     sample = cfl_list_entry_last(&context->metric.samples,
             struct cmt_decode_prometheus_context_sample, _head);
+    if (sample->label_values[i]) {
+        /* label repeated in the same sample, release the previous value */
+        cfl_sds_destroy(sample->label_values[i]);
+    }
     sample->label_values[i] = value;
     return 0;
 }
