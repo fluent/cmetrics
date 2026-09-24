@@ -683,6 +683,7 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
 {
     int ret = 0;
     int i;
+    int has_quantile = CMT_FALSE;
     size_t quantile_count;
     size_t quantile_index;
     double *quantiles = NULL;
@@ -707,10 +708,16 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
                 "not enough samples for summary");
     }
 
-    /* quantile_count = sample count - 2:
-     * - sum
-     * - count */
-    quantile_count = cfl_list_size(&context->metric.samples) - 2;
+    /* quantile_count = number of quantile samples. Count them instead of
+     * assuming that sum and count are present, otherwise the quantiles
+     * arrays are too small when any of them is missing */
+    quantile_count = 0;
+    cfl_list_foreach(head, &context->metric.samples) {
+        sample = cfl_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
+        if (sample->type == CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_NORMAL) {
+            quantile_count++;
+        }
+    }
     if (context->opts.override_timestamp) {
         timestamp = context->opts.override_timestamp;
     }
@@ -735,6 +742,9 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
         if (strcmp(context->metric.labels[i], "quantile")) {
             /* quantile is not a label */
             label_count++;
+        }
+        else {
+            has_quantile = CMT_TRUE;
         }
     }
 
@@ -772,6 +782,16 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
         sample = cfl_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
         switch (sample->type) {
             case CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_NORMAL:
+                /* a summary may have no quantiles at all (only sum and
+                 * count), but every quantile sample must carry a value */
+                if (!has_quantile ||
+                    !sample->label_values[quantile_label_index] ||
+                    sample->label_values[quantile_label_index][0] == '\0') {
+                    ret = report_error(context,
+                            CMT_DECODE_PROMETHEUS_SYNTAX_ERROR,
+                            "missing summary \"quantile\" value");
+                    goto end;
+                }
                 if (parse_double(sample->label_values[quantile_label_index],
                             quantiles + quantile_index)) {
                     ret = report_error(context,
@@ -1030,8 +1050,12 @@ static int parse_histogram_summary_name(
 
     if (name_matched) {
         if (sum_found && count_found) {
-            /* finish instance of the summary/histogram */
-            return finish_duplicate_histogram_summary_sum_count(context, metric_name, -1);
+            /* finish instance of the summary/histogram, the samples of the
+             * next instance using the base name are quantiles */
+            return finish_duplicate_histogram_summary_sum_count(
+                    context,
+                    metric_name,
+                    CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_NORMAL);
         }
         else {
             /* parsing HELP after TYPE */
