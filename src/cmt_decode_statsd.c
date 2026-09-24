@@ -190,6 +190,10 @@ static int decode_labels(struct cmt *cmt,
                 return CMT_DECODE_STATSD_INVALID_TAG_FORMAT_ERROR;
             }
 
+            /* look up the key position from the start for every tag */
+            label_found = CMT_FALSE;
+            label_index = 0;
+
             cfl_list_foreach(label_iterator, &map->label_keys) {
                 current_label = cfl_list_entry(label_iterator, struct cmt_map_label, _head);
 
@@ -226,6 +230,11 @@ static int decode_labels(struct cmt *cmt,
             }
 
             if (result == CMT_DECODE_STATSD_SUCCESS) {
+                /* a repeated key replaces the previous value */
+                if (value_index_list[label_index] != NULL) {
+                    cfl_sds_destroy(value_index_list[label_index]);
+                }
+
                 value_index_list[label_index] = (void *) cfl_sds_create_len(label_v,
                                                                             cfl_sds_len(label_v));
             }
@@ -414,7 +423,6 @@ static int decode_statsd_message(struct cmt *cmt,
         result = decode_counter_entry(cmt, instance, m);
 
         if (result) {
-            cfl_sds_destroy(metric_name);
             cmt_counter_destroy(instance);
         }
         break;
@@ -434,7 +442,6 @@ static int decode_statsd_message(struct cmt *cmt,
         result = decode_gauge_entry(cmt, instance, m);
 
         if (result) {
-            cfl_sds_destroy(metric_name);
             cmt_gauge_destroy(instance);
         }
         break;
@@ -455,7 +462,6 @@ static int decode_statsd_message(struct cmt *cmt,
         result = decode_untyped_entry(cmt, instance, m);
 
         if (result) {
-            cfl_sds_destroy(metric_name);
             cmt_untyped_destroy(instance);
         }
         break;
@@ -477,7 +483,6 @@ static int decode_statsd_message(struct cmt *cmt,
             result = decode_gauge_entry(cmt, instance, m);
 
             if (result) {
-                cfl_sds_destroy(metric_name);
                 cmt_gauge_destroy(instance);
             }
         }
