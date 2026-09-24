@@ -623,8 +623,11 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
         timestamp = context->opts.default_timestamp;
     }
 
+    /* reuse the previous histogram only if its shape matches, the number of
+     * bucket defaults set below comes from this instance */
     h = context->current.histogram;
-    if (!h || label_i != h->map->label_count) {
+    if (!h || label_i != h->map->label_count ||
+        h->buckets == NULL || h->buckets->count != bucket_count) {
         cmt_buckets = cmt_histogram_buckets_create_size(buckets, bucket_count);
         if (!cmt_buckets) {
             ret = report_error(context,
@@ -867,8 +870,11 @@ static int add_metric_summary(struct cmt_decode_prometheus_context *context)
         timestamp = context->opts.default_timestamp;
     }
 
+    /* reuse the previous summary only if its shape matches, the number of
+     * quantile defaults set below comes from this instance */
     s = context->current.summary;
-    if (!s || label_i != s->map->label_count) {
+    if (!s || label_i != s->map->label_count ||
+        s->quantiles_count != quantile_count) {
         s = cmt_summary_create(context->cmt,
                                context->metric.ns,
                                context->metric.subsystem,
