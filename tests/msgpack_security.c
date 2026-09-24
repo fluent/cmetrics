@@ -177,11 +177,64 @@ static void test_duplicate_options(void)
     }
 }
 
+static int decode_metadata_document(const char *data, size_t size)
+{
+    int         result;
+    size_t      offset;
+    struct cmt *context;
+
+    offset = 0;
+    context = NULL;
+    result = cmt_decode_msgpack_create(&context, (char *) data, size, &offset);
+    if (context != NULL) {
+        cmt_decode_msgpack_destroy(context);
+    }
+
+    return result;
+}
+
+static void test_truncated_metadata_string(void)
+{
+    /* {"meta": {"cmetrics": {"k": <value>}}} */
+    const char prefix[] = "\x81\xa4meta\x81\xa8" "cmetrics\x81\xa1k";
+    const char *values[] = {
+        "\xdb\xff\xff\xff\xff",          /* str32, 4 GiB, no data */
+        "\xc6\xff\xff\xff\xff",          /* bin32, 4 GiB, no data */
+        "\xdb\x00\x00\x10\x00" "abc",    /* str32, 4 KiB, 3 bytes */
+        "\xc6\x00\x00\x10\x00" "abc",    /* bin32, 4 KiB, 3 bytes */
+        NULL
+    };
+    const size_t sizes[] = {5, 5, 8, 8};
+    char   document[64];
+    size_t index;
+
+    for (index = 0; values[index] != NULL; index++) {
+        memcpy(document, prefix, sizeof(prefix) - 1);
+        memcpy(&document[sizeof(prefix) - 1], values[index], sizes[index]);
+        TEST_CHECK(decode_metadata_document(document,
+                                            sizeof(prefix) - 1 + sizes[index]) !=
+                   CMT_DECODE_MSGPACK_SUCCESS);
+        TEST_MSG("value %zu", index);
+    }
+}
+
+static void test_metadata_string_control(void)
+{
+    const char document[] = "\x82\xa4meta\x81\xa8" "cmetrics\x82\xa1k\xa1v"
+                            "\xa1" "b\xc4\x02\x00\x01"
+                            "\xa7metrics\x90";
+
+    TEST_CHECK(decode_metadata_document(document, sizeof(document) - 1) ==
+               CMT_DECODE_MSGPACK_SUCCESS);
+}
+
 TEST_LIST = {
     {"controls", test_controls},
     {"duplicate_meta", test_duplicate_meta},
     {"values_before_meta", test_values_before_meta},
     {"duplicate_options", test_duplicate_options},
     {"duplicate_layout", test_duplicate_layout},
+    {"truncated_metadata_string", test_truncated_metadata_string},
+    {"metadata_string_control", test_metadata_string_control},
     {NULL, NULL}
 };
