@@ -69,6 +69,10 @@ help:
         if (parse_metric_name(context, $1)) {
             YYABORT;
         }
+        if (context->metric.docstring) {
+            /* repeated HELP line for the same metric */
+            cfl_sds_destroy(context->metric.docstring);
+        }
         context->metric.docstring = $2;
     }
 ;
