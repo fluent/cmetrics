@@ -21,6 +21,8 @@
 #include <cmetrics/cmetrics.h>
 #include <cmetrics/cmt_decode_msgpack.h>
 #include <cmetrics/cmt_encode_msgpack.h>
+#include <cmetrics/cmt_opts.h>
+#include <cmetrics/cmt_cat.h>
 #include <mpack/mpack.h>
 #include "cmt_tests.h"
 
@@ -336,6 +338,59 @@ static void test_missing_sample_section(void)
                CMT_DECODE_MSGPACK_SUCCESS);
 }
 
+/* a histogram without buckets decoded from msgpack must not crash cmt_cat() */
+static void test_cat_histogram_without_buckets(void)
+{
+    mpack_writer_t writer;
+    char          *data;
+    size_t         size;
+    size_t         offset;
+    int            result;
+    struct cmt    *context;
+    struct cmt    *target;
+
+    data = NULL;
+    size = 0;
+    offset = 0;
+    context = NULL;
+    mpack_writer_init_growable(&writer, &data, &size);
+    mpack_start_map(&writer, 1);
+    mpack_write_cstr(&writer, "metrics");
+    mpack_start_array(&writer, 1);
+    mpack_start_map(&writer, 2);
+    mpack_write_cstr(&writer, "meta");
+    mpack_start_map(&writer, 3);
+    mpack_write_cstr(&writer, "ver");
+    mpack_write_uint(&writer, 2);
+    mpack_write_cstr(&writer, "type");
+    mpack_write_uint(&writer, CMT_HISTOGRAM);
+    mpack_write_cstr(&writer, "opts");
+    mpack_start_map(&writer, 2);
+    mpack_write_cstr(&writer, "name");
+    mpack_write_cstr(&writer, "test");
+    mpack_write_cstr(&writer, "desc");
+    mpack_write_cstr(&writer, "test");
+    mpack_finish_map(&writer);
+    mpack_finish_map(&writer);
+    mpack_write_cstr(&writer, "values");
+    mpack_start_array(&writer, 0);
+    mpack_finish_array(&writer);
+    mpack_finish_map(&writer);
+    mpack_finish_array(&writer);
+    mpack_finish_map(&writer);
+    TEST_ASSERT(mpack_writer_destroy(&writer) == mpack_ok);
+
+    result = cmt_decode_msgpack_create(&context, data, size, &offset);
+    if (result == CMT_DECODE_MSGPACK_SUCCESS) {
+        target = cmt_create();
+        TEST_ASSERT(target != NULL);
+        TEST_CHECK(cmt_cat(target, context) != 0);
+        cmt_destroy(target);
+        cmt_decode_msgpack_destroy(context);
+    }
+    free(data);
+}
+
 TEST_LIST = {
     {"controls", test_controls},
     {"duplicate_meta", test_duplicate_meta},
@@ -346,5 +401,6 @@ TEST_LIST = {
     {"metadata_string_control", test_metadata_string_control},
     {"repeated_static_samples", test_repeated_static_samples},
     {"missing_sample_section", test_missing_sample_section},
+    {"cat_histogram_without_buckets", test_cat_histogram_without_buckets},
     {NULL, NULL}
 };
