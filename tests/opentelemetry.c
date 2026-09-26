@@ -2584,7 +2584,8 @@ static void test_opentelemetry_batches_all_metric_types(void)
 static cfl_sds_t generate_layout_otlp_payload(int summary_metric,
                                               size_t first_count,
                                               size_t second_count,
-                                              size_t with_counts)
+                                              size_t with_counts,
+                                              size_t second_offset)
 {
     Opentelemetry__Proto__Collector__Metrics__V1__ExportMetricsServiceRequest request;
     Opentelemetry__Proto__Metrics__V1__ResourceMetrics      resource_metrics;
@@ -2604,13 +2605,15 @@ static cfl_sds_t generate_layout_otlp_payload(int summary_metric,
     double                                                  bounds[64];
     uint64_t                                                counts[65];
     size_t                                                  point_counts[2];
+    size_t                                                  point_offsets[2];
     size_t                                                  index;
     size_t                                                  point;
     size_t                                                  payload_size;
     unsigned char                                          *packed_payload;
     cfl_sds_t                                               payload;
 
-    if (first_count > 64 || second_count > 64 || with_counts > 1) {
+    if (first_count > 64 || second_count + second_offset > 64 ||
+        with_counts > 1) {
         return NULL;
     }
 
@@ -2635,6 +2638,12 @@ static cfl_sds_t generate_layout_otlp_payload(int summary_metric,
     point_counts[0] = first_count;
     point_counts[1] = second_count;
 
+    /* a non zero offset makes the second point use different bound and
+     * quantile values while keeping the same count
+     */
+    point_offsets[0] = 0;
+    point_offsets[1] = second_offset;
+
     for (point = 0 ; point < 2 ; point++) {
         opentelemetry__proto__metrics__v1__histogram_data_point__init(&histogram_points[point]);
         histogram_points[point].time_unix_nano = 1;
@@ -2642,7 +2651,7 @@ static cfl_sds_t generate_layout_otlp_payload(int summary_metric,
         histogram_points[point].has_sum = CMT_TRUE;
         histogram_points[point].sum = 7.0;
         histogram_points[point].n_explicit_bounds = point_counts[point];
-        histogram_points[point].explicit_bounds = bounds;
+        histogram_points[point].explicit_bounds = bounds + point_offsets[point];
         histogram_points[point].n_bucket_counts = 0;
         if (with_counts > 0) {
             histogram_points[point].n_bucket_counts = point_counts[point] + 1;
@@ -2655,7 +2664,7 @@ static cfl_sds_t generate_layout_otlp_payload(int summary_metric,
         summary_points[point].count = 7;
         summary_points[point].sum = 7.0;
         summary_points[point].n_quantile_values = point_counts[point];
-        summary_points[point].quantile_values = quantile_list;
+        summary_points[point].quantile_values = quantile_list + point_offsets[point];
         summary_point_list[point] = &summary_points[point];
     }
 
@@ -2743,21 +2752,30 @@ static void test_opentelemetry_histogram_layout_mismatch(void)
     cmt_initialize();
 
     /* control: both points use the same layout */
-    payload = generate_layout_otlp_payload(CMT_FALSE, 64, 64, 1);
+    payload = generate_layout_otlp_payload(CMT_FALSE, 64, 64, 1, 0);
     TEST_ASSERT(payload != NULL);
     ret = decode_and_encode_layout_payload(payload);
     TEST_CHECK(ret == CMT_DECODE_OPENTELEMETRY_SUCCESS);
     cfl_sds_destroy(payload);
 
-    /* bucket_counts missing: accepted, buckets are sized from the bounds */
-    payload = generate_layout_otlp_payload(CMT_FALSE, 64, 64, 0);
+    /* bucket_counts missing while bounds are present must be rejected */
+    payload = generate_layout_otlp_payload(CMT_FALSE, 64, 64, 0, 0);
     TEST_ASSERT(payload != NULL);
     ret = decode_and_encode_layout_payload(payload);
-    TEST_CHECK(ret == CMT_DECODE_OPENTELEMETRY_SUCCESS);
+    TEST_CHECK(ret != CMT_DECODE_OPENTELEMETRY_SUCCESS);
     cfl_sds_destroy(payload);
 
     /* second point with a different number of bounds must be rejected */
-    payload = generate_layout_otlp_payload(CMT_FALSE, 64, 1, 1);
+    payload = generate_layout_otlp_payload(CMT_FALSE, 64, 1, 1, 0);
+    TEST_ASSERT(payload != NULL);
+    ret = decode_and_encode_layout_payload(payload);
+    TEST_CHECK(ret != CMT_DECODE_OPENTELEMETRY_SUCCESS);
+    cfl_sds_destroy(payload);
+
+    /* second point with the same number of bounds but different values
+     * must be rejected
+     */
+    payload = generate_layout_otlp_payload(CMT_FALSE, 63, 63, 1, 1);
     TEST_ASSERT(payload != NULL);
     ret = decode_and_encode_layout_payload(payload);
     TEST_CHECK(ret != CMT_DECODE_OPENTELEMETRY_SUCCESS);
@@ -2772,14 +2790,23 @@ static void test_opentelemetry_summary_layout_mismatch(void)
     cmt_initialize();
 
     /* control: both points use the same layout */
-    payload = generate_layout_otlp_payload(CMT_TRUE, 64, 64, 0);
+    payload = generate_layout_otlp_payload(CMT_TRUE, 64, 64, 0, 0);
     TEST_ASSERT(payload != NULL);
     ret = decode_and_encode_layout_payload(payload);
     TEST_CHECK(ret == CMT_DECODE_OPENTELEMETRY_SUCCESS);
     cfl_sds_destroy(payload);
 
     /* second point without quantile values must be rejected */
-    payload = generate_layout_otlp_payload(CMT_TRUE, 64, 0, 0);
+    payload = generate_layout_otlp_payload(CMT_TRUE, 64, 0, 0, 0);
+    TEST_ASSERT(payload != NULL);
+    ret = decode_and_encode_layout_payload(payload);
+    TEST_CHECK(ret != CMT_DECODE_OPENTELEMETRY_SUCCESS);
+    cfl_sds_destroy(payload);
+
+    /* second point with the same number of quantiles but different values
+     * must be rejected
+     */
+    payload = generate_layout_otlp_payload(CMT_TRUE, 63, 63, 0, 1);
     TEST_ASSERT(payload != NULL);
     ret = decode_and_encode_layout_payload(payload);
     TEST_CHECK(ret != CMT_DECODE_OPENTELEMETRY_SUCCESS);
