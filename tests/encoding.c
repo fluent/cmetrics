@@ -1418,6 +1418,73 @@ void test_prometheus_invalid_name_chars()
     cmt_destroy(cmt);
 }
 
+void test_prometheus_sanitized_name_collisions()
+{
+    uint64_t ts;
+    cfl_sds_t text;
+    struct cmt *cmt;
+    struct cmt_counter *dotted;
+    struct cmt_counter *underscored;
+    struct cmt_counter *empty;
+    struct cmt_gauge *idle;
+    struct cmt_gauge *labels;
+
+    cmt_initialize();
+
+    cmt = cmt_create();
+    TEST_CHECK(cmt != NULL);
+    if (cmt == NULL) {
+        return;
+    }
+
+    /* distinct names that are written under the same sanitized name */
+    dotted = cmt_counter_create(cmt, "", "", "cpu.total", "dotted", 0, NULL);
+    underscored = cmt_counter_create(cmt, "", "", "cpu_total", "underscored", 0, NULL);
+
+    /* a map without samples writes nothing and must not claim its name */
+    empty = cmt_counter_create(cmt, "", "", "idle.metric", "empty",
+                               1, (char *[]) {"k"});
+    idle = cmt_gauge_create(cmt, "", "", "idle_metric", "idle", 0, NULL);
+
+    /* static and api defined label keys that sanitize to the same name */
+    labels = cmt_gauge_create(cmt, "", "", "req", "labels",
+                              3, (char *[]) {"a.b", "c", "a_b"});
+
+    TEST_CHECK(dotted != NULL && underscored != NULL && empty != NULL &&
+               idle != NULL && labels != NULL);
+    if (dotted == NULL || underscored == NULL || empty == NULL ||
+        idle == NULL || labels == NULL) {
+        cmt_destroy(cmt);
+        return;
+    }
+
+    TEST_CHECK(cmt_label_add(cmt, "a-b", "s") == 0);
+
+    ts = 0;
+    cmt_counter_set(dotted, ts, 1, 0, NULL);
+    cmt_counter_set(underscored, ts, 2, 0, NULL);
+    cmt_gauge_set(idle, ts, 3, 0, NULL);
+    cmt_gauge_set(labels, ts, 4, 3, (char *[]) {"x", "z", "y"});
+
+    text = cmt_encode_prometheus_create(cmt, CMT_FALSE);
+    TEST_CHECK(text != NULL);
+    if (text != NULL) {
+        TEST_CHECK(strcmp(text,
+                          "# HELP cpu_total dotted\n"
+                          "# TYPE cpu_total counter\n"
+                          "cpu_total{a_b=\"s\"} 1\n"
+                          "# HELP idle_metric idle\n"
+                          "# TYPE idle_metric gauge\n"
+                          "idle_metric{a_b=\"s\"} 3\n"
+                          "# HELP req labels\n"
+                          "# TYPE req gauge\n"
+                          "req{a_b=\"s;x;y\",c=\"z\"} 4\n") == 0);
+        cmt_encode_prometheus_destroy(text);
+    }
+
+    cmt_destroy(cmt);
+}
+
 void test_text()
 {
     uint64_t ts;
@@ -1898,6 +1965,7 @@ TEST_LIST = {
     {"prometheus",                     test_prometheus},
     {"prometheus_histogram_bucket_decimal_label", test_prometheus_histogram_bucket_decimal_label},
     {"prometheus_invalid_name_chars",  test_prometheus_invalid_name_chars},
+    {"prometheus_sanitized_name_collisions", test_prometheus_sanitized_name_collisions},
     {"text",                           test_text},
     {"influx",                         test_influx},
     {"influx_without_namespaces",      test_influx_without_namespaces},
