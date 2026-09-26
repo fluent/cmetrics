@@ -887,11 +887,23 @@ static int decode_summary_data_point(struct cmt *cmt,
             summary->quantiles[index] = data_point->quantile_values[index]->quantile;
         }
     }
-    else if (data_point->n_quantile_values != summary->quantiles_count) {
+    else {
         /* the quantile layout is defined by the first data point and every
          * sample is sized and read using it
          */
-        return CMT_DECODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
+        if (data_point->n_quantile_values != summary->quantiles_count) {
+            return CMT_DECODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
+        }
+
+        for (index = 0 ;
+             index < data_point->n_quantile_values ;
+             index++) {
+            if (data_point->quantile_values[index] == NULL ||
+                data_point->quantile_values[index]->quantile !=
+                summary->quantiles[index]) {
+                return CMT_DECODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
+            }
+        }
     }
 
     static_metric_detected = CMT_FALSE;
@@ -1030,8 +1042,12 @@ static int decode_histogram_data_point(struct cmt *cmt,
         return CMT_DECODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
     }
 
-    if (data_point->n_bucket_counts > data_point->n_explicit_bounds + 1) {
-        return CMT_DECODE_OPENTELEMETRY_ALLOCATION_ERROR;
+    /* bucket_counts carries one entry per bound plus the +Inf bucket, it can
+     * only be empty when explicit_bounds is empty too
+     */
+    if ((data_point->n_bucket_counts > 0 || data_point->n_explicit_bounds > 0) &&
+        data_point->n_bucket_counts != data_point->n_explicit_bounds + 1) {
+        return CMT_DECODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
     }
 
     if (histogram->buckets == NULL) {
@@ -1042,11 +1058,22 @@ static int decode_histogram_data_point(struct cmt *cmt,
             return CMT_DECODE_OPENTELEMETRY_ALLOCATION_ERROR;
         }
     }
-    else if (data_point->n_explicit_bounds != histogram->buckets->count) {
+    else {
         /* the bucket layout is defined by the first data point and every
          * sample is sized and read using it
          */
-        return CMT_DECODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
+        if (data_point->n_explicit_bounds != histogram->buckets->count) {
+            return CMT_DECODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
+        }
+
+        for (index = 0 ;
+             index < data_point->n_explicit_bounds ;
+             index++) {
+            if (data_point->explicit_bounds[index] !=
+                histogram->buckets->upper_bounds[index]) {
+                return CMT_DECODE_OPENTELEMETRY_INVALID_ARGUMENT_ERROR;
+            }
+        }
     }
 
     static_metric_detected = CMT_FALSE;
