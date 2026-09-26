@@ -900,56 +900,81 @@ static void format_metrics(struct cmt *cmt, cfl_sds_t *buf, struct cmt_map *map,
 
 /*
  * Distinct metric names can sanitize to the same name, and a metric family
- * must be described once. Only a name changed by sanitizing can collide with
- * a different name, so the collision checks are skipped when every metric
- * name is valid. Maps sharing the exact same name (a family split across
- * maps by the decoders) are all written.
+ * must be described once. Only the first name written under a sanitized name
+ * is kept, maps sharing the exact same name (a family split across maps by
+ * the decoders) are all written. Only a name changed by sanitizing can
+ * collide with a different name, so the names are indexed only when such a
+ * name exists.
  */
-struct prom_names {
-    cfl_sds_t *list;
-    size_t     count;
-    size_t     size;
+struct prom_name_entry {
+    uint64_t  hash;
+    cfl_sds_t name;
 };
 
 struct prom_encoder {
-    struct cmt        *cmt;
-    cfl_sds_t         *buf;
-    int                add_timestamp;
-    struct prom_names  sanitized; /* names changed by sanitizing */
-    struct prom_names  written;   /* names written that collide with them */
+    struct cmt             *cmt;
+    cfl_sds_t              *buf;
+    int                     add_timestamp;
+    size_t                  maps_count;   /* maps with samples */
+    int                     sanitized;    /* a name is changed by sanitizing */
+    struct prom_name_entry *names;        /* open addressing, NULL if unused */
+    size_t                  names_size;   /* power of two */
 };
 
-static int prom_names_add(struct prom_names *names, cfl_sds_t name)
+/* FNV-1a of the name as written by metric_name_cat() */
+static uint64_t sanitized_name_hash(cfl_sds_t name)
 {
-    size_t     size;
-    cfl_sds_t *list;
+    size_t   i;
+    size_t   len;
+    uint64_t hash;
 
-    if (names->count == names->size) {
-        size = (names->size == 0) ? 16 : names->size * 2;
-        list = realloc(names->list, size * sizeof(cfl_sds_t));
-        if (list == NULL) {
-            cmt_errno();
-            return -1;
-        }
-        names->list = list;
-        names->size = size;
+    hash = 14695981039346656037ULL;
+    len = cfl_sds_len(name);
+
+    if (len > 0 && name[0] >= '0' && name[0] <= '9') {
+        hash ^= (unsigned char) '_';
+        hash *= 1099511628211ULL;
     }
-    names->list[names->count++] = name;
 
-    return 0;
+    for (i = 0; i < len; i++) {
+        hash ^= (unsigned char) sanitize_name_char(name[i], false);
+        hash *= 1099511628211ULL;
+    }
+
+    return hash;
 }
 
-static cfl_sds_t prom_names_find(struct prom_names *names, cfl_sds_t name)
+/*
+ * Return the name already written under the sanitized form of 'name', or
+ * register 'name' and return it.
+ */
+static cfl_sds_t prom_names_claim(struct prom_encoder *encoder, cfl_sds_t name)
 {
-    size_t i;
+    size_t                  index;
+    size_t                  mask;
+    uint64_t                hash;
+    struct prom_name_entry *entry;
 
-    for (i = 0; i < names->count; i++) {
-        if (sanitized_name_equal(names->list[i], name, false)) {
-            return names->list[i];
+    hash = sanitized_name_hash(name);
+    mask = encoder->names_size - 1;
+    index = (size_t) hash & mask;
+
+    while (1) {
+        entry = &encoder->names[index];
+
+        if (entry->name == NULL) {
+            entry->hash = hash;
+            entry->name = name;
+            return name;
         }
-    }
 
-    return NULL;
+        if (entry->hash == hash &&
+            sanitized_name_equal(entry->name, name, false)) {
+            return entry->name;
+        }
+
+        index = (index + 1) & mask;
+    }
 }
 
 static int metric_name_is_valid(cfl_sds_t name)
@@ -1041,14 +1066,19 @@ static int walk_maps(struct cmt *cmt,
     return ret;
 }
 
-static int collect_sanitized_name(struct prom_encoder *encoder,
-                                  struct cmt_map *map)
+static int inspect_map(struct prom_encoder *encoder, struct cmt_map *map)
 {
-    if (!map_has_samples(map) || metric_name_is_valid(map->opts->fqname)) {
+    if (!map_has_samples(map)) {
         return 0;
     }
 
-    return prom_names_add(&encoder->sanitized, map->opts->fqname);
+    encoder->maps_count++;
+
+    if (!encoder->sanitized && !metric_name_is_valid(map->opts->fqname)) {
+        encoder->sanitized = CMT_TRUE;
+    }
+
+    return 0;
 }
 
 static int format_map(struct prom_encoder *encoder, struct cmt_map *map)
@@ -1063,17 +1093,12 @@ static int format_map(struct prom_encoder *encoder, struct cmt_map *map)
 
     fqname = map->opts->fqname;
 
-    if (encoder->sanitized.count > 0 &&
-        prom_names_find(&encoder->sanitized, fqname) != NULL) {
-        written = prom_names_find(&encoder->written, fqname);
+    if (encoder->names != NULL) {
+        written = prom_names_claim(encoder, fqname);
 
-        if (written == NULL) {
-            if (prom_names_add(&encoder->written, fqname) != 0) {
-                return -1;
-            }
-        }
-        else if (cfl_sds_len(written) != cfl_sds_len(fqname) ||
-                 memcmp(written, fqname, cfl_sds_len(fqname)) != 0) {
+        if (written != fqname &&
+            (cfl_sds_len(written) != cfl_sds_len(fqname) ||
+             memcmp(written, fqname, cfl_sds_len(fqname)) != 0)) {
             /* a different name was already written under this name */
             return 0;
         }
@@ -1101,13 +1126,26 @@ cfl_sds_t cmt_encode_prometheus_create(struct cmt *cmt, int add_timestamp)
     encoder.buf = &buf;
     encoder.add_timestamp = add_timestamp;
 
-    ret = walk_maps(cmt, collect_sanitized_name, &encoder);
-    if (ret == 0) {
-        ret = walk_maps(cmt, format_map, &encoder);
+    walk_maps(cmt, inspect_map, &encoder);
+
+    if (encoder.sanitized) {
+        /* keep the table at most half full */
+        encoder.names_size = 16;
+        while (encoder.names_size < encoder.maps_count * 2) {
+            encoder.names_size *= 2;
+        }
+
+        encoder.names = calloc(encoder.names_size, sizeof(struct prom_name_entry));
+        if (encoder.names == NULL) {
+            cmt_errno();
+            cfl_sds_destroy(buf);
+            return NULL;
+        }
     }
 
-    free(encoder.sanitized.list);
-    free(encoder.written.list);
+    ret = walk_maps(cmt, format_map, &encoder);
+
+    free(encoder.names);
 
     if (ret != 0) {
         cfl_sds_destroy(buf);
