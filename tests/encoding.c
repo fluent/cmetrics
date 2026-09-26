@@ -1428,6 +1428,8 @@ void test_prometheus_sanitized_name_collisions()
     struct cmt_counter *empty;
     struct cmt_gauge *idle;
     struct cmt_gauge *labels;
+    struct cmt_counter *valid;
+    struct cmt_gauge *changed;
 
     cmt_initialize();
 
@@ -1446,14 +1448,19 @@ void test_prometheus_sanitized_name_collisions()
                                1, (char *[]) {"k"});
     idle = cmt_gauge_create(cmt, "", "", "idle_metric", "idle", 0, NULL);
 
+    /* a valid name written first and a later name changed by sanitizing */
+    valid = cmt_counter_create(cmt, "", "", "mem_used", "valid", 0, NULL);
+    changed = cmt_gauge_create(cmt, "", "", "mem.used", "changed", 0, NULL);
+
     /* static and api defined label keys that sanitize to the same name */
     labels = cmt_gauge_create(cmt, "", "", "req", "labels",
                               3, (char *[]) {"a.b", "c", "a_b"});
 
     TEST_CHECK(dotted != NULL && underscored != NULL && empty != NULL &&
-               idle != NULL && labels != NULL);
+               idle != NULL && labels != NULL && valid != NULL &&
+               changed != NULL);
     if (dotted == NULL || underscored == NULL || empty == NULL ||
-        idle == NULL || labels == NULL) {
+        idle == NULL || labels == NULL || valid == NULL || changed == NULL) {
         cmt_destroy(cmt);
         return;
     }
@@ -1465,6 +1472,8 @@ void test_prometheus_sanitized_name_collisions()
     cmt_counter_set(underscored, ts, 2, 0, NULL);
     cmt_gauge_set(idle, ts, 3, 0, NULL);
     cmt_gauge_set(labels, ts, 4, 3, (char *[]) {"x", "z", "y"});
+    cmt_counter_set(valid, ts, 5, 0, NULL);
+    cmt_gauge_set(changed, ts, 6, 0, NULL);
 
     text = cmt_encode_prometheus_create(cmt, CMT_FALSE);
     TEST_CHECK(text != NULL);
@@ -1473,6 +1482,9 @@ void test_prometheus_sanitized_name_collisions()
                           "# HELP cpu_total dotted\n"
                           "# TYPE cpu_total counter\n"
                           "cpu_total{a_b=\"s\"} 1\n"
+                          "# HELP mem_used valid\n"
+                          "# TYPE mem_used counter\n"
+                          "mem_used{a_b=\"s\"} 5\n"
                           "# HELP idle_metric idle\n"
                           "# TYPE idle_metric gauge\n"
                           "idle_metric{a_b=\"s\"} 3\n"
