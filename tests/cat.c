@@ -28,6 +28,8 @@
 #include <cmetrics/cmt_encode_text.h>
 #include <cmetrics/cmt_encode_prometheus.h>
 #include <cmetrics/cmt_cat.h>
+#include <cmetrics/cmt_encode_msgpack.h>
+#include <cmetrics/cmt_decode_msgpack.h>
 
 #include "cmt_tests.h"
 
@@ -1083,7 +1085,139 @@ void test_cat_static_labels_empty()
     cmt_destroy(dst);
 }
 
+/* Decode into a fresh map, whose series have not entered the lookup index. */
+static struct cmt *decode_copy(struct cmt *source)
+{
+    char *buffer;
+    size_t size;
+    size_t offset = 0;
+    struct cmt *decoded = NULL;
+
+    TEST_ASSERT(cmt_encode_msgpack_create(source, &buffer, &size) == 0);
+    TEST_ASSERT(cmt_decode_msgpack_create(&decoded, buffer, size, &offset) == 0);
+    cmt_encode_msgpack_destroy(buffer);
+    return decoded;
+}
+
+void test_cat_decoded_index_lifecycle()
+{
+    struct cmt *source;
+    struct cmt *destination;
+    struct cmt *appended;
+    struct cmt_gauge *gauge;
+    struct cmt_gauge *merged;
+    struct cmt_gauge *extra;
+    struct cmt_metric *metric;
+    struct cfl_list *head;
+    struct cfl_list *tmp;
+    double value;
+    char *keys[] = {"first", "second"};
+    char *left[] = {"ab", "c"};
+    char *right[] = {"a", "bc"};
+    char *late[] = {"late", NULL};
+    char *missing[] = {"missing", ""};
+
+    source = cmt_create();
+    TEST_ASSERT(source != NULL);
+    gauge = cmt_gauge_create(source, "test", "cat", "index", "Index lifecycle", 2, keys);
+    TEST_ASSERT(gauge != NULL);
+    /* These label tuples deliberately produce the same concatenated hash input. */
+    TEST_ASSERT(cmt_gauge_set(gauge, 10, 1, 2, left) == 0);
+    TEST_ASSERT(cmt_gauge_set(gauge, 10, 2, 2, right) == 0);
+    destination = decode_copy(source);
+    merged = cfl_list_entry(destination->gauges.next, struct cmt_gauge, _head);
+    TEST_CHECK(merged->map->indexed_metric_count == 0);
+    TEST_ASSERT(cmt_gauge_get_val(merged, 2, left, &value) == 0);
+    TEST_CHECK(value == 1);
+    TEST_ASSERT(cmt_gauge_get_val(merged, 2, right, &value) == 0);
+    TEST_CHECK(value == 2);
+    TEST_CHECK(merged->map->indexed_metric_count == 2);
+    TEST_CHECK(cmt_gauge_get_val(merged, 2, missing, &value) != 0);
+    TEST_ASSERT(cmt_cat(destination, source) == 0);
+    TEST_CHECK(cfl_list_size(&merged->map->metrics) == 2);
+    cmt_destroy(source);
+
+    source = cmt_create();
+    TEST_ASSERT(source != NULL);
+    gauge = cmt_gauge_create(source, "test", "cat", "index", "Index lifecycle", 2, keys);
+    TEST_ASSERT(gauge != NULL);
+    TEST_ASSERT(cmt_gauge_set(gauge, 20, 3, 2, late) == 0);
+    appended = decode_copy(source);
+    extra = cfl_list_entry(appended->gauges.next, struct cmt_gauge, _head);
+    /* Exercise a decoder-style append after lookups have already indexed a prefix. */
+    cfl_list_foreach_safe(head, tmp, &extra->map->metrics) {
+        metric = cfl_list_entry(head, struct cmt_metric, _head);
+        TEST_CHECK(!metric->hash_indexed);
+        cfl_list_del(head);
+        cfl_list_add(head, &merged->map->metrics);
+    }
+    cmt_destroy(appended);
+    cmt_destroy(source);
+    TEST_ASSERT(cmt_gauge_get_val(merged, 2, late, &value) == 0);
+    TEST_CHECK(value == 3);
+    TEST_CHECK(merged->map->indexed_metric_count == 3);
+    metric = cmt_map_metric_get(&merged->opts, merged->map, 2, late, CMT_FALSE);
+    TEST_ASSERT(metric != NULL);
+    cmt_map_metric_destroy(metric);
+    TEST_CHECK(cmt_gauge_get_val(merged, 2, late, &value) != 0);
+    TEST_ASSERT(cmt_gauge_get_val(merged, 2, right, &value) == 0);
+    TEST_CHECK(value == 2);
+    TEST_ASSERT(cmt_gauge_set(merged, 30, 4, 2, missing) == 0);
+    cmt_map_metrics_expire(merged->map, 20);
+    TEST_CHECK(cfl_list_size(&merged->map->metrics) == 1);
+    TEST_CHECK(cmt_gauge_get_val(merged, 2, left, &value) != 0);
+    TEST_ASSERT(cmt_gauge_get_val(merged, 2, missing, &value) == 0);
+    TEST_CHECK(value == 4);
+    cmt_map_metrics_expire(merged->map, 40);
+    TEST_CHECK(cfl_list_size(&merged->map->metrics) == 0);
+    TEST_ASSERT(cmt_gauge_set(merged, 50, 5, 2, late) == 0);
+    TEST_ASSERT(cmt_gauge_get_val(merged, 2, late, &value) == 0);
+    TEST_CHECK(value == 5);
+    cmt_destroy(destination);
+}
+
+void test_cat_many_contexts()
+{
+    int batch;
+    int index;
+    double value;
+    char label[32];
+    char *keys[] = {"series"};
+    char *values[] = {label};
+    struct cmt *source;
+    struct cmt *destination;
+    struct cmt_gauge *gauge;
+
+    destination = cmt_create();
+    TEST_ASSERT(destination != NULL);
+    for (batch = 0; batch < 10; batch++) {
+        source = cmt_create();
+        TEST_ASSERT(source != NULL);
+        gauge = cmt_gauge_create(source, "test", "cat", "many", "Many series", 1, keys);
+        TEST_ASSERT(gauge != NULL);
+        for (index = 0; index < 1000; index++) {
+            snprintf(label, sizeof(label), "%d", batch * 1000 + index);
+            TEST_ASSERT(cmt_gauge_set(gauge, 100, batch * 1000 + index, 1, values) == 0);
+        }
+        TEST_ASSERT(cmt_cat(destination, source) == 0);
+        /* Repeated concatenation must update existing identities, not duplicate them. */
+        TEST_ASSERT(cmt_cat(destination, source) == 0);
+        cmt_destroy(source);
+    }
+    TEST_CHECK(cfl_list_size(&destination->gauges) == 1);
+    gauge = cfl_list_entry(destination->gauges.next, struct cmt_gauge, _head);
+    TEST_CHECK(cfl_list_size(&gauge->map->metrics) == 10000);
+    for (index = 0; index < 10000; index++) {
+        snprintf(label, sizeof(label), "%d", index);
+        TEST_ASSERT(cmt_gauge_get_val(gauge, 1, values, &value) == 0);
+        TEST_CHECK(value == index);
+    }
+    cmt_destroy(destination);
+}
+
 TEST_LIST = {
+    {"cat_many_contexts", test_cat_many_contexts},
+    {"cat_decoded_index_lifecycle", test_cat_decoded_index_lifecycle},
     {"cat_static_labels_source_dynamic_conflict", test_cat_static_labels_source_dynamic_conflict},
     {"cat_static_labels_dynamic_conflict", test_cat_static_labels_dynamic_conflict},
     {"cat_static_labels_chain", test_cat_static_labels_chain},
