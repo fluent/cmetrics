@@ -398,10 +398,11 @@ static inline int unpack_cfl_kvlist_depth(mpack_reader_t *reader,
         key_value = NULL;
     }
 
-    mpack_done_map(reader);
-
-    if (mpack_reader_error(reader) != mpack_ok) {
-        result = -9;
+    if (result == 0) {
+        mpack_done_map(reader);
+        if (mpack_reader_error(reader) != mpack_ok) {
+            result = -9;
+        }
     }
 
     if (result != 0) {

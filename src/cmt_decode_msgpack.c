@@ -292,10 +292,7 @@ static int unpack_opts(mpack_reader_t *reader, struct cmt_map *map)
             }
         }
         if (NULL == opts->name) {
-            opts->name = cfl_sds_create("");
-            if (NULL == opts->name) {
-                return CMT_DECODE_MSGPACK_ALLOCATION_ERROR;
-            }
+            return CMT_DECODE_MSGPACK_INVALID_ARGUMENT_ERROR;
         }
 
         /* Allocate enough space for the three components, the separators
@@ -2246,7 +2243,15 @@ int cmt_decode_msgpack_create(struct cmt **out_cmt, char *in_buf, size_t in_size
 
     result = unpack_context(&reader, cmt);
 
-    remainder = mpack_reader_remaining(&reader, NULL);
+    /* Semantic rejection can leave containers open without an MPack error.
+     * Preserve the consumed offset, then cancel tracking before destruction. */
+    if (CMT_DECODE_MSGPACK_SUCCESS != result && mpack_reader_error(&reader) == mpack_ok) {
+        remainder = (size_t) (reader.end - reader.data);
+        mpack_reader_flag_error(&reader, mpack_error_invalid);
+    }
+    else {
+        remainder = mpack_reader_remaining(&reader, NULL);
+    }
 
     *offset += in_size - remainder;
 
