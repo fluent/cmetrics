@@ -21,6 +21,7 @@ set(UNIT_TESTS_FILES
   format_conversion.c
   expire.c
   otlp_pipeline.c
+  msgpack_compat.c
   )
 
 if (CMT_BUILD_PROMETHEUS_TEXT_DECODER)
