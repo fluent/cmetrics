@@ -3319,8 +3319,705 @@ static void test_otlp_nested_empty_attributes_keep_point(void)
     }
 }
 
+static void test_otlp_restore_preserves_legacy_only_family(void)
+{
+    struct cmt *ctx;
+    struct cmt *decoded;
+    struct cmt_gauge *legacy;
+    struct cmt_gauge *native;
+    struct cfl_kvlist *external = NULL;
+    struct cfl_variant *node;
+    mpack_writer_t writer;
+    mpack_reader_t reader;
+    char *buffer = NULL;
+    size_t size = 0;
+    size_t offset = 0;
+    cfl_sds_t wire;
+    Opentelemetry__Proto__Collector__Metrics__V1__ExportMetricsServiceRequest *request;
+    Opentelemetry__Proto__Metrics__V1__Metric *metric;
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    legacy = cmt_gauge_create(ctx, "", "", "legacy_only", "legacy", 0, NULL);
+    native = cmt_gauge_create(ctx, "", "", "native", "native", 0, NULL);
+    TEST_ASSERT(legacy != NULL && native != NULL);
+    TEST_ASSERT(cmt_gauge_set(legacy, 100, 7, 0, NULL) == 0);
+    TEST_ASSERT(cmt_gauge_set(native, 200, 9, 0, NULL) == 0);
+    legacy->map->metric.otlp_metadata = cfl_kvlist_create();
+    TEST_ASSERT(legacy->map->metric.otlp_metadata != NULL);
+    TEST_ASSERT(cfl_kvlist_insert_uint64(legacy->map->metric.otlp_metadata, "flags", 1) == 0);
+
+    /* Build an external legacy tree, then leave this family with no native
+     * metadata. The other family forces a native sidecar for both maps. */
+    mpack_writer_init_growable(&writer, &buffer, &size);
+    TEST_ASSERT(cmt_otlp_metadata_pack_external(&writer, ctx) == 0);
+    TEST_ASSERT(mpack_writer_destroy(&writer) == mpack_ok);
+    mpack_reader_init_data(&reader, buffer, size);
+    TEST_ASSERT(unpack_cfl_kvlist(&reader, &external) == 0);
+    TEST_ASSERT(mpack_reader_destroy(&reader) == mpack_ok);
+    free(buffer);
+    cfl_kvlist_destroy(ctx->external_metadata);
+    ctx->external_metadata = external;
+    cfl_kvlist_destroy(legacy->map->metric.otlp_metadata);
+    legacy->map->metric.otlp_metadata = NULL;
+    native->map->metric.otlp_metadata = cfl_kvlist_create();
+    TEST_ASSERT(native->map->metric.otlp_metadata != NULL);
+    TEST_ASSERT(cfl_kvlist_insert_uint64(native->map->metric.otlp_metadata, "flags", 2) == 0);
+
+    TEST_ASSERT(cmt_encode_msgpack_create(ctx, &buffer, &size) == 0);
+    TEST_ASSERT(cmt_decode_msgpack_create(&decoded, buffer, size, &offset) == 0);
+    node = cfl_kvlist_fetch(decoded->external_metadata, "otlp");
+    TEST_ASSERT(node != NULL);
+    node = cfl_kvlist_fetch(node->data.as_kvlist, "metrics");
+    TEST_ASSERT(node != NULL);
+    node = cfl_kvlist_fetch(node->data.as_kvlist, "gauge");
+    TEST_ASSERT(node != NULL);
+    TEST_CHECK(cfl_kvlist_fetch(node->data.as_kvlist, "legacy_only") != NULL);
+    TEST_CHECK(cfl_kvlist_fetch(node->data.as_kvlist, "native") == NULL);
+
+    wire = cmt_encode_opentelemetry_create(decoded);
+    TEST_ASSERT(wire != NULL);
+    request = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__unpack(
+        NULL, cfl_sds_len(wire), (const uint8_t *) wire);
+    TEST_ASSERT(request != NULL);
+    metric = find_otlp_metric_by_name(request, "legacy_only");
+    TEST_ASSERT(metric != NULL && metric->gauge->n_data_points == 1);
+    TEST_CHECK(metric->gauge->data_points[0]->flags == 1);
+    metric = find_otlp_metric_by_name(request, "native");
+    TEST_ASSERT(metric != NULL && metric->gauge->n_data_points == 1);
+    TEST_CHECK(metric->gauge->data_points[0]->flags == 2);
+    opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__free_unpacked(request, NULL);
+    cmt_encode_opentelemetry_destroy(wire);
+    cmt_decode_msgpack_destroy(decoded);
+    cmt_encode_msgpack_destroy(buffer);
+    cmt_destroy(ctx);
+}
+
+/*
+ * Released readers decode the sidecar and the legacy tree as opaque context
+ * metadata and write them back unchanged, even after editing points. These
+ * helpers capture both as such a relay would see them.
+ */
+static struct cfl_kvlist *relay_snapshot(struct cmt *ctx, int internal)
+{
+    struct cfl_kvlist *copy = NULL;
+    mpack_writer_t writer;
+    mpack_reader_t reader;
+    char *buffer = NULL;
+    size_t size = 0;
+    int result;
+
+    mpack_writer_init_growable(&writer, &buffer, &size);
+    if (internal) {
+        result = cmt_otlp_metadata_pack(&writer, ctx);
+    }
+    else {
+        result = cmt_otlp_metadata_pack_external(&writer, ctx);
+    }
+    if (mpack_writer_destroy(&writer) != mpack_ok || result != 0) {
+        free(buffer);
+        return NULL;
+    }
+    mpack_reader_init_data(&reader, buffer, size);
+    result = unpack_cfl_kvlist(&reader, &copy);
+    if (mpack_reader_destroy(&reader) != mpack_ok || result != 0) {
+        cfl_kvlist_destroy(copy);
+        copy = NULL;
+    }
+    free(buffer);
+    return copy;
+}
+
+/* Replace native metadata with the captured opaque copies, as a released
+ * relay holds nothing else. */
+static void relay_install(struct cmt *ctx, struct cmt_map *map,
+                          struct cfl_kvlist *internal, struct cfl_kvlist *external)
+{
+    struct cfl_list *head;
+    struct cmt_metric *sample;
+
+    cfl_kvlist_destroy(map->otlp_metadata);
+    map->otlp_metadata = NULL;
+    cfl_kvlist_destroy(map->metric.otlp_metadata);
+    map->metric.otlp_metadata = NULL;
+    cfl_list_foreach(head, &map->metrics) {
+        sample = cfl_list_entry(head, struct cmt_metric, _head);
+        cfl_kvlist_destroy(sample->otlp_metadata);
+        sample->otlp_metadata = NULL;
+    }
+    cfl_kvlist_destroy(ctx->internal_metadata);
+    ctx->internal_metadata = internal;
+    cfl_kvlist_destroy(ctx->external_metadata);
+    ctx->external_metadata = external;
+}
+
+/* Remove the point identifiers, producing a v2.3.0 sidecar. */
+static void relay_strip_point_ids(struct cfl_kvlist *internal)
+{
+    struct cfl_variant *families;
+    size_t index;
+
+    families = cfl_kvlist_fetch(internal, "__cmetrics_native_metadata_v1");
+    TEST_ASSERT(families != NULL && families->type == CFL_VARIANT_ARRAY);
+    for (index = 0; index < families->data.as_array->entry_count; index++) {
+        cfl_kvlist_remove(families->data.as_array->entries[index]->data.as_kvlist,
+                          "point_ids");
+    }
+}
+
+static struct cmt_gauge *relay_gauge(struct cmt *ctx, uint64_t flags_a, uint64_t flags_b,
+                                     int family_metadata)
+{
+    struct cmt_gauge *gauge;
+    struct cmt_metric *sample;
+    struct cfl_kvlist *metadata;
+    char *values[2][1] = {{"a"}, {"b"}};
+    uint64_t flags[2];
+    int index;
+
+    flags[0] = flags_a;
+    flags[1] = flags_b;
+    gauge = cmt_gauge_create(ctx, "", "", "relay", "relay", 1, (char *[]) {"site"});
+    TEST_ASSERT(gauge != NULL);
+    for (index = 0; index < 2; index++) {
+        TEST_ASSERT(cmt_gauge_set(gauge, 100, index + 1, 1, values[index]) == 0);
+        sample = cmt_map_metric_get(&gauge->opts, gauge->map, 1, values[index], CMT_FALSE);
+        TEST_ASSERT(sample != NULL);
+        sample->otlp_metadata = cfl_kvlist_create();
+        TEST_ASSERT(sample->otlp_metadata != NULL);
+        TEST_ASSERT(cfl_kvlist_insert_uint64(sample->otlp_metadata, "flags", flags[index]) == 0);
+    }
+    if (family_metadata) {
+        gauge->map->otlp_metadata = cfl_kvlist_create();
+        metadata = cfl_kvlist_create();
+        TEST_ASSERT(gauge->map->otlp_metadata != NULL && metadata != NULL);
+        TEST_ASSERT(cfl_kvlist_insert_string(metadata, "owner", "relay") == 0);
+        TEST_ASSERT(cfl_kvlist_insert_kvlist(gauge->map->otlp_metadata, "metadata", metadata) == 0);
+    }
+    return gauge;
+}
+
+static struct cmt *relay_round_trip(struct cmt *ctx, char **buffer)
+{
+    struct cmt *decoded = NULL;
+    size_t size;
+    size_t offset = 0;
+
+    TEST_ASSERT(cmt_encode_msgpack_create(ctx, buffer, &size) == 0);
+    TEST_ASSERT(cmt_decode_msgpack_create(&decoded, *buffer, size, &offset) == 0);
+    TEST_CHECK(offset == size);
+    return decoded;
+}
+
+static int relay_otlp_flags(struct cmt *ctx, char *site, uint32_t *flags)
+{
+    cfl_sds_t wire;
+    size_t index;
+    int found = CMT_FALSE;
+    Opentelemetry__Proto__Collector__Metrics__V1__ExportMetricsServiceRequest *request;
+    Opentelemetry__Proto__Metrics__V1__Metric *metric;
+    Opentelemetry__Proto__Metrics__V1__NumberDataPoint *point;
+
+    wire = cmt_encode_opentelemetry_create(ctx);
+    TEST_ASSERT(wire != NULL);
+    request = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__unpack(
+        NULL, cfl_sds_len(wire), (const uint8_t *) wire);
+    TEST_ASSERT(request != NULL);
+    metric = find_otlp_metric_by_name(request, "relay");
+    TEST_ASSERT(metric != NULL && metric->gauge != NULL);
+    for (index = 0; index < metric->gauge->n_data_points; index++) {
+        point = metric->gauge->data_points[index];
+        if (point->n_attributes == 1 &&
+            strcmp(point->attributes[0]->value->string_value, site) == 0) {
+            *flags = point->flags;
+            found = CMT_TRUE;
+        }
+    }
+    opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__free_unpacked(request, NULL);
+    cmt_encode_opentelemetry_destroy(wire);
+    return found;
+}
+
+/* A released relay replaces series "a" with "c" without updating the sidecar.
+ * Metadata recorded for "a" must not be attached to another series. */
+static void test_otlp_restore_binds_points_by_identity(void)
+{
+    struct cmt *ctx;
+    struct cmt *decoded;
+    struct cmt_gauge *gauge;
+    struct cfl_kvlist *internal;
+    struct cfl_kvlist *external;
+    char *buffer;
+    uint32_t flags;
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    gauge = relay_gauge(ctx, 1, 0, CMT_FALSE);
+    internal = relay_snapshot(ctx, CMT_TRUE);
+    external = relay_snapshot(ctx, CMT_FALSE);
+    TEST_ASSERT(internal != NULL && external != NULL);
+
+    relay_install(ctx, gauge->map, internal, external);
+    cmt_map_metric_destroy(cmt_map_metric_get(&gauge->opts, gauge->map, 1,
+                                              (char *[]) {"a"}, CMT_FALSE));
+    TEST_ASSERT(cmt_gauge_set(gauge, 100, 3, 1, (char *[]) {"c"}) == 0);
+
+    decoded = relay_round_trip(ctx, &buffer);
+    TEST_CHECK(relay_otlp_flags(decoded, "b", &flags) && flags == 0);
+    TEST_CHECK(relay_otlp_flags(decoded, "c", &flags) && flags == 0);
+    cmt_decode_msgpack_destroy(decoded);
+    cmt_encode_msgpack_destroy(buffer);
+    cmt_destroy(ctx);
+}
+
+/* A released relay records a new observation for "b" without updating the
+ * sidecar. Metadata of the previous observation must not be restored. */
+static void test_otlp_restore_drops_stale_observation(void)
+{
+    struct cmt *ctx;
+    struct cmt *decoded;
+    struct cmt_gauge *gauge;
+    struct cfl_kvlist *internal;
+    struct cfl_kvlist *external;
+    char *buffer;
+    uint32_t flags;
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    gauge = relay_gauge(ctx, 0, 1, CMT_FALSE);
+    internal = relay_snapshot(ctx, CMT_TRUE);
+    external = relay_snapshot(ctx, CMT_FALSE);
+    TEST_ASSERT(internal != NULL && external != NULL);
+
+    relay_install(ctx, gauge->map, internal, external);
+    TEST_ASSERT(cmt_gauge_set(gauge, 200, 9, 1, (char *[]) {"b"}) == 0);
+
+    decoded = relay_round_trip(ctx, &buffer);
+    TEST_CHECK(relay_otlp_flags(decoded, "a", &flags) && flags == 0);
+    TEST_CHECK(relay_otlp_flags(decoded, "b", &flags) && flags == 0);
+    cmt_decode_msgpack_destroy(decoded);
+    cmt_encode_msgpack_destroy(buffer);
+    cmt_destroy(ctx);
+}
+
+/* A relay that reverses a large family must not make restoration scan the
+ * identifiers once per point, and every point keeps its own metadata. */
+static void test_otlp_restore_binds_reordered_points(void)
+{
+    struct cmt *ctx;
+    struct cmt *decoded;
+    struct cmt_gauge *gauge;
+    struct cmt_metric *sample;
+    struct cfl_kvlist *internal;
+    struct cfl_kvlist *external;
+    struct cfl_variant *flags;
+    struct cfl_list reversed;
+    struct cfl_list *head;
+    struct cfl_list *tmp;
+    struct cmt_map_label *label;
+    char value[16];
+    char *values[1] = {value};
+    char *buffer;
+    int index;
+    int bound = 0;
+    const int count = 2000;
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    gauge = cmt_gauge_create(ctx, "", "", "relay", "relay", 1, (char *[]) {"site"});
+    TEST_ASSERT(gauge != NULL);
+    for (index = 0; index < count; index++) {
+        snprintf(value, sizeof(value), "%d", index);
+        TEST_ASSERT(cmt_gauge_set(gauge, 100, index, 1, values) == 0);
+        sample = cmt_map_metric_get(&gauge->opts, gauge->map, 1, values, CMT_FALSE);
+        TEST_ASSERT(sample != NULL);
+        sample->otlp_metadata = cfl_kvlist_create();
+        TEST_ASSERT(sample->otlp_metadata != NULL);
+        TEST_ASSERT(cfl_kvlist_insert_uint64(sample->otlp_metadata, "flags", index) == 0);
+    }
+    internal = relay_snapshot(ctx, CMT_TRUE);
+    external = relay_snapshot(ctx, CMT_FALSE);
+    TEST_ASSERT(internal != NULL && external != NULL);
+    relay_install(ctx, gauge->map, internal, external);
+
+    cfl_list_init(&reversed);
+    cfl_list_foreach_safe(head, tmp, &gauge->map->metrics) {
+        cfl_list_del(head);
+        cfl_list_prepend(head, &reversed);
+    }
+    cfl_list_foreach_safe(head, tmp, &reversed) {
+        cfl_list_del(head);
+        cfl_list_add(head, &gauge->map->metrics);
+    }
+
+    decoded = relay_round_trip(ctx, &buffer);
+    gauge = cfl_list_entry_first(&decoded->gauges, struct cmt_gauge, _head);
+    cfl_list_foreach(head, &gauge->map->metrics) {
+        sample = cfl_list_entry(head, struct cmt_metric, _head);
+        label = cfl_list_entry_first(&sample->labels, struct cmt_map_label, _head);
+        flags = cfl_kvlist_fetch(sample->otlp_metadata, "flags");
+        if (flags != NULL &&
+            (uint64_t) (flags->type == CFL_VARIANT_UINT ? flags->data.as_uint64 :
+                        (uint64_t) flags->data.as_int64) == strtoull(label->name, NULL, 10)) {
+            bound++;
+        }
+    }
+    TEST_CHECK(bound == count);
+    cmt_decode_msgpack_destroy(decoded);
+    cmt_encode_msgpack_destroy(buffer);
+    cmt_destroy(ctx);
+}
+
+/* The series hash concatenates label values without boundaries, so these
+ * two series share it. A released relay drops the first: its metadata must
+ * not move to the survivor. */
+static void test_otlp_restore_binds_points_by_label_values(void)
+{
+    struct cmt *ctx;
+    struct cmt *decoded;
+    struct cmt_gauge *gauge;
+    struct cmt_metric *first;
+    struct cmt_metric *second;
+    struct cfl_kvlist *internal;
+    struct cfl_kvlist *external;
+    struct cfl_variant *flags;
+    char *buffer;
+    char *a[] = {"ab", "c"};
+    char *b[] = {"a", "bc"};
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    gauge = cmt_gauge_create(ctx, "", "", "relay", "relay", 2, (char *[]) {"x", "y"});
+    TEST_ASSERT(gauge != NULL);
+    TEST_ASSERT(cmt_gauge_set(gauge, 100, 1, 2, a) == 0);
+    TEST_ASSERT(cmt_gauge_set(gauge, 100, 2, 2, b) == 0);
+    first = cmt_map_metric_get(&gauge->opts, gauge->map, 2, a, CMT_FALSE);
+    second = cmt_map_metric_get(&gauge->opts, gauge->map, 2, b, CMT_FALSE);
+    TEST_ASSERT(first != NULL && second != NULL && first != second);
+    TEST_ASSERT(first->hash == second->hash);
+    first->otlp_metadata = cfl_kvlist_create();
+    second->otlp_metadata = cfl_kvlist_create();
+    TEST_ASSERT(first->otlp_metadata != NULL && second->otlp_metadata != NULL);
+    TEST_ASSERT(cfl_kvlist_insert_uint64(first->otlp_metadata, "flags", 1) == 0);
+    TEST_ASSERT(cfl_kvlist_insert_uint64(second->otlp_metadata, "flags", 0) == 0);
+
+    internal = relay_snapshot(ctx, CMT_TRUE);
+    external = relay_snapshot(ctx, CMT_FALSE);
+    TEST_ASSERT(internal != NULL && external != NULL);
+    relay_install(ctx, gauge->map, internal, external);
+    cmt_map_metric_destroy(first);
+
+    decoded = relay_round_trip(ctx, &buffer);
+    gauge = cfl_list_entry_first(&decoded->gauges, struct cmt_gauge, _head);
+    TEST_ASSERT(cfl_list_size(&gauge->map->metrics) == 1);
+    second = cfl_list_entry_first(&gauge->map->metrics, struct cmt_metric, _head);
+    flags = cfl_kvlist_fetch(second->otlp_metadata, "flags");
+    TEST_ASSERT(flags != NULL);
+    TEST_CHECK((flags->type == CFL_VARIANT_UINT && flags->data.as_uint64 == 0) ||
+               (flags->type == CFL_VARIANT_INT && flags->data.as_int64 == 0));
+    cmt_decode_msgpack_destroy(decoded);
+    cmt_encode_msgpack_destroy(buffer);
+    cmt_destroy(ctx);
+}
+
+/* One window of series "a" at time 100, as an OTLP point with its own
+ * start time. */
+static struct cmt *relay_window(uint64_t start, uint64_t flags, double value)
+{
+    struct cmt *ctx;
+    struct cmt_gauge *gauge;
+    struct cmt_metric *sample;
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    gauge = cmt_gauge_create(ctx, "", "", "relay", "relay", 1, (char *[]) {"site"});
+    TEST_ASSERT(gauge != NULL);
+    TEST_ASSERT(cmt_gauge_set(gauge, 100, value, 1, (char *[]) {"a"}) == 0);
+    sample = cmt_map_metric_get(&gauge->opts, gauge->map, 1, (char *[]) {"a"}, CMT_FALSE);
+    TEST_ASSERT(sample != NULL);
+    cmt_metric_set_start_timestamp(sample, start);
+    sample->otlp_metadata = cfl_kvlist_create();
+    TEST_ASSERT(sample->otlp_metadata != NULL);
+    TEST_ASSERT(cfl_kvlist_insert_uint64(sample->otlp_metadata, "flags", flags) == 0);
+    return ctx;
+}
+
+/* Series "a" with point metadata nested beyond the decoder's depth limit,
+ * relayed by a released reader, optionally after changing its value at the
+ * same time. */
+static struct cmt *relay_unreadable(int change_value, char **buffer)
+{
+    struct cmt *ctx;
+    struct cmt_gauge *gauge;
+    struct cmt_metric *sample;
+    struct cfl_kvlist *inner;
+    struct cfl_kvlist *outer;
+    struct cfl_kvlist *internal;
+    struct cfl_kvlist *external;
+    struct cmt *decoded;
+    int depth;
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    gauge = relay_gauge(ctx, 1, 0, CMT_FALSE);
+    sample = cmt_map_metric_get(&gauge->opts, gauge->map, 1, (char *[]) {"a"}, CMT_FALSE);
+    TEST_ASSERT(sample != NULL);
+    inner = cfl_kvlist_create();
+    TEST_ASSERT(inner != NULL);
+    TEST_ASSERT(cfl_kvlist_insert_string(inner, "leaf", "v") == 0);
+    for (depth = 0; depth < 40; depth++) {
+        outer = cfl_kvlist_create();
+        TEST_ASSERT(outer != NULL);
+        TEST_ASSERT(cfl_kvlist_insert_kvlist(outer, "nested", inner) == 0);
+        inner = outer;
+    }
+    TEST_ASSERT(cfl_kvlist_insert_kvlist(sample->otlp_metadata, "nested", inner) == 0);
+
+    internal = relay_snapshot(ctx, CMT_TRUE);
+    external = relay_snapshot(ctx, CMT_FALSE);
+    TEST_ASSERT(internal != NULL && external != NULL);
+    relay_install(ctx, gauge->map, internal, external);
+    if (change_value) {
+        TEST_ASSERT(cmt_gauge_set(gauge, 100, 99, 1, (char *[]) {"a"}) == 0);
+    }
+    decoded = relay_round_trip(ctx, buffer);
+    cmt_destroy(ctx);
+    return decoded;
+}
+
+enum shared_key_sidecar {
+    SHARED_KEY_CURRENT,       /* restored */
+    SHARED_KEY_V230,          /* no identifiers, point count changed: skipped */
+    SHARED_KEY_NEW_FAMILY     /* relay added a family: rejected */
+};
+
+/* A released relay adds a series whose labels share the series hash of a
+ * recorded point, at the same time. That point's legacy entry, its only
+ * readable metadata, can belong to either: neither may take it, whether the
+ * native sidecar is restored, skipped or rejected. */
+static void check_shared_legacy_key(enum shared_key_sidecar sidecar)
+{
+    struct cmt *ctx;
+    struct cmt *decoded;
+    struct cmt_gauge *gauge;
+    struct cmt_gauge *added;
+    struct cmt_metric *sample;
+    struct cfl_kvlist *inner;
+    struct cfl_kvlist *outer;
+    struct cfl_kvlist *internal;
+    struct cfl_kvlist *external;
+    cfl_sds_t wire;
+    char *buffer;
+    char *a[] = {"ab", "c"};
+    char *b[] = {"a", "bc"};
+    size_t index;
+    int depth;
+    Opentelemetry__Proto__Collector__Metrics__V1__ExportMetricsServiceRequest *request;
+    Opentelemetry__Proto__Metrics__V1__Metric *metric;
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    gauge = cmt_gauge_create(ctx, "", "", "relay", "relay", 2, (char *[]) {"x", "y"});
+    TEST_ASSERT(gauge != NULL);
+    TEST_ASSERT(cmt_gauge_set(gauge, 100, 1, 2, a) == 0);
+    sample = cmt_map_metric_get(&gauge->opts, gauge->map, 2, a, CMT_FALSE);
+    TEST_ASSERT(sample != NULL);
+    sample->otlp_metadata = cfl_kvlist_create();
+    TEST_ASSERT(sample->otlp_metadata != NULL);
+    TEST_ASSERT(cfl_kvlist_insert_uint64(sample->otlp_metadata, "flags", 1) == 0);
+    inner = cfl_kvlist_create();
+    TEST_ASSERT(inner != NULL);
+    TEST_ASSERT(cfl_kvlist_insert_string(inner, "leaf", "v") == 0);
+    for (depth = 0; depth < 40; depth++) {
+        outer = cfl_kvlist_create();
+        TEST_ASSERT(outer != NULL);
+        TEST_ASSERT(cfl_kvlist_insert_kvlist(outer, "nested", inner) == 0);
+        inner = outer;
+    }
+    TEST_ASSERT(cfl_kvlist_insert_kvlist(sample->otlp_metadata, "nested", inner) == 0);
+
+    internal = relay_snapshot(ctx, CMT_TRUE);
+    external = relay_snapshot(ctx, CMT_FALSE);
+    TEST_ASSERT(internal != NULL && external != NULL);
+    if (sidecar == SHARED_KEY_V230) {
+        relay_strip_point_ids(internal);
+    }
+    relay_install(ctx, gauge->map, internal, external);
+    TEST_ASSERT(cmt_gauge_set(gauge, 100, 2, 2, b) == 0);
+    TEST_ASSERT(cmt_map_metric_get(&gauge->opts, gauge->map, 2, b, CMT_FALSE)->hash ==
+                sample->hash);
+    if (sidecar == SHARED_KEY_NEW_FAMILY) {
+        added = cmt_gauge_create(ctx, "", "", "added", "added", 0, NULL);
+        TEST_ASSERT(added != NULL);
+        TEST_ASSERT(cmt_gauge_set(added, 100, 3, 0, NULL) == 0);
+    }
+
+    decoded = relay_round_trip(ctx, &buffer);
+    wire = cmt_encode_opentelemetry_create(decoded);
+    TEST_ASSERT(wire != NULL);
+    request = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__unpack(
+        NULL, cfl_sds_len(wire), (const uint8_t *) wire);
+    TEST_ASSERT(request != NULL);
+    metric = find_otlp_metric_by_name(request, "relay");
+    TEST_ASSERT(metric != NULL && metric->gauge->n_data_points == 2);
+    for (index = 0; index < metric->gauge->n_data_points; index++) {
+        TEST_CHECK_(metric->gauge->data_points[index]->flags == 0,
+                    "sidecar %d: point %g takes no shared legacy flags", sidecar,
+                    metric->gauge->data_points[index]->as_double);
+    }
+    opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__free_unpacked(request, NULL);
+    cmt_encode_opentelemetry_destroy(wire);
+    cmt_decode_msgpack_destroy(decoded);
+    cmt_encode_msgpack_destroy(buffer);
+    cmt_destroy(ctx);
+}
+
+static void test_otlp_restore_drops_shared_legacy_key(void)
+{
+    check_shared_legacy_key(SHARED_KEY_CURRENT);
+    check_shared_legacy_key(SHARED_KEY_V230);
+    check_shared_legacy_key(SHARED_KEY_NEW_FAMILY);
+}
+
+/* Native point metadata that cannot be read back leaves the point its
+ * legacy entry, but only while its identity still matches: a changed value
+ * must not take the flags recorded for the old one. */
+static void test_otlp_restore_keeps_legacy_when_native_unreadable(void)
+{
+    struct cmt *decoded;
+    char *buffer;
+    uint32_t flags = 0;
+
+    decoded = relay_unreadable(CMT_FALSE, &buffer);
+    TEST_CHECK(relay_otlp_flags(decoded, "a", &flags) && flags == 1);
+    cmt_decode_msgpack_destroy(decoded);
+    cmt_encode_msgpack_destroy(buffer);
+
+    decoded = relay_unreadable(CMT_TRUE, &buffer);
+    TEST_CHECK(relay_otlp_flags(decoded, "a", &flags) && flags == 0);
+    cmt_decode_msgpack_destroy(decoded);
+    cmt_encode_msgpack_destroy(buffer);
+}
+
+/* A released relay changes the value of series "b" without changing its
+ * time. The metadata recorded for the old value must not describe the new
+ * one, from the sidecar or from the legacy tree. */
+static void test_otlp_restore_drops_changed_value(void)
+{
+    struct cmt *ctx;
+    struct cmt *decoded;
+    struct cmt_gauge *gauge;
+    struct cfl_kvlist *internal;
+    struct cfl_kvlist *external;
+    char *buffer;
+    uint32_t flags;
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    gauge = relay_gauge(ctx, 1, 1, CMT_FALSE);
+    internal = relay_snapshot(ctx, CMT_TRUE);
+    external = relay_snapshot(ctx, CMT_FALSE);
+    TEST_ASSERT(internal != NULL && external != NULL);
+
+    relay_install(ctx, gauge->map, internal, external);
+    TEST_ASSERT(cmt_gauge_set(gauge, 100, 42, 1, (char *[]) {"b"}) == 0);
+
+    decoded = relay_round_trip(ctx, &buffer);
+    TEST_CHECK(relay_otlp_flags(decoded, "a", &flags) && flags == 1);
+    TEST_CHECK(relay_otlp_flags(decoded, "b", &flags) && flags == 0);
+    cmt_decode_msgpack_destroy(decoded);
+    cmt_encode_msgpack_destroy(buffer);
+    cmt_destroy(ctx);
+}
+
+/* Two windows of one series differ only by start time. A released relay
+ * drops the first: its metadata must not move to the survivor. */
+static void test_otlp_restore_binds_points_by_start_time(void)
+{
+    struct cmt *ctx;
+    struct cmt *window;
+    struct cmt *decoded;
+    struct cmt_gauge *gauge;
+    struct cmt_metric *first;
+    struct cfl_kvlist *internal;
+    struct cfl_kvlist *external;
+    char *buffer;
+    uint32_t flags;
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    window = relay_window(10, 1, 1.0);
+    TEST_ASSERT(cmt_cat(ctx, window) == 0);
+    cmt_destroy(window);
+    window = relay_window(20, 0, 2.0);
+    TEST_ASSERT(cmt_cat(ctx, window) == 0);
+    cmt_destroy(window);
+
+    gauge = cfl_list_entry_first(&ctx->gauges, struct cmt_gauge, _head);
+    TEST_ASSERT(cfl_list_size(&gauge->map->metrics) == 2);
+    internal = relay_snapshot(ctx, CMT_TRUE);
+    external = relay_snapshot(ctx, CMT_FALSE);
+    TEST_ASSERT(internal != NULL && external != NULL);
+
+    relay_install(ctx, gauge->map, internal, external);
+    first = cfl_list_entry_first(&gauge->map->metrics, struct cmt_metric, _head);
+    TEST_ASSERT(cmt_metric_get_start_timestamp(first) == 10);
+    cmt_map_metric_destroy(first);
+
+    decoded = relay_round_trip(ctx, &buffer);
+    TEST_CHECK(relay_otlp_flags(decoded, "a", &flags) && flags == 0);
+    cmt_decode_msgpack_destroy(decoded);
+    cmt_encode_msgpack_destroy(buffer);
+    cmt_destroy(ctx);
+}
+
+/* A v2.3.0 sidecar binds by position. When a released relay removed a series,
+ * its points are not restored, and the legacy tree must still provide what
+ * released readers provide, even though family metadata was restored. */
+static void test_otlp_restore_keeps_unbound_legacy_points(void)
+{
+    struct cmt *ctx;
+    struct cmt *decoded;
+    struct cmt_gauge *gauge;
+    struct cmt_gauge *result;
+    struct cfl_kvlist *internal;
+    struct cfl_kvlist *external;
+    char *buffer;
+    uint32_t flags;
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    gauge = relay_gauge(ctx, 0, 1, CMT_TRUE);
+    internal = relay_snapshot(ctx, CMT_TRUE);
+    external = relay_snapshot(ctx, CMT_FALSE);
+    TEST_ASSERT(internal != NULL && external != NULL);
+    relay_strip_point_ids(internal);
+
+    relay_install(ctx, gauge->map, internal, external);
+    cmt_map_metric_destroy(cmt_map_metric_get(&gauge->opts, gauge->map, 1,
+                                              (char *[]) {"a"}, CMT_FALSE));
+
+    decoded = relay_round_trip(ctx, &buffer);
+    result = cfl_list_entry_first(&decoded->gauges, struct cmt_gauge, _head);
+    TEST_CHECK(result->map->otlp_metadata != NULL);
+    TEST_CHECK(relay_otlp_flags(decoded, "b", &flags) && flags == 1);
+    cmt_decode_msgpack_destroy(decoded);
+    cmt_encode_msgpack_destroy(buffer);
+    cmt_destroy(ctx);
+}
+
 TEST_LIST = {
+    {"otlp_restore_binds_points_by_identity", test_otlp_restore_binds_points_by_identity},
+    {"otlp_restore_drops_stale_observation", test_otlp_restore_drops_stale_observation},
+    {"otlp_restore_drops_changed_value", test_otlp_restore_drops_changed_value},
+    {"otlp_restore_keeps_legacy_when_native_unreadable", test_otlp_restore_keeps_legacy_when_native_unreadable},
+    {"otlp_restore_drops_shared_legacy_key", test_otlp_restore_drops_shared_legacy_key},
+    {"otlp_restore_binds_points_by_start_time", test_otlp_restore_binds_points_by_start_time},
+    {"otlp_restore_binds_points_by_label_values", test_otlp_restore_binds_points_by_label_values},
+    {"otlp_restore_binds_reordered_points", test_otlp_restore_binds_reordered_points},
+    {"otlp_restore_keeps_unbound_legacy_points", test_otlp_restore_keeps_unbound_legacy_points},
     {"otlp_nested_empty_attributes_keep_point", test_otlp_nested_empty_attributes_keep_point},
+    {"otlp_restore_preserves_legacy_only_family", test_otlp_restore_preserves_legacy_only_family},
     {"otlp_unrepresentable_attribute_keeps_point", test_otlp_unrepresentable_attribute_keeps_point},
     {"otlp_metadata_legacy_external_tree", test_otlp_metadata_legacy_external_tree},
     {"otlp_metadata_deep_nesting", test_otlp_metadata_deep_nesting},

@@ -145,7 +145,8 @@ static char *map_type_to_key(int map_type)
     }
 }
 
-static struct cfl_kvlist *get_metric_otlp_metadata_context(struct cmt *cmt, struct cmt_map *map)
+static struct cfl_kvlist *get_legacy_metric_otlp_metadata_context(struct cmt *cmt,
+                                                                   struct cmt_map *map)
 {
     struct cfl_kvlist *otlp_root;
     struct cfl_kvlist *metrics_root;
@@ -153,10 +154,6 @@ static struct cfl_kvlist *get_metric_otlp_metadata_context(struct cmt *cmt, stru
 
     if (cmt == NULL || map == NULL || map->opts == NULL || map->opts->fqname == NULL) {
         return NULL;
-    }
-
-    if (map->otlp_metadata) {
-        return map->otlp_metadata;
     }
 
     otlp_root = fetch_metadata_kvlist_key(cmt->external_metadata, "otlp");
@@ -177,6 +174,15 @@ static struct cfl_kvlist *get_metric_otlp_metadata_context(struct cmt *cmt, stru
     return fetch_metadata_kvlist_key(type_root, map->opts->fqname);
 }
 
+static struct cfl_kvlist *get_metric_otlp_metadata_context(struct cmt *cmt, struct cmt_map *map)
+{
+    if (map != NULL && map->otlp_metadata) {
+        return map->otlp_metadata;
+    }
+
+    return get_legacy_metric_otlp_metadata_context(cmt, map);
+}
+
 static struct cfl_kvlist *get_data_point_otlp_metadata_context(struct cmt *cmt,
                                                                 struct cmt_map *map,
                                                                 struct cmt_metric *sample)
@@ -189,7 +195,9 @@ static struct cfl_kvlist *get_data_point_otlp_metadata_context(struct cmt *cmt,
         return sample->otlp_metadata;
     }
 
-    metric_context = get_metric_otlp_metadata_context(cmt, map);
+    /* Native family metadata never carries points. A point an intermediary
+     * left unbound keeps its legacy entry, as released readers do. */
+    metric_context = get_legacy_metric_otlp_metadata_context(cmt, map);
     if (metric_context == NULL) {
         return NULL;
     }
