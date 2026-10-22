@@ -1265,6 +1265,60 @@ static uint64_t sample_flags(struct cmt_metric *sample)
     return UINT64_MAX;
 }
 
+void test_cat_clears_stale_otlp_point_metadata()
+{
+    int label_count;
+    char *keys[] = {"key"};
+    char *values[] = {"v"};
+    struct cmt *dst;
+    struct cmt *src;
+    struct cmt_gauge *dst_gauge;
+    struct cmt_gauge *src_gauge;
+    struct cmt_metric *dst_sample;
+    struct cmt_metric *src_sample;
+
+    /* Exercise both the static and label-indexed sample replacement paths. */
+    for (label_count = 0; label_count <= 1; label_count++) {
+        dst = cmt_create();
+        src = cmt_create();
+        TEST_ASSERT(dst != NULL && src != NULL);
+
+        dst_gauge = cmt_gauge_create(dst, "", "", "otlp_gauge", "otlp gauge",
+                                     label_count, keys);
+        src_gauge = cmt_gauge_create(src, "", "", "otlp_gauge", "otlp gauge",
+                                     label_count, keys);
+        TEST_ASSERT(dst_gauge != NULL && src_gauge != NULL);
+        TEST_ASSERT(cmt_gauge_set(dst_gauge, 100, 1.0, label_count, values) == 0);
+        TEST_ASSERT(cmt_gauge_set(src_gauge, 200, 2.5, label_count, values) == 0);
+
+        dst_sample = cmt_map_metric_get(&dst_gauge->opts, dst_gauge->map,
+                                        label_count, values, CMT_FALSE);
+        src_sample = cmt_map_metric_get(&src_gauge->opts, src_gauge->map,
+                                        label_count, values, CMT_FALSE);
+        TEST_ASSERT(dst_sample != NULL && src_sample != NULL);
+        dst_sample->otlp_metadata = cfl_kvlist_create();
+        TEST_ASSERT(dst_sample->otlp_metadata != NULL);
+        TEST_ASSERT(cfl_kvlist_insert_uint64(dst_sample->otlp_metadata,
+                                            "flags", 1) == 0);
+        cmt_metric_set_start_timestamp(dst_sample, 50);
+        TEST_ASSERT(src_sample->otlp_metadata == NULL);
+
+        TEST_ASSERT(cmt_cat(dst, src) == 0);
+        TEST_CHECK(dst_sample->otlp_metadata == NULL);
+        TEST_CHECK(cmt_metric_get_value(dst_sample) == 2.5);
+        TEST_CHECK(cmt_metric_get_timestamp(dst_sample) == 200);
+        TEST_CHECK(!cmt_metric_has_start_timestamp(dst_sample));
+        TEST_CHECK(cfl_list_size(&dst_gauge->map->metrics) == label_count);
+
+        /* Repeated copies must also tolerate an already empty destination. */
+        TEST_ASSERT(cmt_cat(dst, src) == 0);
+        TEST_CHECK(dst_sample->otlp_metadata == NULL);
+
+        cmt_destroy(src);
+        cmt_destroy(dst);
+    }
+}
+
 /* Samples carrying OTLP metadata must merge by labels, never duplicate. */
 void test_cat_otlp_metadata_samples_merge_by_labels()
 {
@@ -1410,6 +1464,7 @@ void test_cat_otlp_metadata_distinct_points_kept()
 }
 
 TEST_LIST = {
+    {"cat_clears_stale_otlp_point_metadata", test_cat_clears_stale_otlp_point_metadata},
     {"cat_otlp_metadata_distinct_points_kept", test_cat_otlp_metadata_distinct_points_kept},
     {"cat_otlp_metadata_samples_merge_by_labels", test_cat_otlp_metadata_samples_merge_by_labels},
     {"cat_many_contexts", test_cat_many_contexts},

@@ -506,6 +506,8 @@ static int copy_point_metadata(struct cmt_metric *dst, struct cmt_metric *src)
     struct cfl_kvlist *copy;
 
     if (src->otlp_metadata == NULL) {
+        cfl_kvlist_destroy(dst->otlp_metadata);
+        dst->otlp_metadata = NULL;
         return 0;
     }
 
