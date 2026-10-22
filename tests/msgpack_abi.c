@@ -564,7 +564,116 @@ static void test_invalid_optional_metadata_does_not_drop_chunk(void)
     cmt_destroy(ctx);
 }
 
+static void check_external_reference_metadata(int metadata_mode)
+{
+    struct cmt *ctx;
+    struct cmt *decoded = NULL;
+    struct cmt_gauge *gauge;
+    struct cfl_kvlist *nested;
+    struct cfl_array *array;
+    struct cfl_variant *value;
+    char text[] = "borrowed metadata";
+    char *buffer = NULL;
+    size_t size = 0;
+    size_t offset = 0;
+    int result;
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    gauge = cmt_gauge_create(ctx, "", "", "references", "references", 0, NULL);
+    TEST_ASSERT(gauge != NULL);
+    TEST_ASSERT(cmt_gauge_set(gauge, 100, 42, 0, NULL) == 0);
+
+    nested = cfl_kvlist_create();
+    array = cfl_array_create(1);
+    TEST_ASSERT(nested != NULL && array != NULL);
+    TEST_ASSERT(cfl_kvlist_insert_reference(ctx->external_metadata, "reference", text) == 0);
+    TEST_ASSERT(cfl_kvlist_insert_reference(nested, "reference", text) == 0);
+    TEST_ASSERT(cfl_array_append_reference(array, text) == 0);
+    TEST_ASSERT(cfl_kvlist_insert_array(nested, "array", array) == 0);
+    TEST_ASSERT(cfl_kvlist_insert_kvlist(ctx->external_metadata, "nested", nested) == 0);
+
+    if (metadata_mode == 1) {
+        gauge->map->metric.otlp_metadata = cfl_kvlist_create();
+        TEST_ASSERT(gauge->map->metric.otlp_metadata != NULL);
+        TEST_ASSERT(cfl_kvlist_insert_uint64(gauge->map->metric.otlp_metadata, "flags", 1) == 0);
+    }
+    else if (metadata_mode == 2) {
+        gauge->map->otlp_metadata = cfl_kvlist_create();
+        nested = cfl_kvlist_create();
+        TEST_ASSERT(gauge->map->otlp_metadata != NULL && nested != NULL);
+        TEST_ASSERT(cfl_kvlist_insert_string(nested, "description", "family metadata") == 0);
+        TEST_ASSERT(cfl_kvlist_insert_kvlist(gauge->map->otlp_metadata, "metadata", nested) == 0);
+    }
+
+    result = cmt_encode_msgpack_create(ctx, &buffer, &size);
+    TEST_CHECK(result == 0);
+    if (result == 0) {
+        result = cmt_decode_msgpack_create(&decoded, buffer, size, &offset);
+        TEST_CHECK(result == CMT_DECODE_MSGPACK_SUCCESS);
+        if (decoded != NULL) {
+            value = cfl_kvlist_fetch(decoded->external_metadata, "reference");
+            TEST_CHECK(value != NULL && value->type == CFL_VARIANT_STRING);
+            if (value != NULL && value->type == CFL_VARIANT_STRING) {
+                TEST_CHECK(strcmp(value->data.as_string, text) == 0);
+            }
+            value = cfl_kvlist_fetch(decoded->external_metadata, "nested");
+            TEST_CHECK(value != NULL && value->type == CFL_VARIANT_KVLIST);
+            if (value != NULL && value->type == CFL_VARIANT_KVLIST) {
+                nested = value->data.as_kvlist;
+                value = cfl_kvlist_fetch(nested, "reference");
+                TEST_CHECK(value != NULL && value->type == CFL_VARIANT_STRING);
+                if (value != NULL && value->type == CFL_VARIANT_STRING) {
+                    TEST_CHECK(strcmp(value->data.as_string, text) == 0);
+                }
+                value = cfl_kvlist_fetch(nested, "array");
+                TEST_CHECK(value != NULL && value->type == CFL_VARIANT_ARRAY);
+                if (value != NULL && value->type == CFL_VARIANT_ARRAY) {
+                    array = value->data.as_array;
+                    TEST_CHECK(array->entry_count == 1);
+                    if (array->entry_count == 1) {
+                        value = array->entries[0];
+                        TEST_CHECK(value->type == CFL_VARIANT_STRING);
+                        if (value->type == CFL_VARIANT_STRING) {
+                            TEST_CHECK(strcmp(value->data.as_string, text) == 0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /* Encoding must neither replace nor take ownership of the borrowed input. */
+    value = cfl_kvlist_fetch(ctx->external_metadata, "reference");
+    TEST_CHECK(value != NULL && value->type == CFL_VARIANT_REFERENCE);
+    TEST_CHECK(value != NULL && value->data.as_reference == text);
+    if (decoded != NULL) {
+        cmt_destroy(decoded);
+    }
+    cmt_encode_msgpack_destroy(buffer);
+    cmt_destroy(ctx);
+    TEST_CHECK(strcmp(text, "borrowed metadata") == 0);
+}
+
+static void test_external_references_without_otlp_metadata(void)
+{
+    check_external_reference_metadata(0);
+}
+
+static void test_external_references_with_point_metadata(void)
+{
+    check_external_reference_metadata(1);
+}
+
+static void test_external_references_with_family_metadata(void)
+{
+    check_external_reference_metadata(2);
+}
+
 TEST_LIST = {
+    {"external_references_without_otlp_metadata", test_external_references_without_otlp_metadata},
+    {"external_references_with_point_metadata", test_external_references_with_point_metadata},
+    {"external_references_with_family_metadata", test_external_references_with_family_metadata},
     {"invalid_optional_metadata_retains_chunk", test_invalid_optional_metadata_does_not_drop_chunk},
     {"stale_metadata_sidecar_does_not_drop_chunk", test_stale_metadata_sidecar_does_not_drop_chunk},
     {"index_resize_preserves_family_metadata", test_index_resize_preserves_family_metadata},

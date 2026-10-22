@@ -49,6 +49,8 @@ static struct cfl_variant *clone_variant(struct cfl_variant *source)
     case CFL_VARIANT_STRING:
         return cfl_variant_create_from_string_s(source->data.as_string,
                                                 cfl_variant_size_get(source), CFL_FALSE);
+    case CFL_VARIANT_REFERENCE:
+        return cfl_variant_create_from_string(source->data.as_reference);
     case CFL_VARIANT_BYTES:
         return cfl_variant_create_from_bytes(source->data.as_bytes,
                                              cfl_variant_size_get(source), CFL_FALSE);
