@@ -520,7 +520,7 @@ static void test_stale_metadata_sidecar_does_not_drop_chunk(void)
     cmt_destroy(ctx);
 }
 
-static void test_invalid_optional_metadata_does_not_drop_chunk(void)
+static void check_invalid_optional_metadata(const char *payload, size_t payload_size)
 {
     struct cmt *ctx;
     struct cmt *decoded;
@@ -545,7 +545,8 @@ static void test_invalid_optional_metadata_does_not_drop_chunk(void)
     TEST_ASSERT(cfl_array_append_null(points) == 0);
     TEST_ASSERT(cfl_kvlist_insert_array(family, "points", points) == 0);
     TEST_ASSERT(cfl_kvlist_insert_bool(family, "allow_reset", CFL_FALSE) == 0);
-    TEST_ASSERT(cfl_kvlist_insert_bytes(family, "family", "\xc1", 1, CFL_FALSE) == 0);
+    TEST_ASSERT(cfl_kvlist_insert_bytes(family, "family", (char *) payload,
+                                      payload_size, CFL_FALSE) == 0);
     TEST_ASSERT(cfl_array_append_kvlist(sidecar, family) == 0);
     TEST_ASSERT(cfl_kvlist_insert_array(ctx->internal_metadata,
                                       "__cmetrics_native_metadata_v1", sidecar) == 0);
@@ -562,6 +563,17 @@ static void test_invalid_optional_metadata_does_not_drop_chunk(void)
     }
     cmt_encode_msgpack_destroy(buffer);
     cmt_destroy(ctx);
+}
+
+static void test_invalid_optional_metadata_does_not_drop_chunk(void)
+{
+    /* Invalid tag, wrong container, non-string key, truncated map, and trailing
+     * data. Semantic rejections must also cancel MPack's container tracking. */
+    check_invalid_optional_metadata("\xc1", 1);
+    check_invalid_optional_metadata("\x90", 1);
+    check_invalid_optional_metadata("\x81\x01\xc0", 3);
+    check_invalid_optional_metadata("\x81", 1);
+    check_invalid_optional_metadata("\x80\xc0", 2);
 }
 
 static void check_external_reference_metadata(int metadata_mode)

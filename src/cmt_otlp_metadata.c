@@ -557,6 +557,12 @@ static int restore_optional_map(struct cfl_kvlist **target, struct cfl_variant *
     if (value->type == CFL_VARIANT_BYTES) {
         mpack_reader_init_data(&reader, value->data.as_bytes, cfl_sds_len(value->data.as_bytes));
         result = unpack_cfl_kvlist(&reader, &copy);
+        if (result != 0) {
+            /* A rejected value can leave containers open without setting an
+             * MPack error (for example, at the nesting limit). Cancel tracking
+             * before destroying this reader for optional metadata. */
+            mpack_reader_flag_error(&reader, mpack_error_data);
+        }
         remaining = result == 0 ? mpack_reader_remaining(&reader, NULL) : 0;
         if (mpack_reader_destroy(&reader) != mpack_ok || result || remaining) {
             cfl_kvlist_destroy(copy);
