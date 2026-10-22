@@ -33,6 +33,7 @@
 #include <string.h>
 #include <cmetrics/cmt_encode_msgpack.h>
 #include <cmetrics/cmt_decode_msgpack.h>
+#include <cmetrics/cmt_encode_opentelemetry.h>
 
 #include "cmt_tests.h"
 
@@ -1463,7 +1464,207 @@ void test_cat_otlp_metadata_distinct_points_kept()
     cmt_destroy(final);
 }
 
+/* A family with more label keys than the destination cannot be merged: the
+ * destination must stay encodable and keep its samples. */
+void test_cat_rejects_larger_label_schema()
+{
+    struct cmt *a;
+    struct cmt *b;
+    struct cmt *dst;
+    struct cmt_gauge *gauge_a;
+    struct cmt_gauge *gauge_b;
+    struct cmt_gauge *out;
+    cfl_sds_t wire;
+
+    a = cmt_create();
+    b = cmt_create();
+    dst = cmt_create();
+    TEST_ASSERT(a != NULL && b != NULL && dst != NULL);
+    gauge_a = cmt_gauge_create(a, "", "", "g", "g", 1, (char *[]) {"a"});
+    gauge_b = cmt_gauge_create(b, "", "", "g", "g", 2, (char *[]) {"a", "b"});
+    TEST_ASSERT(gauge_a != NULL && gauge_b != NULL);
+    TEST_ASSERT(cmt_gauge_set(gauge_a, 100, 1, 1, (char *[]) {"x"}) == 0);
+    TEST_ASSERT(cmt_gauge_set(gauge_b, 200, 2, 2, (char *[]) {"x", "y"}) == 0);
+
+    TEST_CHECK(cmt_cat(dst, a) == 0);
+    TEST_CHECK(cmt_cat(dst, b) == -1);
+
+    out = cfl_list_entry_first(&dst->gauges, struct cmt_gauge, _head);
+    TEST_CHECK(out->map->label_count == 1);
+    TEST_CHECK(cfl_list_size(&out->map->metrics) == 1);
+    wire = cmt_encode_opentelemetry_create(dst);
+    TEST_CHECK(wire != NULL);
+    if (wire != NULL) {
+        cmt_encode_opentelemetry_destroy(wire);
+    }
+
+    cmt_destroy(a);
+    cmt_destroy(b);
+    cmt_destroy(dst);
+}
+
+static struct cmt *semantics_counter(int aggregation_type, int allow_reset, int with_sample,
+                                     char *unit)
+{
+    struct cmt *ctx;
+    struct cmt_counter *counter;
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    counter = cmt_counter_create(ctx, "", "", "requests", "requests", 1, (char *[]) {"site"});
+    TEST_ASSERT(counter != NULL);
+    counter->aggregation_type = aggregation_type;
+    counter->allow_reset = allow_reset;
+    if (unit != NULL) {
+        counter->map->unit = cfl_sds_create(unit);
+        TEST_ASSERT(counter->map->unit != NULL);
+    }
+    if (with_sample) {
+        TEST_ASSERT(cmt_counter_set(counter, 100, 5, 1, (char *[]) {"b"}) == 0);
+    }
+    return ctx;
+}
+
+static struct cmt *semantics_histogram(int aggregation_type)
+{
+    struct cmt *ctx;
+    struct cmt_histogram *histogram;
+    uint64_t buckets[] = {1, 2};
+
+    ctx = cmt_create();
+    TEST_ASSERT(ctx != NULL);
+    histogram = cmt_histogram_create(ctx, "", "", "latency", "latency",
+                                     cmt_histogram_buckets_create(1, 1.0), 0, NULL);
+    TEST_ASSERT(histogram != NULL);
+    histogram->aggregation_type = aggregation_type;
+    TEST_ASSERT(cmt_histogram_set_default(histogram, 100, buckets, 1.5, 2, 0, NULL) == 0);
+    return ctx;
+}
+
+/* Later contributors must not change how samples already in an existing
+ * family are read: an empty one is a no-op and a conflicting one fails
+ * without changes. */
+void test_cat_keeps_existing_family_semantics()
+{
+    struct cmt *dst;
+    struct cmt *src;
+    struct cmt_counter *counter;
+    struct cmt_histogram *histogram;
+
+    dst = cmt_create();
+    TEST_ASSERT(dst != NULL);
+    src = semantics_counter(CMT_AGGREGATION_TYPE_CUMULATIVE, CMT_FALSE, CMT_TRUE, NULL);
+    TEST_CHECK(cmt_cat(dst, src) == 0);
+    cmt_destroy(src);
+    counter = cfl_list_entry_first(&dst->counters, struct cmt_counter, _head);
+
+    /* empty contributors: delta, non-monotonic, with a unit */
+    src = semantics_counter(CMT_AGGREGATION_TYPE_DELTA, CMT_TRUE, CMT_FALSE, "s");
+    TEST_CHECK(cmt_cat(dst, src) == 0);
+    cmt_destroy(src);
+    TEST_CHECK(counter->aggregation_type == CMT_AGGREGATION_TYPE_CUMULATIVE);
+    TEST_CHECK(counter->allow_reset == CMT_FALSE);
+    TEST_CHECK(counter->map->unit == NULL);
+    TEST_CHECK(cfl_list_size(&counter->map->metrics) == 1);
+
+    /* contributors with samples and conflicting semantics */
+    src = semantics_counter(CMT_AGGREGATION_TYPE_DELTA, CMT_FALSE, CMT_TRUE, NULL);
+    TEST_CHECK(cmt_cat(dst, src) == -1);
+    cmt_destroy(src);
+    src = semantics_counter(CMT_AGGREGATION_TYPE_CUMULATIVE, CMT_TRUE, CMT_TRUE, NULL);
+    TEST_CHECK(cmt_cat(dst, src) == -1);
+    cmt_destroy(src);
+    TEST_CHECK(counter->aggregation_type == CMT_AGGREGATION_TYPE_CUMULATIVE);
+    TEST_CHECK(counter->allow_reset == CMT_FALSE);
+    TEST_CHECK(cmt_metric_get_value(cfl_list_entry_first(&counter->map->metrics,
+                                                         struct cmt_metric, _head)) == 5);
+    cmt_destroy(dst);
+
+    /* unspecified temporality (Fluent Bit 5.0.x histograms) merges with
+     * either and keeps the destination's */
+    dst = semantics_histogram(CMT_AGGREGATION_TYPE_CUMULATIVE);
+    src = semantics_histogram(CMT_AGGREGATION_TYPE_UNSPECIFIED);
+    TEST_CHECK(cmt_cat(dst, src) == 0);
+    cmt_destroy(src);
+    histogram = cfl_list_entry_first(&dst->histograms, struct cmt_histogram, _head);
+    TEST_CHECK(histogram->aggregation_type == CMT_AGGREGATION_TYPE_CUMULATIVE);
+    src = semantics_histogram(CMT_AGGREGATION_TYPE_DELTA);
+    TEST_CHECK(cmt_cat(dst, src) == -1);
+    cmt_destroy(src);
+    TEST_CHECK(histogram->aggregation_type == CMT_AGGREGATION_TYPE_CUMULATIVE);
+    cmt_destroy(dst);
+}
+
+/* A destination family that holds no samples has nothing to reinterpret:
+ * it takes the semantics of the first contributor that brings samples. */
+void test_cat_empty_family_adopts_semantics()
+{
+    struct cmt *dst;
+    struct cmt *src;
+    struct cmt_counter *counter;
+
+    dst = cmt_create();
+    TEST_ASSERT(dst != NULL);
+    src = semantics_counter(CMT_AGGREGATION_TYPE_CUMULATIVE, CMT_FALSE, CMT_FALSE, "s");
+    TEST_CHECK(cmt_cat(dst, src) == 0);
+    cmt_destroy(src);
+    counter = cfl_list_entry_first(&dst->counters, struct cmt_counter, _head);
+    TEST_CHECK(cfl_list_size(&counter->map->metrics) == 0);
+
+    src = semantics_counter(CMT_AGGREGATION_TYPE_DELTA, CMT_TRUE, CMT_TRUE, "ms");
+    TEST_CHECK(cmt_cat(dst, src) == 0);
+    cmt_destroy(src);
+    TEST_CHECK(counter->aggregation_type == CMT_AGGREGATION_TYPE_DELTA);
+    TEST_CHECK(counter->allow_reset == CMT_TRUE);
+    TEST_CHECK(counter->map->unit != NULL && strcmp(counter->map->unit, "ms") == 0);
+    TEST_CHECK(cfl_list_size(&counter->map->metrics) == 1);
+
+    /* once it holds samples, its semantics stay */
+    src = semantics_counter(CMT_AGGREGATION_TYPE_CUMULATIVE, CMT_FALSE, CMT_TRUE, "ms");
+    TEST_CHECK(cmt_cat(dst, src) == -1);
+    cmt_destroy(src);
+    TEST_CHECK(counter->aggregation_type == CMT_AGGREGATION_TYPE_DELTA);
+    cmt_destroy(dst);
+}
+
+/* Values are never converted, so families with different explicit units
+ * cannot be merged. An empty unit is unspecified. */
+void test_cat_rejects_conflicting_units()
+{
+    struct cmt *dst;
+    struct cmt *src;
+    struct cmt_counter *counter;
+
+    dst = cmt_create();
+    TEST_ASSERT(dst != NULL);
+    src = semantics_counter(CMT_AGGREGATION_TYPE_CUMULATIVE, CMT_FALSE, CMT_TRUE, "s");
+    TEST_CHECK(cmt_cat(dst, src) == 0);
+    cmt_destroy(src);
+    counter = cfl_list_entry_first(&dst->counters, struct cmt_counter, _head);
+
+    src = semantics_counter(CMT_AGGREGATION_TYPE_CUMULATIVE, CMT_FALSE, CMT_TRUE, "ms");
+    TEST_CHECK(cmt_cat(dst, src) == -1);
+    cmt_destroy(src);
+    src = semantics_counter(CMT_AGGREGATION_TYPE_CUMULATIVE, CMT_FALSE, CMT_FALSE, "ms");
+    TEST_CHECK(cmt_cat(dst, src) == 0);
+    cmt_destroy(src);
+    src = semantics_counter(CMT_AGGREGATION_TYPE_CUMULATIVE, CMT_FALSE, CMT_TRUE, "");
+    TEST_CHECK(cmt_cat(dst, src) == 0);
+    cmt_destroy(src);
+    src = semantics_counter(CMT_AGGREGATION_TYPE_CUMULATIVE, CMT_FALSE, CMT_TRUE, "s");
+    TEST_CHECK(cmt_cat(dst, src) == 0);
+    cmt_destroy(src);
+
+    TEST_CHECK(strcmp(counter->map->unit, "s") == 0);
+    TEST_CHECK(cfl_list_size(&counter->map->metrics) == 1);
+    cmt_destroy(dst);
+}
+
 TEST_LIST = {
+    {"cat_rejects_larger_label_schema", test_cat_rejects_larger_label_schema},
+    {"cat_keeps_existing_family_semantics", test_cat_keeps_existing_family_semantics},
+    {"cat_rejects_conflicting_units", test_cat_rejects_conflicting_units},
+    {"cat_empty_family_adopts_semantics", test_cat_empty_family_adopts_semantics},
     {"cat_clears_stale_otlp_point_metadata", test_cat_clears_stale_otlp_point_metadata},
     {"cat_otlp_metadata_distinct_points_kept", test_cat_otlp_metadata_distinct_points_kept},
     {"cat_otlp_metadata_samples_merge_by_labels", test_cat_otlp_metadata_samples_merge_by_labels},

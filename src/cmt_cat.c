@@ -622,6 +622,20 @@ static struct cmt_metric *get_point_sample(struct cmt_opts *opts, struct cmt_map
     struct cfl_list *head;
     struct cmt_metric *metric;
 
+    if (count > 0 && count != dst->label_count) {
+        /* OTLP points of one metric may carry fewer attributes than the
+         * family has label keys. The index only holds complete label sets,
+         * so such samples are matched by value and appended. */
+        cfl_list_foreach(head, &dst->metrics) {
+            metric = cfl_list_entry(head, struct cmt_metric, _head);
+            if (sample_labels_match(metric, count, labels) &&
+                (src->otlp_metadata == NULL || same_data_point(metric, src))) {
+                return metric;
+            }
+        }
+        return append_point_sample(dst, src, count, labels);
+    }
+
     if (count == 0) {
         /* Label-less points always merge into the static metric. */
         return cmt_map_metric_get(opts, dst, 0, NULL, CMT_TRUE);
@@ -648,6 +662,87 @@ static struct cmt_metric *get_point_sample(struct cmt_opts *opts, struct cmt_map
     return append_point_sample(dst, src, count, labels);
 }
 
+/*
+ * Unit and static sample state describe a family. They are set when cmt_cat()
+ * creates it, and again for each contributor while it holds no samples, then
+ * never changed: later contributors cannot reinterpret samples already
+ * merged. Label-less families are created with their static sample set: a
+ * new destination must not report a sample its source never had.
+ */
+static int init_family(struct cmt_map *dst, struct cmt_map *family,
+                       struct cmt_map *points)
+{
+    if (dst->unit != NULL) {
+        cfl_sds_destroy(dst->unit);
+        dst->unit = NULL;
+    }
+    if (family->unit != NULL) {
+        dst->unit = cfl_sds_create_len(family->unit, cfl_sds_len(family->unit));
+        if (dst->unit == NULL) {
+            return -1;
+        }
+    }
+    if (!points->metric_static_set) {
+        dst->metric_static_set = CMT_FALSE;
+    }
+    return 0;
+}
+
+static int map_has_samples(struct cmt_map *map)
+{
+    return map->metric_static_set || cfl_list_size(&map->metrics) > 0;
+}
+
+/* Unspecified temporality (written by releases that did not record it) is
+ * compatible with either. */
+static int aggregation_compatible(int dst, int src)
+{
+    return dst == src ||
+           dst == CMT_AGGREGATION_TYPE_UNSPECIFIED ||
+           src == CMT_AGGREGATION_TYPE_UNSPECIFIED;
+}
+
+/* An empty unit is unspecified and compatible with any. Values are never
+ * converted, so two explicit units must be equal. */
+static int units_compatible(struct cmt_map *dst, struct cmt_map *src)
+{
+    if (dst->unit == NULL || src->unit == NULL ||
+        cfl_sds_len(dst->unit) == 0 || cfl_sds_len(src->unit) == 0) {
+        return CMT_TRUE;
+    }
+    return cfl_sds_len(dst->unit) == cfl_sds_len(src->unit) &&
+           memcmp(dst->unit, src->unit, cfl_sds_len(src->unit)) == 0;
+}
+
+static int label_keys_match(struct cmt_map *left,
+                            struct cmt_map *right)
+{
+    struct cfl_list *left_head;
+    struct cfl_list *right_head;
+    struct cmt_map_label *left_label;
+    struct cmt_map_label *right_label;
+
+    left_head = left->label_keys.next;
+    right_head = right->label_keys.next;
+
+    while (left_head != &left->label_keys &&
+           right_head != &right->label_keys) {
+        left_label = cfl_list_entry(left_head, struct cmt_map_label, _head);
+        right_label = cfl_list_entry(right_head, struct cmt_map_label, _head);
+
+        if (left_label->name == NULL || right_label->name == NULL ||
+            strcmp(left_label->name, right_label->name) != 0) {
+            return CMT_FALSE;
+        }
+
+        left_head = left_head->next;
+        right_head = right_head->next;
+    }
+
+    return left_head == &left->label_keys &&
+           right_head == &right->label_keys;
+}
+
 int cmt_cat_copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map *src)
 {
     int c;
@@ -660,6 +755,20 @@ int cmt_cat_copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map 
     struct cmt_summary *summary;
     struct cmt_histogram *histogram_src;
     struct cmt_histogram *histogram_dst;
+    int same_keys;
+
+    /* Only OTLP points of the same family carry fewer values than its label
+     * keys; any other mismatch has no meaning here. Check every sample before
+     * changing the destination. */
+    same_keys = label_keys_match(dst, src);
+    cfl_list_foreach(head, &src->metrics) {
+        metric_src = cfl_list_entry(head, struct cmt_metric, _head);
+        c = cfl_list_size(&metric_src->labels);
+        if (c > 0 && c != dst->label_count &&
+            (c > dst->label_count || !same_keys)) {
+            return -1;
+        }
+    }
 
     if (src->otlp_metadata) {
         metadata = cmt_otlp_metadata_clone(src->otlp_metadata);
@@ -716,7 +825,7 @@ int cmt_cat_copy_map(struct cmt_opts *opts, struct cmt_map *dst, struct cmt_map 
         }
 
         c = cfl_list_size(&metric_src->labels);
-        if (metric_src->otlp_metadata != NULL) {
+        if (metric_src->otlp_metadata != NULL || (c > 0 && c != dst->label_count)) {
             metric_dst = get_point_sample(opts, dst, metric_src, c, labels);
         }
         else {
@@ -872,40 +981,12 @@ static struct cmt_summary *summary_lookup(struct cmt *cmt, struct cmt_opts *opts
     return NULL;
 }
 
-static int summary_label_keys_match(struct cmt_map *left,
-                                    struct cmt_map *right)
-{
-    struct cfl_list *left_head;
-    struct cfl_list *right_head;
-    struct cmt_map_label *left_label;
-    struct cmt_map_label *right_label;
-
-    left_head = left->label_keys.next;
-    right_head = right->label_keys.next;
-
-    while (left_head != &left->label_keys &&
-           right_head != &right->label_keys) {
-        left_label = cfl_list_entry(left_head, struct cmt_map_label, _head);
-        right_label = cfl_list_entry(right_head, struct cmt_map_label, _head);
-
-        if (left_label->name == NULL || right_label->name == NULL ||
-            strcmp(left_label->name, right_label->name) != 0) {
-            return CMT_FALSE;
-        }
-
-        left_head = left_head->next;
-        right_head = right_head->next;
-    }
-
-    return left_head == &left->label_keys &&
-           right_head == &right->label_keys;
-}
-
 int cmt_cat_counter(struct cmt *cmt, struct cmt_counter *counter,
                     struct cmt_map *filtered_map)
 {
     int ret;
     char **labels = NULL;
+    int created = CMT_FALSE;
     struct cmt_map *map;
     struct cmt_opts *opts;
     struct cmt_counter *c;
@@ -925,10 +1006,27 @@ int cmt_cat_counter(struct cmt *cmt, struct cmt_counter *counter,
                             opts->ns, opts->subsystem,
                             opts->name, opts->description,
                             map->label_count, labels);
+        created = CMT_TRUE;
     }
 
     free(labels);
     if (!c) {
+        return -1;
+    }
+
+    /* Temporality and monotonicity are family semantics: a contributor
+     * with samples must not change how existing samples are read. */
+    if (created || !map_has_samples(c->map)) {
+        if (init_family(c->map, map, filtered_map != NULL ? filtered_map : map) != 0) {
+            return -1;
+        }
+        c->aggregation_type = counter->aggregation_type;
+        c->allow_reset = counter->allow_reset;
+    }
+    else if (map_has_samples(filtered_map != NULL ? filtered_map : map) &&
+             (!aggregation_compatible(c->aggregation_type, counter->aggregation_type) ||
+              c->allow_reset != counter->allow_reset ||
+              !units_compatible(c->map, map))) {
         return -1;
     }
 
@@ -953,6 +1051,7 @@ int cmt_cat_gauge(struct cmt *cmt, struct cmt_gauge *gauge,
 {
     int ret;
     char **labels = NULL;
+    int created = CMT_FALSE;
     struct cmt_map *map;
     struct cmt_opts *opts;
     struct cmt_gauge *g;
@@ -972,10 +1071,21 @@ int cmt_cat_gauge(struct cmt *cmt, struct cmt_gauge *gauge,
                             opts->ns, opts->subsystem,
                             opts->name, opts->description,
                             map->label_count, labels);
+        created = CMT_TRUE;
     }
 
     free(labels);
     if (!g) {
+        return -1;
+    }
+
+    if (created || !map_has_samples(g->map)) {
+        if (init_family(g->map, map, filtered_map != NULL ? filtered_map : map) != 0) {
+            return -1;
+        }
+    }
+    else if (map_has_samples(filtered_map != NULL ? filtered_map : map) &&
+             !units_compatible(g->map, map)) {
         return -1;
     }
 
@@ -1000,6 +1110,7 @@ int cmt_cat_untyped(struct cmt *cmt, struct cmt_untyped *untyped,
 {
     int ret;
     char **labels = NULL;
+    int created = CMT_FALSE;
     struct cmt_map *map;
     struct cmt_opts *opts;
     struct cmt_untyped *u;
@@ -1019,10 +1130,21 @@ int cmt_cat_untyped(struct cmt *cmt, struct cmt_untyped *untyped,
                             opts->ns, opts->subsystem,
                             opts->name, opts->description,
                             map->label_count, labels);
+        created = CMT_TRUE;
     }
 
     free(labels);
     if (!u) {
+        return -1;
+    }
+
+    if (created || !map_has_samples(u->map)) {
+        if (init_family(u->map, map, filtered_map != NULL ? filtered_map : map) != 0) {
+            return -1;
+        }
+    }
+    else if (map_has_samples(filtered_map != NULL ? filtered_map : map) &&
+             !units_compatible(u->map, map)) {
         return -1;
     }
 
@@ -1047,6 +1169,7 @@ int cmt_cat_histogram(struct cmt *cmt, struct cmt_histogram *histogram,
 {
     int ret;
     char **labels = NULL;
+    int created = CMT_FALSE;
     struct cmt_map *map;
     struct cmt_opts *opts;
     struct cmt_histogram *hist;
@@ -1078,10 +1201,24 @@ int cmt_cat_histogram(struct cmt *cmt, struct cmt_histogram *histogram,
                                     opts->name, opts->description,
                                     buckets,
                                     map->label_count, labels);
+        created = CMT_TRUE;
     }
     free(labels);
 
     if (!hist) {
+        return -1;
+    }
+
+    if (created || !map_has_samples(hist->map)) {
+        if (init_family(hist->map, map, filtered_map != NULL ? filtered_map : map) != 0) {
+            return -1;
+        }
+        hist->aggregation_type = histogram->aggregation_type;
+    }
+    else if (map_has_samples(filtered_map != NULL ? filtered_map : map) &&
+             (!aggregation_compatible(hist->aggregation_type,
+                                      histogram->aggregation_type) ||
+              !units_compatible(hist->map, map))) {
         return -1;
     }
 
@@ -1107,6 +1244,7 @@ int cmt_cat_summary(struct cmt *cmt, struct cmt_summary *summary,
     size_t i;
     int ret;
     char **labels = NULL;
+    int created = CMT_FALSE;
     struct cmt_map *map;
     struct cmt_opts *opts;
     struct cmt_summary *sum;
@@ -1121,7 +1259,7 @@ int cmt_cat_summary(struct cmt *cmt, struct cmt_summary *summary,
 
     sum = summary_lookup(cmt, opts);
     if (sum != NULL) {
-        if (!summary_label_keys_match(sum->map, map)) {
+        if (!label_keys_match(sum->map, map)) {
             free(labels);
             return -1;
         }
@@ -1156,11 +1294,22 @@ int cmt_cat_summary(struct cmt *cmt, struct cmt_summary *summary,
                                  summary->quantiles_count,
                                  quantiles,
                                  map->label_count, labels);
+        created = CMT_TRUE;
         free(quantiles);
     }
 
     free(labels);
     if (!sum) {
+        return -1;
+    }
+
+    if (created || !map_has_samples(sum->map)) {
+        if (init_family(sum->map, map, filtered_map != NULL ? filtered_map : map) != 0) {
+            return -1;
+        }
+    }
+    else if (map_has_samples(filtered_map != NULL ? filtered_map : map) &&
+             !units_compatible(sum->map, map)) {
         return -1;
     }
 
@@ -1185,6 +1334,7 @@ int cmt_cat_exp_histogram(struct cmt *cmt, struct cmt_exp_histogram *exp_histogr
 {
     int ret;
     char **labels = NULL;
+    int created = CMT_FALSE;
     struct cmt_map *map;
     struct cmt_opts *opts;
     struct cmt_exp_histogram *eh;
@@ -1203,6 +1353,7 @@ int cmt_cat_exp_histogram(struct cmt *cmt, struct cmt_exp_histogram *exp_histogr
                                       opts->ns, opts->subsystem,
                                       opts->name, opts->description,
                                       map->label_count, labels);
+        created = CMT_TRUE;
     }
 
     free(labels);
@@ -1210,7 +1361,18 @@ int cmt_cat_exp_histogram(struct cmt *cmt, struct cmt_exp_histogram *exp_histogr
         return -1;
     }
 
-    eh->aggregation_type = exp_histogram->aggregation_type;
+    if (created || !map_has_samples(eh->map)) {
+        if (init_family(eh->map, map, filtered_map != NULL ? filtered_map : map) != 0) {
+            return -1;
+        }
+        eh->aggregation_type = exp_histogram->aggregation_type;
+    }
+    else if (map_has_samples(filtered_map != NULL ? filtered_map : map) &&
+             (!aggregation_compatible(eh->aggregation_type,
+                                      exp_histogram->aggregation_type) ||
+              !units_compatible(eh->map, map))) {
+        return -1;
+    }
 
     if (filtered_map != NULL) {
         ret = cmt_cat_copy_map(&eh->opts, eh->map, filtered_map);
