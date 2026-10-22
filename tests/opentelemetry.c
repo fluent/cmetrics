@@ -3220,7 +3220,107 @@ static void test_opentelemetry_repeated_unlabeled_points_last_wins(void)
     cfl_sds_destroy(payload);
 }
 
+/* Empty nested AnyValues are optional metadata, not allocation failures. */
+static void test_otlp_nested_empty_attributes_keep_point(void)
+{
+    int mode;
+    size_t offset;
+    size_t size;
+    int result;
+    cfl_sds_t payload;
+    cfl_sds_t wire;
+    struct cfl_list contexts;
+    struct cmt *ctx;
+    struct cmt_gauge *gauge;
+    struct cmt_metric *sample;
+    Opentelemetry__Proto__Collector__Metrics__V1__ExportMetricsServiceRequest *request;
+    Opentelemetry__Proto__Common__V1__AnyValue empty;
+    Opentelemetry__Proto__Common__V1__AnyValue nested;
+    Opentelemetry__Proto__Common__V1__AnyValue *items[] = {&empty};
+    Opentelemetry__Proto__Common__V1__ArrayValue array;
+    Opentelemetry__Proto__Common__V1__KeyValue entry;
+    Opentelemetry__Proto__Common__V1__KeyValue *entries[] = {&entry};
+    Opentelemetry__Proto__Common__V1__KeyValueList kvlist;
+    Opentelemetry__Proto__Common__V1__KeyValue *attribute;
+    Opentelemetry__Proto__Common__V1__AnyValue *original;
+    Opentelemetry__Proto__Metrics__V1__Metric *metric;
+
+    /* An array containing an empty value, a kvlist with no value, and a
+     * kvlist containing an explicitly empty value must all remain usable. */
+    for (mode = 0; mode < 3; mode++) {
+        payload = generate_gauge_int_otlp_payload_with_many_attributes(2);
+        TEST_ASSERT(payload != NULL);
+        request = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__unpack(
+            NULL, cfl_sds_len(payload), (const uint8_t *) payload);
+        TEST_ASSERT(request != NULL);
+        cfl_sds_destroy(payload);
+        attribute = request->resource_metrics[0]->scope_metrics[0]->metrics[0]->gauge->data_points[0]->attributes[0];
+        original = attribute->value;
+        opentelemetry__proto__common__v1__any_value__init(&empty);
+        opentelemetry__proto__common__v1__any_value__init(&nested);
+        opentelemetry__proto__common__v1__array_value__init(&array);
+        opentelemetry__proto__common__v1__key_value__init(&entry);
+        opentelemetry__proto__common__v1__key_value_list__init(&kvlist);
+        array.n_values = 1;
+        array.values = items;
+        entry.key = "empty";
+        entry.value = mode == 2 ? &empty : NULL;
+        kvlist.n_values = 1;
+        kvlist.values = entries;
+        if (mode == 0) {
+            nested.value_case = OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_ARRAY_VALUE;
+            nested.array_value = &array;
+        }
+        else {
+            nested.value_case = OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_KVLIST_VALUE;
+            nested.kvlist_value = &kvlist;
+        }
+        attribute->value = &nested;
+        size = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__get_packed_size(request);
+        payload = cfl_sds_create_size(size);
+        TEST_ASSERT(payload != NULL);
+        opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__pack(request, (uint8_t *) payload);
+        cfl_sds_len_set(payload, size);
+        attribute->value = original;
+        opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__free_unpacked(request, NULL);
+
+        offset = 0;
+        result = cmt_decode_opentelemetry_create(&contexts, payload, size, &offset);
+        TEST_CHECK(result == CMT_DECODE_OPENTELEMETRY_SUCCESS);
+        if (result == CMT_DECODE_OPENTELEMETRY_SUCCESS) {
+            ctx = cfl_list_entry_first(&contexts, struct cmt, _head);
+            TEST_ASSERT(ctx != NULL);
+            gauge = cfl_list_entry_first(&ctx->gauges, struct cmt_gauge, _head);
+            TEST_ASSERT(gauge != NULL);
+            sample = cfl_list_entry_first(&gauge->map->metrics, struct cmt_metric, _head);
+            TEST_ASSERT(sample != NULL);
+            TEST_CHECK(cmt_metric_get_int64_value(sample) == 1);
+            TEST_CHECK(cmt_metric_get_timestamp(sample) == 123);
+            TEST_CHECK(cfl_kvlist_fetch(sample->otlp_metadata, "attributes") == NULL);
+            wire = cmt_encode_opentelemetry_create(ctx);
+            TEST_ASSERT(wire != NULL);
+            request = opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__unpack(
+                NULL, cfl_sds_len(wire), (const uint8_t *) wire);
+            TEST_ASSERT(request != NULL);
+            metric = find_otlp_metric_by_name(request, "g_many_attrs");
+            TEST_ASSERT(metric != NULL && metric->gauge->n_data_points == 1);
+            TEST_CHECK(metric->gauge->data_points[0]->as_int == 1);
+            TEST_ASSERT(metric->gauge->data_points[0]->n_attributes == 1);
+            TEST_CHECK(strcmp(metric->gauge->data_points[0]->attributes[0]->key, "attr_001") == 0);
+            TEST_CHECK(metric->gauge->data_points[0]->attributes[0]->value->value_case ==
+                       OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_STRING_VALUE);
+            TEST_CHECK(strcmp(metric->gauge->data_points[0]->attributes[0]->value->string_value,
+                              "value_001") == 0);
+            opentelemetry__proto__collector__metrics__v1__export_metrics_service_request__free_unpacked(request, NULL);
+            cmt_encode_opentelemetry_destroy(wire);
+            cmt_decode_opentelemetry_destroy(&contexts);
+        }
+        cfl_sds_destroy(payload);
+    }
+}
+
 TEST_LIST = {
+    {"otlp_nested_empty_attributes_keep_point", test_otlp_nested_empty_attributes_keep_point},
     {"otlp_unrepresentable_attribute_keeps_point", test_otlp_unrepresentable_attribute_keeps_point},
     {"otlp_metadata_legacy_external_tree", test_otlp_metadata_legacy_external_tree},
     {"otlp_metadata_deep_nesting", test_otlp_metadata_deep_nesting},
