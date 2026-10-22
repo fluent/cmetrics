@@ -38,7 +38,11 @@
 #include <limits.h>
 #include <string.h>
 
-static struct cfl_variant *clone_variant(Opentelemetry__Proto__Common__V1__AnyValue *source);
+/* Distinguish absent optional values from allocation failures. */
+#define CLONE_UNSUPPORTED_VALUE -1
+
+static struct cfl_variant *clone_variant(Opentelemetry__Proto__Common__V1__AnyValue *source,
+                                          int *status);
 
 static int clone_array(struct cfl_array *target,
                        Opentelemetry__Proto__Common__V1__ArrayValue *source);
@@ -63,14 +67,18 @@ static int clone_exemplars_to_kvlist(struct cfl_kvlist *target,
                                      Opentelemetry__Proto__Metrics__V1__Exemplar **exemplars,
                                      size_t exemplar_count);
 
-static struct cfl_variant *clone_variant(Opentelemetry__Proto__Common__V1__AnyValue *source)
+static struct cfl_variant *clone_variant(Opentelemetry__Proto__Common__V1__AnyValue *source,
+                                          int *status)
 {
     struct cfl_kvlist  *new_child_kvlist;
     struct cfl_array   *new_child_array;
     struct cfl_variant *result_instance = NULL;
     int                 result;
 
-    if (source == NULL) {
+    *status = CMT_DECODE_OPENTELEMETRY_ALLOCATION_ERROR;
+    if (source == NULL || source->value_case ==
+        OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE__NOT_SET) {
+        *status = CLONE_UNSUPPORTED_VALUE;
         return NULL;
     }
     if (source->value_case == OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_STRING_VALUE) {
@@ -105,6 +113,7 @@ static struct cfl_variant *clone_variant(Opentelemetry__Proto__Common__V1__AnyVa
         result = clone_kvlist(new_child_kvlist, source->kvlist_value);
         if (result) {
             cfl_variant_destroy(result_instance);
+            *status = result;
 
             return NULL;
         }
@@ -126,6 +135,7 @@ static struct cfl_variant *clone_variant(Opentelemetry__Proto__Common__V1__AnyVa
         result = clone_array(new_child_array, source->array_value);
         if (result) {
             cfl_variant_destroy(result_instance);
+            *status = result;
 
             return NULL;
         }
@@ -133,6 +143,13 @@ static struct cfl_variant *clone_variant(Opentelemetry__Proto__Common__V1__AnyVa
     else if (source->value_case == OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE_BYTES_VALUE) {
         result_instance = cfl_variant_create_from_bytes((char *) source->bytes_value.data, source->bytes_value.len,
                                                         CFL_FALSE);
+    }
+    else {
+        *status = CLONE_UNSUPPORTED_VALUE;
+    }
+
+    if (result_instance != NULL) {
+        *status = CMT_DECODE_OPENTELEMETRY_SUCCESS;
     }
 
     return result_instance;
@@ -167,9 +184,9 @@ static int clone_array_entry(struct cfl_array *target,
         return CMT_DECODE_OPENTELEMETRY_SUCCESS;
     }
 
-    new_child_instance = clone_variant(source);
+    new_child_instance = clone_variant(source, &result);
     if (new_child_instance == NULL) {
-        return CMT_DECODE_OPENTELEMETRY_ALLOCATION_ERROR;
+        return result;
     }
 
     result = cfl_array_append(target, new_child_instance);
@@ -214,10 +231,10 @@ static int clone_kvlist_entry(struct cfl_kvlist *target,
         return CMT_DECODE_OPENTELEMETRY_SUCCESS;
     }
 
-    new_child_instance = clone_variant(source->value);
+    new_child_instance = clone_variant(source->value, &result);
 
     if (new_child_instance == NULL) {
-        return CMT_DECODE_OPENTELEMETRY_ALLOCATION_ERROR;
+        return result;
     }
 
     result = cfl_kvlist_insert(target, source->key, new_child_instance);
@@ -378,6 +395,7 @@ static int clone_point_attributes(struct cfl_kvlist *metadata,
 {
     struct cfl_kvlist *copy;
     size_t index;
+    int result;
 
     copy = cfl_kvlist_create();
     if (copy == NULL) {
@@ -390,7 +408,14 @@ static int clone_point_attributes(struct cfl_kvlist *metadata,
              OPENTELEMETRY__PROTO__COMMON__V1__ANY_VALUE__VALUE__NOT_SET)) {
             continue;
         }
-        if (attributes[index] == NULL || clone_kvlist_entry(copy, attributes[index]) != 0) {
+        result = clone_kvlist_entry(copy, attributes[index]);
+        if (result == CLONE_UNSUPPORTED_VALUE) {
+            /* A partial typed tree would change the attributes. Retain the
+             * label-derived representation when any nested value is absent. */
+            cfl_kvlist_destroy(copy);
+            return 0;
+        }
+        if (attributes[index] == NULL || result != 0) {
             cfl_kvlist_destroy(copy);
             return -1;
         }
