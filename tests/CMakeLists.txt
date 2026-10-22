@@ -20,6 +20,7 @@ set(UNIT_TESTS_FILES
   msgpack_temporality.c
   format_conversion.c
   expire.c
+  otlp_pipeline.c
   )
 
 if (CMT_BUILD_PROMETHEUS_TEXT_DECODER)
