@@ -420,8 +420,8 @@ static void test_point_metadata_and_unlabeled_windows(void)
 
     /* A further label-less point is the same series: like released readers,
      * it replaces the static metric (last one wins) instead of creating a
-     * duplicate series. Its point metadata no longer lines up with the
-     * sidecar and is skipped, while the values and the chunk survive. */
+     * duplicate series. The sidecar binds point metadata by point identity,
+     * so the surviving point keeps its own metadata. */
     source = create_static_gauge_with_metadata();
     TEST_ASSERT(source != NULL);
     gauge = cfl_list_entry_first(&source->gauges, struct cmt_gauge, _head);
@@ -443,7 +443,10 @@ static void test_point_metadata_and_unlabeled_windows(void)
     TEST_CHECK(cfl_list_size(&result->map->metrics) == 0);
     TEST_CHECK(cmt_metric_get_timestamp(&result->map->metric) == 2);
     TEST_CHECK(cmt_metric_get_value(&result->map->metric) == 2.0);
-    TEST_CHECK(result->map->metric.otlp_metadata == NULL);
+    value = cfl_kvlist_fetch(result->map->metric.otlp_metadata, "flags");
+    TEST_ASSERT(value != NULL);
+    TEST_CHECK((value->type == CFL_VARIANT_UINT && value->data.as_uint64 == 3) ||
+               (value->type == CFL_VARIANT_INT && value->data.as_int64 == 3));
     cmt_decode_msgpack_destroy(decoded);
     cmt_encode_msgpack_destroy(buffer);
     cmt_destroy(source);
