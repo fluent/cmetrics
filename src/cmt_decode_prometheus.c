@@ -433,6 +433,7 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
     int ret = 0;
     int i;
     int has_le = CMT_FALSE;
+    int has_count = CMT_FALSE;
     size_t bucket_count;
     size_t bucket_index;
     size_t label_count = 0;
@@ -458,11 +459,23 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
                 "not enough samples for histogram");
     }
 
-    /* bucket_count = sample count - 3:
-     * - "Inf" bucket
-     * - sum
-     * - count */
-    bucket_count = cfl_list_size(&context->metric.samples) - 3;
+    /* bucket_count = number of bucket samples without the "+Inf" one. Count
+     * them instead of assuming that sum and count are present, _sum is
+     * optional */
+    bucket_count = 0;
+    cfl_list_foreach(head, &context->metric.samples) {
+        sample = cfl_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
+        if (sample->type == CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_BUCKET) {
+            bucket_count++;
+        }
+    }
+    if (bucket_count < 2) {
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_SYNTAX_ERROR,
+                "not enough buckets for histogram");
+    }
+    bucket_count--;
+
     if (context->opts.override_timestamp) {
         timestamp = context->opts.override_timestamp;
     }
@@ -530,23 +543,26 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
         sample = cfl_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
         switch (sample->type) {
             case CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_BUCKET:
-                if (bucket_index == bucket_count) {
-                    /* probably last bucket, which has "Inf" */
+                if (bucket_index > bucket_count) {
                     break;
                 }
-                if (!sample->label_values[le_label_index] ||
-                    sample->label_values[le_label_index][0] == '\0') {
-                    ret = report_error(context,
-                            CMT_DECODE_PROMETHEUS_SYNTAX_ERROR,
-                            "missing histogram bucket \"le\" value");
-                    goto end;
-                }
-                if (parse_double(sample->label_values[le_label_index],
-                            buckets + bucket_index)) {
-                    ret = report_error(context,
-                            CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
-                            "failed to parse bucket");
-                    goto end;
+                /* the last bucket is "+Inf": it has no boundary to parse and
+                 * its value goes to the extra slot of bucket_defaults */
+                if (bucket_index < bucket_count) {
+                    if (!sample->label_values[le_label_index] ||
+                        sample->label_values[le_label_index][0] == '\0') {
+                        ret = report_error(context,
+                                CMT_DECODE_PROMETHEUS_SYNTAX_ERROR,
+                                "missing histogram bucket \"le\" value");
+                        goto end;
+                    }
+                    if (parse_double(sample->label_values[le_label_index],
+                                buckets + bucket_index)) {
+                        ret = report_error(context,
+                                CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                                "failed to parse bucket");
+                        goto end;
+                    }
                 }
                 if (parse_uint64(sample->value1,
                             bucket_defaults + bucket_index)) {
@@ -604,7 +620,7 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
                         count = (uint64_t)count_dbl;
                     }
                 }
-                bucket_defaults[bucket_index] = count;
+                has_count = CMT_TRUE;
 
                 if (!timestamp) {
                     ret = parse_timestamp(context, sample->value2, &timestamp);
@@ -616,6 +632,13 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
 
                 break;
         }
+    }
+
+    if (!has_count) {
+        ret = report_error(context,
+                CMT_DECODE_PROMETHEUS_SYNTAX_ERROR,
+                "missing histogram _count");
+        goto end;
     }
 
     if (!timestamp) {
@@ -1043,9 +1066,11 @@ static int parse_histogram_summary_name(
     }
 
     if (name_matched) {
-        if (sum_found && count_found) {
+        if ((sum_found && count_found) || is_previous_sum_or_count) {
             /* finish instance of the summary/histogram, the samples of the
-             * next instance using the base name are quantiles */
+             * next instance using the base name are quantiles. _sum is
+             * optional (e.g. summaries of Dropwizard timers), so a quantile
+             * following a _sum or _count also starts a new instance */
             return finish_duplicate_histogram_summary_sum_count(
                     context,
                     metric_name,
@@ -1060,8 +1085,9 @@ static int parse_histogram_summary_name(
 
     /* invalid histogram/summary suffix, treat it as a different metric */
     if (!strcmp(metric_name + parsed_name_len, "_bucket")) {
-        if (sum_found && count_found && has_buckets && is_previous_sum_or_count) {
-            /* already found both sum and count, so this is a new metric */
+        if (has_buckets && is_previous_sum_or_count) {
+            /* a bucket following the _sum or _count of an instance with
+             * buckets starts a new instance, _sum being optional */
             return finish_duplicate_histogram_summary_sum_count(
                     context,
                     metric_name,
