@@ -433,6 +433,7 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
     int ret = 0;
     int i;
     int has_le = CMT_FALSE;
+    int has_count = CMT_FALSE;
     size_t bucket_count;
     size_t bucket_index;
     size_t label_count = 0;
@@ -458,11 +459,23 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
                 "not enough samples for histogram");
     }
 
-    /* bucket_count = sample count - 3:
-     * - "Inf" bucket
-     * - sum
-     * - count */
-    bucket_count = cfl_list_size(&context->metric.samples) - 3;
+    /* bucket_count = number of bucket samples without the "+Inf" one. Count
+     * them instead of assuming that sum and count are present, _sum is
+     * optional */
+    bucket_count = 0;
+    cfl_list_foreach(head, &context->metric.samples) {
+        sample = cfl_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
+        if (sample->type == CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_BUCKET) {
+            bucket_count++;
+        }
+    }
+    if (bucket_count < 2) {
+        return report_error(context,
+                CMT_DECODE_PROMETHEUS_SYNTAX_ERROR,
+                "not enough buckets for histogram");
+    }
+    bucket_count--;
+
     if (context->opts.override_timestamp) {
         timestamp = context->opts.override_timestamp;
     }
@@ -605,6 +618,7 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
                     }
                 }
                 bucket_defaults[bucket_index] = count;
+                has_count = CMT_TRUE;
 
                 if (!timestamp) {
                     ret = parse_timestamp(context, sample->value2, &timestamp);
@@ -616,6 +630,13 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
 
                 break;
         }
+    }
+
+    if (!has_count) {
+        ret = report_error(context,
+                CMT_DECODE_PROMETHEUS_SYNTAX_ERROR,
+                "missing histogram _count");
+        goto end;
     }
 
     if (!timestamp) {
