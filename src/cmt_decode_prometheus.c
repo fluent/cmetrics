@@ -1043,9 +1043,11 @@ static int parse_histogram_summary_name(
     }
 
     if (name_matched) {
-        if (sum_found && count_found) {
+        if ((sum_found && count_found) || is_previous_sum_or_count) {
             /* finish instance of the summary/histogram, the samples of the
-             * next instance using the base name are quantiles */
+             * next instance using the base name are quantiles. _sum is
+             * optional (e.g. summaries of Dropwizard timers), so a quantile
+             * following a _sum or _count also starts a new instance */
             return finish_duplicate_histogram_summary_sum_count(
                     context,
                     metric_name,
@@ -1060,8 +1062,9 @@ static int parse_histogram_summary_name(
 
     /* invalid histogram/summary suffix, treat it as a different metric */
     if (!strcmp(metric_name + parsed_name_len, "_bucket")) {
-        if (sum_found && count_found && has_buckets && is_previous_sum_or_count) {
-            /* already found both sum and count, so this is a new metric */
+        if (has_buckets && is_previous_sum_or_count) {
+            /* a bucket following the _sum or _count of an instance with
+             * buckets starts a new instance, _sum being optional */
             return finish_duplicate_histogram_summary_sum_count(
                     context,
                     metric_name,
