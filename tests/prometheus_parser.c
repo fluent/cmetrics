@@ -1661,7 +1661,7 @@ void test_issue_fluent_bit_6534()
         "dotnet_threadpool_queue_length_bucket{le=\"10.0\"} 321733 0\n"
         "dotnet_threadpool_queue_length_bucket{le=\"100.0\"} 321733 0\n"
         "dotnet_threadpool_queue_length_bucket{le=\"1000.0\"} 321733 0\n"
-        "dotnet_threadpool_queue_length_bucket{le=\"+Inf\"} 0 0\n"
+        "dotnet_threadpool_queue_length_bucket{le=\"+Inf\"} 321733 0\n"
         "dotnet_threadpool_queue_length_sum 5 0\n"
         "dotnet_threadpool_queue_length_count 321733 0\n"
         "# HELP dotnet_gc_pause_seconds The amount of time execution was paused for garbage collection\n"
@@ -1673,7 +1673,7 @@ void test_issue_fluent_bit_6534()
         "dotnet_gc_pause_seconds_bucket{le=\"0.5\"} 759 0\n"
         "dotnet_gc_pause_seconds_bucket{le=\"1.0\"} 759 0\n"
         "dotnet_gc_pause_seconds_bucket{le=\"10.0\"} 759 0\n"
-        "dotnet_gc_pause_seconds_bucket{le=\"+Inf\"} 0 0\n"
+        "dotnet_gc_pause_seconds_bucket{le=\"+Inf\"} 759 0\n"
         "dotnet_gc_pause_seconds_sum 1.3192573999999997 0\n"
         "dotnet_gc_pause_seconds_count 759 0\n"
         "# HELP dotnet_gc_collection_seconds The amount of time spent running garbage collections\n"
@@ -1685,7 +1685,7 @@ void test_issue_fluent_bit_6534()
         "dotnet_gc_collection_seconds_bucket{le=\"0.5\",gc_generation=\"1\",gc_type=\"non_concurrent_gc\"} 133 0\n"
         "dotnet_gc_collection_seconds_bucket{le=\"1.0\",gc_generation=\"1\",gc_type=\"non_concurrent_gc\"} 133 0\n"
         "dotnet_gc_collection_seconds_bucket{le=\"10.0\",gc_generation=\"1\",gc_type=\"non_concurrent_gc\"} 133 0\n"
-        "dotnet_gc_collection_seconds_bucket{le=\"+Inf\",gc_generation=\"1\",gc_type=\"non_concurrent_gc\"} 0 0\n"
+        "dotnet_gc_collection_seconds_bucket{le=\"+Inf\",gc_generation=\"1\",gc_type=\"non_concurrent_gc\"} 133 0\n"
         "dotnet_gc_collection_seconds_sum{gc_generation=\"1\",gc_type=\"non_concurrent_gc\"} 0.20421500000000006 0\n"
         "dotnet_gc_collection_seconds_count{gc_generation=\"1\",gc_type=\"non_concurrent_gc\"} 133 0\n"
         "# HELP dotnet_gc_collection_seconds The amount of time spent running garbage collections\n"
@@ -1709,7 +1709,7 @@ void test_issue_fluent_bit_6534()
         "dotnet_gc_collection_seconds_bucket{le=\"0.5\",gc_generation=\"2\",gc_type=\"non_concurrent_gc\"} 8 0\n"
         "dotnet_gc_collection_seconds_bucket{le=\"1.0\",gc_generation=\"2\",gc_type=\"non_concurrent_gc\"} 8 0\n"
         "dotnet_gc_collection_seconds_bucket{le=\"10.0\",gc_generation=\"2\",gc_type=\"non_concurrent_gc\"} 8 0\n"
-        "dotnet_gc_collection_seconds_bucket{le=\"+Inf\",gc_generation=\"2\",gc_type=\"non_concurrent_gc\"} 0 0\n"
+        "dotnet_gc_collection_seconds_bucket{le=\"+Inf\",gc_generation=\"2\",gc_type=\"non_concurrent_gc\"} 8 0\n"
         "dotnet_gc_collection_seconds_sum{gc_generation=\"2\",gc_type=\"non_concurrent_gc\"} 0.093447800000000011 0\n"
         "dotnet_gc_collection_seconds_count{gc_generation=\"2\",gc_type=\"non_concurrent_gc\"} 8 0\n"
         "dotnet_gc_collection_seconds_bucket{le=\"0.001\",gc_generation=\"0\",gc_type=\"non_concurrent_gc\"} 127 0\n"
@@ -1719,7 +1719,7 @@ void test_issue_fluent_bit_6534()
         "dotnet_gc_collection_seconds_bucket{le=\"0.5\",gc_generation=\"0\",gc_type=\"non_concurrent_gc\"} 618 0\n"
         "dotnet_gc_collection_seconds_bucket{le=\"1.0\",gc_generation=\"0\",gc_type=\"non_concurrent_gc\"} 618 0\n"
         "dotnet_gc_collection_seconds_bucket{le=\"10.0\",gc_generation=\"0\",gc_type=\"non_concurrent_gc\"} 618 0\n"
-        "dotnet_gc_collection_seconds_bucket{le=\"+Inf\",gc_generation=\"0\",gc_type=\"non_concurrent_gc\"} 0 0\n"
+        "dotnet_gc_collection_seconds_bucket{le=\"+Inf\",gc_generation=\"0\",gc_type=\"non_concurrent_gc\"} 618 0\n"
         "dotnet_gc_collection_seconds_sum{gc_generation=\"0\",gc_type=\"non_concurrent_gc\"} 0.85545190000000104 0\n"
         "dotnet_gc_collection_seconds_count{gc_generation=\"0\",gc_type=\"non_concurrent_gc\"} 618 0\n"
         ;
@@ -2110,6 +2110,59 @@ void test_histogram_instances_without_sum()
     TEST_MSG("%s", errbuf);
 }
 
+/* _count before the buckets must not overwrite or lose the "+Inf" bucket */
+void test_histogram_count_before_buckets()
+{
+    int status;
+    char errbuf[256];
+    struct cmt *cmt;
+    struct cmt_decode_prometheus_parse_opts opts;
+    cfl_sds_t result;
+
+    memset(&opts, 0, sizeof(opts));
+    errbuf[0] = '\0';
+    opts.errbuf = errbuf;
+    opts.errbuf_size = sizeof(errbuf);
+
+    cmt = NULL;
+    status = cmt_decode_prometheus_create(&cmt,
+        "# TYPE a histogram\n"
+        "a_sum 5\n"
+        "a_count 3\n"
+        "a_bucket{le=\"1\"} 1\n"
+        "a_bucket{le=\"2\"} 2\n"
+        "a_bucket{le=\"+Inf\"} 3\n"
+        "# TYPE b histogram\n"
+        "b_count{code=\"200\"} 2\n"
+        "b_bucket{code=\"200\",le=\"1\"} 1\n"
+        "b_bucket{code=\"200\",le=\"+Inf\"} 2\n"
+        "b_count{code=\"500\"} 4\n"
+        "b_bucket{code=\"500\",le=\"1\"} 3\n"
+        "b_bucket{code=\"500\",le=\"+Inf\"} 4\n", 0, &opts);
+    TEST_CHECK(status == 0);
+    TEST_MSG("%s", errbuf);
+    if (status == 0) {
+        result = cmt_encode_prometheus_create(cmt, CMT_FALSE);
+        TEST_CHECK(strstr(result, "a_bucket{le=\"1.0\"} 1\n") != NULL);
+        TEST_CHECK(strstr(result, "a_bucket{le=\"2.0\"} 2\n") != NULL);
+        TEST_CHECK(strstr(result, "a_bucket{le=\"+Inf\"} 3\n") != NULL);
+        TEST_CHECK(strstr(result, "a_count 3\n") != NULL);
+        TEST_CHECK(strstr(result,
+                   "b_bucket{le=\"1.0\",code=\"200\"} 1\n") != NULL);
+        TEST_CHECK(strstr(result,
+                   "b_bucket{le=\"+Inf\",code=\"200\"} 2\n") != NULL);
+        TEST_CHECK(strstr(result, "b_count{code=\"200\"} 2\n") != NULL);
+        TEST_CHECK(strstr(result,
+                   "b_bucket{le=\"1.0\",code=\"500\"} 3\n") != NULL);
+        TEST_CHECK(strstr(result,
+                   "b_bucket{le=\"+Inf\",code=\"500\"} 4\n") != NULL);
+        TEST_CHECK(strstr(result, "b_count{code=\"500\"} 4\n") != NULL);
+        TEST_MSG("%s", result);
+        cfl_sds_destroy(result);
+        cmt_decode_prometheus_destroy(cmt);
+    }
+}
+
 TEST_LIST = {
     {"header_help", test_header_help},
     {"header_type", test_header_type},
@@ -2155,5 +2208,6 @@ TEST_LIST = {
     {"duplicate_label_and_help", test_duplicate_label_and_help},
     {"summary_instances_without_sum", test_summary_instances_without_sum},
     {"histogram_instances_without_sum", test_histogram_instances_without_sum},
+    {"histogram_count_before_buckets", test_histogram_count_before_buckets},
     { 0 }
 };
