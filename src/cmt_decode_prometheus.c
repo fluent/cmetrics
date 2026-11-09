@@ -543,23 +543,26 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
         sample = cfl_list_entry(head, struct cmt_decode_prometheus_context_sample, _head);
         switch (sample->type) {
             case CMT_DECODE_PROMETHEUS_CONTEXT_SAMPLE_TYPE_BUCKET:
-                if (bucket_index == bucket_count) {
-                    /* probably last bucket, which has "Inf" */
+                if (bucket_index > bucket_count) {
                     break;
                 }
-                if (!sample->label_values[le_label_index] ||
-                    sample->label_values[le_label_index][0] == '\0') {
-                    ret = report_error(context,
-                            CMT_DECODE_PROMETHEUS_SYNTAX_ERROR,
-                            "missing histogram bucket \"le\" value");
-                    goto end;
-                }
-                if (parse_double(sample->label_values[le_label_index],
-                            buckets + bucket_index)) {
-                    ret = report_error(context,
-                            CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
-                            "failed to parse bucket");
-                    goto end;
+                /* the last bucket is "+Inf": it has no boundary to parse and
+                 * its value goes to the extra slot of bucket_defaults */
+                if (bucket_index < bucket_count) {
+                    if (!sample->label_values[le_label_index] ||
+                        sample->label_values[le_label_index][0] == '\0') {
+                        ret = report_error(context,
+                                CMT_DECODE_PROMETHEUS_SYNTAX_ERROR,
+                                "missing histogram bucket \"le\" value");
+                        goto end;
+                    }
+                    if (parse_double(sample->label_values[le_label_index],
+                                buckets + bucket_index)) {
+                        ret = report_error(context,
+                                CMT_DECODE_PROMETHEUS_CMT_CREATE_ERROR,
+                                "failed to parse bucket");
+                        goto end;
+                    }
                 }
                 if (parse_uint64(sample->value1,
                             bucket_defaults + bucket_index)) {
@@ -617,7 +620,6 @@ static int add_metric_histogram(struct cmt_decode_prometheus_context *context)
                         count = (uint64_t)count_dbl;
                     }
                 }
-                bucket_defaults[bucket_index] = count;
                 has_count = CMT_TRUE;
 
                 if (!timestamp) {
