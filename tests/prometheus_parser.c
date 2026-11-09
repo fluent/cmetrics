@@ -2000,6 +2000,116 @@ void test_duplicate_label_and_help()
     }
 }
 
+/*
+ * Summaries exported from Dropwizard timers, e.g. by the Jenkins Prometheus
+ * plugin, have quantiles and a _count but no _sum. When a family has more than
+ * one instance, the quantiles of the next instance must start a new instance
+ * instead of being added to the previous one.
+ */
+void test_summary_instances_without_sum()
+{
+    int status;
+    char errbuf[256];
+    struct cmt *cmt;
+    struct cmt_decode_prometheus_parse_opts opts;
+    cfl_sds_t result;
+
+    memset(&opts, 0, sizeof(opts));
+    errbuf[0] = '\0';
+    opts.errbuf = errbuf;
+    opts.errbuf_size = sizeof(errbuf);
+
+    cmt = NULL;
+    status = cmt_decode_prometheus_create(&cmt,
+        "# HELP builds Generated from Dropwizard metric import\n"
+        "# TYPE builds summary\n"
+        "builds{node=\"a\",quantile=\"0.5\",} 11\n"
+        "builds{node=\"a\",quantile=\"0.999\",} 12\n"
+        "builds_count{node=\"a\",} 1\n"
+        "builds{node=\"b\",quantile=\"0.5\",} 21\n"
+        "builds{node=\"b\",quantile=\"0.999\",} 22\n"
+        "builds_count{node=\"b\",} 2\n"
+        "builds{node=\"c\",quantile=\"0.5\",} 31\n"
+        "builds{node=\"c\",quantile=\"0.999\",} 32\n"
+        "builds_count{node=\"c\",} 3\n"
+        "# HELP other a gauge after the summary\n"
+        "# TYPE other gauge\n"
+        "other 5\n", 0, &opts);
+    TEST_CHECK(status == 0);
+    TEST_MSG("%s", errbuf);
+    if (status == 0) {
+        result = cmt_encode_prometheus_create(cmt, CMT_FALSE);
+        TEST_CHECK(strstr(result,
+                   "builds{quantile=\"0.5\",node=\"a\"} 11\n") != NULL);
+        TEST_CHECK(strstr(result,
+                   "builds{quantile=\"0.999\",node=\"a\"} 12\n") != NULL);
+        TEST_CHECK(strstr(result, "builds_count{node=\"a\"} 1\n") != NULL);
+        TEST_CHECK(strstr(result,
+                   "builds{quantile=\"0.5\",node=\"b\"} 21\n") != NULL);
+        TEST_CHECK(strstr(result,
+                   "builds{quantile=\"0.999\",node=\"b\"} 22\n") != NULL);
+        TEST_CHECK(strstr(result, "builds_count{node=\"b\"} 2\n") != NULL);
+        TEST_CHECK(strstr(result,
+                   "builds{quantile=\"0.999\",node=\"c\"} 32\n") != NULL);
+        TEST_CHECK(strstr(result, "builds_count{node=\"c\"} 3\n") != NULL);
+        TEST_CHECK(strstr(result, "other 5\n") != NULL);
+        TEST_MSG("%s", result);
+        cfl_sds_destroy(result);
+        cmt_decode_prometheus_destroy(cmt);
+    }
+}
+
+/* same as above for histograms, where OpenMetrics also makes _sum optional */
+void test_histogram_instances_without_sum()
+{
+    int status;
+    char errbuf[256];
+    struct cmt *cmt;
+    struct cmt_decode_prometheus_parse_opts opts;
+    cfl_sds_t result;
+
+    memset(&opts, 0, sizeof(opts));
+    errbuf[0] = '\0';
+    opts.errbuf = errbuf;
+    opts.errbuf_size = sizeof(errbuf);
+
+    cmt = NULL;
+    status = cmt_decode_prometheus_create(&cmt,
+        "# TYPE h histogram\n"
+        "h_bucket{code=\"200\",le=\"1\"} 1\n"
+        "h_bucket{code=\"200\",le=\"+Inf\"} 2\n"
+        "h_count{code=\"200\"} 2\n"
+        "h_bucket{code=\"500\",le=\"1\"} 3\n"
+        "h_bucket{code=\"500\",le=\"+Inf\"} 4\n"
+        "h_count{code=\"500\"} 4\n", 0, &opts);
+    TEST_CHECK(status == 0);
+    TEST_MSG("%s", errbuf);
+    if (status == 0) {
+        result = cmt_encode_prometheus_create(cmt, CMT_FALSE);
+        TEST_CHECK(strstr(result,
+                   "h_bucket{le=\"1.0\",code=\"200\"} 1\n") != NULL);
+        TEST_CHECK(strstr(result, "h_count{code=\"200\"} 2\n") != NULL);
+        TEST_CHECK(strstr(result,
+                   "h_bucket{le=\"1.0\",code=\"500\"} 3\n") != NULL);
+        TEST_CHECK(strstr(result,
+                   "h_bucket{le=\"+Inf\",code=\"500\"} 4\n") != NULL);
+        TEST_CHECK(strstr(result, "h_count{code=\"500\"} 4\n") != NULL);
+        TEST_MSG("%s", result);
+        cfl_sds_destroy(result);
+        cmt_decode_prometheus_destroy(cmt);
+    }
+
+    /* _count is still required, decoding it as zero would change the total */
+    cmt = NULL;
+    status = cmt_decode_prometheus_create(&cmt,
+        "# TYPE h histogram\n"
+        "h_bucket{le=\"1\"} 1\n"
+        "h_bucket{le=\"+Inf\"} 2\n"
+        "h_sum 5\n", 0, &opts);
+    TEST_CHECK(status == CMT_DECODE_PROMETHEUS_SYNTAX_ERROR);
+    TEST_MSG("%s", errbuf);
+}
+
 TEST_LIST = {
     {"header_help", test_header_help},
     {"header_type", test_header_type},
@@ -2043,5 +2153,7 @@ TEST_LIST = {
     {"lexer_unmatched_input", test_lexer_unmatched_input},
     {"histogram_summary_shorter_instance", test_histogram_summary_shorter_instance},
     {"duplicate_label_and_help", test_duplicate_label_and_help},
+    {"summary_instances_without_sum", test_summary_instances_without_sum},
+    {"histogram_instances_without_sum", test_histogram_instances_without_sum},
     { 0 }
 };
